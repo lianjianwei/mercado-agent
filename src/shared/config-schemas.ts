@@ -2,6 +2,38 @@ import { z } from 'zod';
 
 const requiredText = z.string().trim().min(1);
 const requiredUrl = z.string().trim().url();
+const proxyHost = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === '' || !/[\s/:@?#]/.test(value),
+    'Enter a host without protocol, path or credentials',
+  );
+
+export const modelProxyConfigSchema = z
+  .strictObject({
+    enabled: z.boolean(),
+    protocol: z.literal('http'),
+    host: proxyHost,
+    port: z.number().int().min(1).max(65_535).nullable(),
+  })
+  .superRefine((value, context) => {
+    if (!value.enabled) return;
+    if (!value.host) {
+      context.addIssue({
+        code: 'custom',
+        path: ['host'],
+        message: 'Proxy host is required',
+      });
+    }
+    if (value.port === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['port'],
+        message: 'Proxy port is required',
+      });
+    }
+  });
 
 const providerConfigFields = {
   id: z.string().uuid().optional(),

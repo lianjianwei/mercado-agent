@@ -112,6 +112,26 @@ describe('settings page', () => {
     await waitFor(() => {
       expect(fake.getCredentials().qiniu?.region).toBe('cn-east-2');
     });
+    expect(await screen.findByText('七牛云凭证已保存到本机。')).toBeTruthy();
+  });
+
+  it('shows Qiniu save confirmation after the first save', async () => {
+    const user = userEvent.setup();
+    const fake = createFakeConfigApi();
+    render(<SettingsPage api={fake.api} onDirtyChange={() => undefined} />);
+
+    await screen.findByText('七牛云');
+    await user.type(screen.getByLabelText('七牛 Access Key'), 'access-key');
+    await user.type(screen.getByLabelText('七牛 Secret Key'), 'secret-key');
+    await user.type(screen.getByLabelText('Bucket'), 'product-images');
+    await user.selectOptions(screen.getByRole('combobox', { name: '区域' }), 'z0');
+    await user.type(
+      screen.getByLabelText('公开域名'),
+      'https://images.example.com',
+    );
+    await user.click(screen.getByRole('button', { name: '保存七牛云凭证' }));
+
+    expect(await screen.findByText('七牛云凭证已保存到本机。')).toBeTruthy();
   });
 
   it('tests the active model connection from the configuration list', async () => {
@@ -238,6 +258,7 @@ describe('settings page', () => {
         baseUrl: 'https://openapi.example.com',
       });
     });
+    expect(await screen.findByText('妙手凭证已保存到本机。')).toBeTruthy();
     expect(onDirtyChange).toHaveBeenCalledWith(true);
   });
 

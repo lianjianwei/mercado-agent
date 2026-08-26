@@ -222,7 +222,6 @@ export function SettingsPage({ api, diagnosticsApi, onDirtyChange }: SettingsPag
         </div>
         {!loading && (
           <CredentialForm
-            key={`${credentials.miaoshou?.appKey ?? 'no-miaoshou'}-${credentials.qiniu?.accessKey ?? 'no-qiniu'}`}
             credentials={credentials}
             onDirtyChange={(dirty) => updateDirtySection('credentials', dirty)}
             onSave={saveCredentials}

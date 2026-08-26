@@ -1,0 +1,4 @@
+interface:
+  display_name: "MercadoLibre Category Recommend"
+  short_description: "Recommend MercadoLibre categories and attributes"
+  default_prompt: "Use $miaoshou-erp-mercadolibre-category-recommend to recommend MercadoLibre category attributes before editing."

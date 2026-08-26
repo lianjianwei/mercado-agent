@@ -1,0 +1,4 @@
+interface:
+  display_name: "MercadoLibre Product Edit"
+  short_description: "Edit MercadoLibre collect box products safely"
+  default_prompt: "Use $miaoshou-erp-mercadolibre-product-edit to query and safely save MercadoLibre collect box product changes. Review claim/detail/default cid values with $miaoshou-erp-mercadolibre-category-recommend before save unless the user explicitly waives category review."

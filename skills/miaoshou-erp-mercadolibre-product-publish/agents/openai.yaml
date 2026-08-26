@@ -1,0 +1,4 @@
+interface:
+  display_name: "MercadoLibre Product Publish"
+  short_description: "Check and publish MercadoLibre products"
+  default_prompt: "Use $miaoshou-erp-mercadolibre-product-publish to check readiness and submit MercadoLibre publish tasks. Verify category-review status before publish; route unreviewed claim/detail/default cid values to $miaoshou-erp-mercadolibre-category-recommend unless the user explicitly waives review."

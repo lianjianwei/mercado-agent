@@ -1,7 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 
+import { openAppDatabase, resolveDatabasePath } from './main/db/database';
 import { createMainWindowOptions } from './main/window-options';
+
+let appDatabase: DatabaseSync | null = null;
 
 function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow(
@@ -27,6 +31,8 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  appDatabase = openAppDatabase(resolveDatabasePath(app.getPath('userData')));
+
   ipcMain.handle('app:get-info', () => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -39,6 +45,13 @@ app.whenReady().then(() => {
       createMainWindow();
     }
   });
+});
+
+app.on('before-quit', () => {
+  if (appDatabase?.isOpen) {
+    appDatabase.close();
+  }
+  appDatabase = null;
 });
 
 app.on('window-all-closed', () => {

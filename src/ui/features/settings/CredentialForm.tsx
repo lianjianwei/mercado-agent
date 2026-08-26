@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { AppCredentials } from '../../../domain/config';
 import type { AppCredentialsInput } from '../../../shared/config-schemas';
+import { QINIU_REGIONS } from './qiniu-regions';
 
 type CredentialFormProps = {
   credentials: AppCredentials;
@@ -141,7 +142,17 @@ export function CredentialForm({
           </label>
           <label>
             区域
-            <input value={qiniu.region} onChange={(event) => updateQiniu('region', event.target.value)} />
+            <select
+              value={qiniu.region}
+              onChange={(event) => updateQiniu('region', event.target.value)}
+            >
+              <option value="">请选择 Bucket 所在区域</option>
+              {QINIU_REGIONS.map((region) => (
+                <option key={region.value} value={region.value}>
+                  {region.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="span-two">
             公开域名

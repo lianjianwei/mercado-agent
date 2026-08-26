@@ -122,7 +122,8 @@
 
 .settings-form input,
 .settings-form select,
-.credential-card input {
+.credential-card input,
+.credential-card select {
   width: 100%;
   height: 38px;
   padding: 0 11px;
@@ -136,7 +137,8 @@
 
 .settings-form input:focus,
 .settings-form select:focus,
-.credential-card input:focus {
+.credential-card input:focus,
+.credential-card select:focus {
   border-color: var(--blue-600);
   box-shadow: 0 0 0 3px rgb(23 105 224 / 10%);
 }

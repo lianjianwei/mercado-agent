@@ -14,9 +14,12 @@ import type { ConfigApi, DiagnosticApi } from '../../src/shared/ipc-contract';
 import { App } from '../../src/ui/App';
 import { SettingsPage } from '../../src/ui/pages/SettingsPage';
 
-function createFakeConfigApi(initial: ProviderConfig[] = []) {
+function createFakeConfigApi(
+  initial: ProviderConfig[] = [],
+  initialCredentials: AppCredentials = { miaoshou: null, qiniu: null },
+) {
   let configurations = [...initial];
-  let credentials: AppCredentials = { miaoshou: null, qiniu: null };
+  let credentials: AppCredentials = initialCredentials;
   const activateCalls: string[] = [];
 
   const api: ConfigApi = {
@@ -71,6 +74,46 @@ function createFakeConfigApi(initial: ProviderConfig[] = []) {
 afterEach(cleanup);
 
 describe('settings page', () => {
+  it('shows Qiniu regions as Chinese choices without selecting a default', async () => {
+    const fake = createFakeConfigApi();
+    render(<SettingsPage api={fake.api} onDirtyChange={() => undefined} />);
+
+    const region = await screen.findByRole('combobox', { name: '区域' });
+    expect(region).toHaveProperty('value', '');
+    expect(screen.getByRole('option', { name: '华东-浙江（z0）' })).toBeTruthy();
+    expect(
+      screen.getByRole('option', { name: '亚太-新加坡（as0）' }),
+    ).toBeTruthy();
+  });
+
+  it('saves the Qiniu region code and restores its Chinese selection', async () => {
+    const user = userEvent.setup();
+    const fake = createFakeConfigApi([], {
+      miaoshou: null,
+      qiniu: {
+        accessKey: 'access-key',
+        secretKey: 'secret-key',
+        bucket: 'product-images',
+        domain: 'https://images.example.com',
+        region: 'as0',
+      },
+    });
+    render(<SettingsPage api={fake.api} onDirtyChange={() => undefined} />);
+
+    const region = await screen.findByRole('combobox', { name: '区域' });
+    expect(region).toHaveProperty('value', 'as0');
+    expect(screen.getByRole('option', { name: '亚太-新加坡（as0）' })).toHaveProperty(
+      'selected',
+      true,
+    );
+
+    await user.selectOptions(region, 'cn-east-2');
+    await user.click(screen.getByRole('button', { name: '保存七牛云凭证' }));
+    await waitFor(() => {
+      expect(fake.getCredentials().qiniu?.region).toBe('cn-east-2');
+    });
+  });
+
   it('tests the active model connection from the configuration list', async () => {
     const user = userEvent.setup();
     const fake = createFakeConfigApi([

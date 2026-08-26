@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ModelConnectionProvider } from '../../src/domain/providers';
 import { ProviderAuthenticationError } from '../../src/domain/providers';
+import { ProviderRegionRestrictedError } from '../../src/domain/providers';
+import { ModelProxyConnectionError } from '../../src/main/network/model-network-errors';
 import { ConnectionTestService } from '../../src/main/services/connection-test-service';
 
 function resolver(provider: ModelConnectionProvider) {
@@ -30,6 +32,7 @@ describe('ConnectionTestService', () => {
           status: 'success',
           message: '连接成功。',
           latencyMs: 0,
+          route: 'direct',
         }),
       }),
       100,
@@ -38,6 +41,58 @@ describe('ConnectionTestService', () => {
     await expect(service.test('text')).resolves.toMatchObject({
       ok: true,
       status: 'success',
+      route: 'direct',
+    });
+  });
+
+  it('reports which route was used for the test', async () => {
+    const service = new ConnectionTestService(
+      resolver({
+        testConnection: async () => ({
+          ok: true,
+          status: 'success',
+          message: '连接成功。',
+          latencyMs: 0,
+          route: 'http_proxy',
+        }),
+      }),
+      100,
+      () => 'http_proxy',
+    );
+
+    await expect(service.test('image')).resolves.toMatchObject({ route: 'http_proxy' });
+  });
+
+  it('returns a clear local proxy error', async () => {
+    const service = new ConnectionTestService(
+      resolver({
+        testConnection: async () => {
+          throw new ModelProxyConnectionError();
+        },
+      }),
+      100,
+      () => 'http_proxy',
+    );
+
+    await expect(service.test('text')).resolves.toMatchObject({
+      status: 'unavailable',
+      route: 'http_proxy',
+      message: '无法连接本地 HTTP 代理，请确认代理应用已启动且端口正确。',
+    });
+  });
+
+  it('returns a safe region restriction error', async () => {
+    const service = new ConnectionTestService(
+      resolver({
+        testConnection: async () => {
+          throw new ProviderRegionRestrictedError();
+        },
+      }),
+    );
+
+    await expect(service.test('text')).resolves.toMatchObject({
+      status: 'unavailable',
+      message: '模型服务拒绝当前网络地区访问，请启用可用的 HTTP 代理后重试。',
     });
   });
 

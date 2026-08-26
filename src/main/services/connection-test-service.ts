@@ -3,8 +3,11 @@ import {
   type ConnectionResult,
   type ModelConnectionProvider,
   ProviderAuthenticationError,
+  ProviderRegionRestrictedError,
   ProviderUnavailableError,
 } from '../../domain/providers';
+import { ModelProxyConnectionError } from '../network/model-network-errors';
+import type { NetworkRoute } from '../network/model-network-client';
 
 type ActiveProviderResolver = {
   createActive(kind: ProviderKind): ModelConnectionProvider;
@@ -16,6 +19,7 @@ export class ConnectionTestService {
   constructor(
     private readonly providers: ActiveProviderResolver,
     private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
+    private readonly getRoute: () => NetworkRoute = () => 'direct',
   ) {}
 
   async test(
@@ -60,7 +64,11 @@ export class ConnectionTestService {
         provider.testConnection(controller.signal),
         aborted,
       ]);
-      return { ...result, latencyMs: this.elapsed(startedAt) };
+      return {
+        ...result,
+        latencyMs: this.elapsed(startedAt),
+        route: this.getRoute(),
+      };
     } catch (error) {
       if (controller.signal.aborted) {
         return timeoutTriggered
@@ -79,6 +87,12 @@ export class ConnectionTestService {
         );
       }
       if (error instanceof ProviderUnavailableError) {
+        return this.failure('unavailable', error.message, startedAt);
+      }
+      if (
+        error instanceof ProviderRegionRestrictedError ||
+        error instanceof ModelProxyConnectionError
+      ) {
         return this.failure('unavailable', error.message, startedAt);
       }
       return this.failure(
@@ -102,6 +116,7 @@ export class ConnectionTestService {
       status,
       message,
       latencyMs: this.elapsed(startedAt),
+      route: this.getRoute(),
     };
   }
 

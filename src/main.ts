@@ -10,6 +10,7 @@ import { SqliteCredentialRepository } from './main/repositories/credential-repos
 import { SqliteAppSettingsRepository } from './main/repositories/app-settings-repository';
 import { SqliteProviderConfigRepository } from './main/repositories/provider-config-repository';
 import { createElectronModelSession } from './main/network/electron-model-session';
+import { ModelNetworkClient } from './main/network/model-network-client';
 import { createMainWindowOptions } from './main/window-options';
 import { ConnectionTestService } from './main/services/connection-test-service';
 import { ModelProxyService } from './main/services/model-proxy-service';
@@ -43,11 +44,10 @@ app.whenReady().then(async () => {
   const databasePath = resolveDatabasePath(app.getPath('userData'));
   appDatabase = openAppDatabase(databasePath);
   const appSettings = new SqliteAppSettingsRepository(appDatabase);
-  const modelProxy = new ModelProxyService(
-    appSettings,
-    createElectronModelSession(),
-  );
+  const modelSession = createElectronModelSession();
+  const modelProxy = new ModelProxyService(appSettings, modelSession);
   await modelProxy.initialize();
+  const modelNetwork = new ModelNetworkClient(modelSession, () => modelProxy.getRoute());
   const providerConfigs = new SqliteProviderConfigRepository(appDatabase);
   const credentials = new SqliteCredentialRepository(appDatabase);
   const getAppInfo = () => ({
@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
   });
   const providerRegistry = new ProviderRegistry(
     providerConfigs,
-    createDefaultProviderRegistrations(),
+    createDefaultProviderRegistrations(modelNetwork),
   );
   registerHandlers(
     {
@@ -69,7 +69,11 @@ app.whenReady().then(async () => {
       credentials,
       modelProxy,
       getAppInfo,
-      connectionTests: new ConnectionTestService(providerRegistry),
+      connectionTests: new ConnectionTestService(
+        providerRegistry,
+        undefined,
+        () => modelProxy.getRoute(),
+      ),
       getDiagnosticSnapshot: () => ({
         app: getAppInfo(),
         databasePath,

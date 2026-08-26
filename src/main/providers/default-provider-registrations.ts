@@ -1,7 +1,10 @@
 import type { ProviderFactoryRegistration } from './provider-registry';
 import { BearerModelConnectionProvider } from './bearer-model-connection-provider';
+import type { ModelNetworkTransport } from '../network/model-network-client';
 
-export function createDefaultProviderRegistrations(): ProviderFactoryRegistration[] {
+export function createDefaultProviderRegistrations(
+  network: ModelNetworkTransport,
+): ProviderFactoryRegistration[] {
   return [
     ['text', 'doubao'],
     ['text', 'deepseek'],
@@ -12,6 +15,6 @@ export function createDefaultProviderRegistrations(): ProviderFactoryRegistratio
     kind,
     provider,
     create: (configuration) =>
-      new BearerModelConnectionProvider(configuration),
+      new BearerModelConnectionProvider(configuration, network),
   })) as ProviderFactoryRegistration[];
 }

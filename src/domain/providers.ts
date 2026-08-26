@@ -11,6 +11,7 @@ export type ConnectionResult = {
   status: ConnectionStatus;
   message: string;
   latencyMs: number;
+  route: 'direct' | 'http_proxy';
 };
 
 export type MultimodalRequest = {
@@ -53,5 +54,12 @@ export class ProviderUnavailableError extends Error {
   constructor() {
     super('暂时无法连接模型服务，请检查 Base URL 和网络后重试。');
     this.name = 'ProviderUnavailableError';
+  }
+}
+
+export class ProviderRegionRestrictedError extends Error {
+  constructor() {
+    super('模型服务拒绝当前网络地区访问，请启用可用的 HTTP 代理后重试。');
+    this.name = 'ProviderRegionRestrictedError';
   }
 }

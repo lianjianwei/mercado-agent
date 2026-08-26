@@ -61,6 +61,7 @@ describe('DiagnosticsPage', () => {
           status: 'cancelled',
           message: '连接测试已取消。',
           latencyMs: 1,
+          route: 'direct',
         });
       }),
     };

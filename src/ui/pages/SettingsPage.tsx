@@ -139,7 +139,7 @@ export function SettingsPage({ api, diagnosticsApi, proxyApi, onDirtyChange }: S
       const result = await diagnosticApi.testConnection(kind);
       setConnectionMessages((current) => ({
         ...current,
-        [kind]: `${result.message}（${result.latencyMs} ms）`,
+        [kind]: `${result.message}（${result.latencyMs} ms，${result.route === 'http_proxy' ? 'HTTP 代理' : '直连'}）`,
       }));
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '连接测试失败。');

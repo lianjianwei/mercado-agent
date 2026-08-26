@@ -157,6 +157,7 @@ describe('settings page', () => {
         status: 'success' as const,
         message: '模型服务连接成功。',
         latencyMs: 18,
+        route: 'http_proxy',
       })),
       cancelConnection: vi.fn(),
     };

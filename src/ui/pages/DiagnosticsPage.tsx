@@ -122,7 +122,10 @@ export function DiagnosticsPage({ api }: DiagnosticsPageProps) {
                     {results[kind] && (
                       <p className={results[kind]?.ok ? 'test-success' : 'test-failure'} role="status">
                         <span>{results[kind]?.message}</span>
-                        <small>（{results[kind]?.latencyMs} ms）</small>
+                        <small>
+                          （{results[kind]?.latencyMs} ms，
+                          {results[kind]?.route === 'http_proxy' ? 'HTTP 代理' : '直连'}）
+                        </small>
                       </p>
                     )}
                     <div>

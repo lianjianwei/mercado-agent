@@ -6,6 +6,13 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    download: {
+      mirrorOptions: {
+        mirror:
+          process.env.ELECTRON_MIRROR ??
+          'https://npmmirror.com/mirrors/electron/',
+      },
+    },
   },
   rebuildConfig: {},
   makers: [

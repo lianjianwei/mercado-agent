@@ -10,6 +10,8 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "test": "vitest run",
+    "test:e2e": "npm run package && playwright test --config=playwright.config.ts",
+    "test:e2e:run": "playwright test --config=playwright.config.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
@@ -19,11 +21,12 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@eslint/js": "10.0.1",
     "@electron-forge/cli": "7.11.2",
     "@electron-forge/maker-squirrel": "7.11.2",
     "@electron-forge/maker-zip": "7.11.2",
     "@electron-forge/plugin-vite": "7.11.2",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.6",
     "@types/node": "26.3.0",

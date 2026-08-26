@@ -297,6 +297,23 @@
   color: #b91c1c;
 }
 
+.config-item-actions .connection-test-button {
+  color: #166534;
+  font-weight: 700;
+}
+
+.config-item-actions button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.connection-result {
+  margin: 10px 0 0;
+  color: #31577d;
+  font-size: 12px;
+  text-align: right;
+}
+
 .copy-error {
   margin: 8px 0 0;
   color: #b45309;

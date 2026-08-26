@@ -5,6 +5,7 @@ import type {
   ProviderKind,
 } from '../domain/config';
 import type { AppCredentialsInput } from './config-schemas';
+import type { ConnectionResult } from '../domain/providers';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -14,6 +15,9 @@ export const IPC_CHANNELS = {
   configDeleteProvider: 'config:delete-provider',
   configGetCredentials: 'config:get-credentials',
   configSaveCredentials: 'config:save-credentials',
+  diagnosticGetSnapshot: 'diagnostic:get-snapshot',
+  diagnosticTestConnection: 'diagnostic:test-connection',
+  diagnosticCancelConnection: 'diagnostic:cancel-connection',
 } as const;
 
 export type IpcErrorCode =
@@ -45,6 +49,23 @@ export type AppInfo = {
   platform: string;
 };
 
+export type DiagnosticSnapshot = {
+  app: AppInfo;
+  databasePath: string;
+  completeness: {
+    textProvider: boolean;
+    imageProvider: boolean;
+    miaoshou: boolean;
+    qiniu: boolean;
+  };
+};
+
+export interface DiagnosticApi {
+  getSnapshot(): Promise<DiagnosticSnapshot>;
+  testConnection(kind: ProviderKind): Promise<ConnectionResult>;
+  cancelConnection(kind: ProviderKind): Promise<void>;
+}
+
 export interface ConfigApi {
   listProviders(kind: ProviderKind): Promise<ProviderConfig[]>;
   saveProvider(input: ProviderConfigInput): Promise<ProviderConfig>;
@@ -59,4 +80,5 @@ export interface DesktopApi {
     getInfo(): Promise<AppInfo>;
   };
   config: ConfigApi;
+  diagnostics: DiagnosticApi;
 }

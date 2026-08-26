@@ -7,7 +7,7 @@ import type {
   ProviderKind,
 } from '../../domain/config';
 import type { AppCredentialsInput } from '../../shared/config-schemas';
-import type { ConfigApi } from '../../shared/ipc-contract';
+import type { ConfigApi, DiagnosticApi } from '../../shared/ipc-contract';
 import { ConfigList } from '../features/settings/ConfigList';
 import { CredentialForm } from '../features/settings/CredentialForm';
 import { ProviderConfigForm } from '../features/settings/ProviderConfigForm';
@@ -15,11 +15,13 @@ import '../features/settings/settings.css';
 
 type SettingsPageProps = {
   api?: ConfigApi;
+  diagnosticsApi?: DiagnosticApi;
   onDirtyChange(dirty: boolean): void;
 };
 
-export function SettingsPage({ api, onDirtyChange }: SettingsPageProps) {
+export function SettingsPage({ api, diagnosticsApi, onDirtyChange }: SettingsPageProps) {
   const configApi = api ?? window.mercado.config;
+  const diagnosticApi = diagnosticsApi ?? window.mercado?.diagnostics;
   const [textConfigs, setTextConfigs] = useState<ProviderConfig[]>([]);
   const [imageConfigs, setImageConfigs] = useState<ProviderConfig[]>([]);
   const [credentials, setCredentials] = useState<AppCredentials>({
@@ -31,6 +33,10 @@ export function SettingsPage({ api, onDirtyChange }: SettingsPageProps) {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
+  const [testingKind, setTestingKind] = useState<ProviderKind | null>(null);
+  const [connectionMessages, setConnectionMessages] = useState<
+    Partial<Record<ProviderKind, string>>
+  >({});
   const dirtySections = useRef(new Set<string>());
 
   const updateDirtySection = useCallback(
@@ -122,6 +128,23 @@ export function SettingsPage({ api, onDirtyChange }: SettingsPageProps) {
     await load();
   }
 
+  async function testConnection(kind: ProviderKind) {
+    setTestingKind(kind);
+    setPageError('');
+    try {
+      if (!diagnosticApi) throw new Error('诊断服务尚未就绪。');
+      const result = await diagnosticApi.testConnection(kind);
+      setConnectionMessages((current) => ({
+        ...current,
+        [kind]: `${result.message}（${result.latencyMs} ms）`,
+      }));
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : '连接测试失败。');
+    } finally {
+      setTestingKind(null);
+    }
+  }
+
   function configsFor(kind: ProviderKind) {
     return kind === 'text' ? textConfigs : imageConfigs;
   }
@@ -170,12 +193,19 @@ export function SettingsPage({ api, onDirtyChange }: SettingsPageProps) {
                   configurations={configsFor(kind)}
                   onActivate={activateProvider}
                   onDelete={deleteProvider}
+                  onTest={testConnection}
+                  testing={testingKind === kind}
                   onEdit={(configuration) =>
                     kind === 'text'
                       ? setEditingText(configuration)
                       : setEditingImage(configuration)
                   }
                 />
+                {connectionMessages[kind] && (
+                  <p className="connection-result" role="status">
+                    {connectionMessages[kind]}
+                  </p>
+                )}
               </div>
             ))}
           </div>

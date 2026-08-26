@@ -1,0 +1,116 @@
+.diagnostics-page {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 34px;
+}
+
+.diagnostics-loading,
+.diagnostic-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.diagnostics-loading {
+  padding: 40px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.diagnostic-heading {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diagnostic-heading h2 {
+  margin: 5px 0 4px;
+  font-size: 19px;
+}
+
+.diagnostic-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.environment-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 22px 24px;
+}
+
+.environment-list > div {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.environment-list .database-path {
+  grid-column: 1 / -1;
+}
+
+.environment-list dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.environment-list dd {
+  margin: 7px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.completeness-grid,
+.connection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px 24px;
+}
+
+.completeness-grid > div,
+.connection-grid article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfe;
+  font-size: 13px;
+}
+
+.complete,
+.incomplete {
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.complete { color: #166534; background: #dcfce7; }
+.incomplete { color: #92400e; background: #fef3c7; }
+
+.connection-grid article {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.connection-grid article > div {
+  display: flex;
+  gap: 8px;
+}
+
+.connection-grid p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.test-success { color: #166534; }
+.test-failure { color: #b45309; }

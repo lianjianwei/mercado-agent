@@ -4,9 +4,12 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { openAppDatabase, resolveDatabasePath } from './main/db/database';
 import { registerHandlers } from './main/ipc/register-handlers';
+import { createDefaultProviderRegistrations } from './main/providers/default-provider-registrations';
+import { ProviderRegistry } from './main/providers/provider-registry';
 import { SqliteCredentialRepository } from './main/repositories/credential-repository';
 import { SqliteProviderConfigRepository } from './main/repositories/provider-config-repository';
 import { createMainWindowOptions } from './main/window-options';
+import { ConnectionTestService } from './main/services/connection-test-service';
 
 let appDatabase: DatabaseSync | null = null;
 
@@ -34,7 +37,18 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  appDatabase = openAppDatabase(resolveDatabasePath(app.getPath('userData')));
+  const databasePath = resolveDatabasePath(app.getPath('userData'));
+  appDatabase = openAppDatabase(databasePath);
+  const providerConfigs = new SqliteProviderConfigRepository(appDatabase);
+  const credentials = new SqliteCredentialRepository(appDatabase);
+  const getAppInfo = () => ({
+    version: app.getVersion(),
+    platform: process.platform,
+  });
+  const providerRegistry = new ProviderRegistry(
+    providerConfigs,
+    createDefaultProviderRegistrations(),
+  );
   registerHandlers(
     {
       handle: (channel, listener) => {
@@ -42,11 +56,19 @@ app.whenReady().then(() => {
       },
     },
     {
-      providerConfigs: new SqliteProviderConfigRepository(appDatabase),
-      credentials: new SqliteCredentialRepository(appDatabase),
-      getAppInfo: () => ({
-        version: app.getVersion(),
-        platform: process.platform,
+      providerConfigs,
+      credentials,
+      getAppInfo,
+      connectionTests: new ConnectionTestService(providerRegistry),
+      getDiagnosticSnapshot: () => ({
+        app: getAppInfo(),
+        databasePath,
+        completeness: {
+          textProvider: providerConfigs.list('text').some((item) => item.isActive),
+          imageProvider: providerConfigs.list('image').some((item) => item.isActive),
+          miaoshou: credentials.getMiaoshou() !== null,
+          qiniu: credentials.getQiniu() !== null,
+        },
       }),
     },
   );

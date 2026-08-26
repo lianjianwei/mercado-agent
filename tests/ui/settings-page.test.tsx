@@ -10,7 +10,7 @@ import type {
   ProviderConfigInput,
 } from '../../src/domain/config';
 import type { AppCredentialsInput } from '../../src/shared/config-schemas';
-import type { ConfigApi } from '../../src/shared/ipc-contract';
+import type { ConfigApi, DiagnosticApi } from '../../src/shared/ipc-contract';
 import { App } from '../../src/ui/App';
 import { SettingsPage } from '../../src/ui/pages/SettingsPage';
 
@@ -71,6 +71,47 @@ function createFakeConfigApi(initial: ProviderConfig[] = []) {
 afterEach(cleanup);
 
 describe('settings page', () => {
+  it('tests the active model connection from the configuration list', async () => {
+    const user = userEvent.setup();
+    const fake = createFakeConfigApi([
+      {
+        id: 'text-active',
+        kind: 'text',
+        provider: 'openai',
+        name: '文本主配置',
+        apiKey: 'text-secret',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-5',
+        isActive: true,
+        createdAt: '2026-08-27T00:00:00.000Z',
+        updatedAt: '2026-08-27T00:00:00.000Z',
+      },
+    ]);
+    const diagnostics: DiagnosticApi = {
+      getSnapshot: vi.fn(),
+      testConnection: vi.fn<DiagnosticApi['testConnection']>(async () => ({
+        ok: true,
+        status: 'success' as const,
+        message: '模型服务连接成功。',
+        latencyMs: 18,
+      })),
+      cancelConnection: vi.fn(),
+    };
+    render(
+      <SettingsPage
+        api={fake.api}
+        diagnosticsApi={diagnostics}
+        onDirtyChange={() => undefined}
+      />,
+    );
+
+    await user.click(
+      await screen.findByRole('button', { name: '测试 文本主配置 连接' }),
+    );
+    expect(diagnostics.testConnection).toHaveBeenCalledWith('text');
+    expect(await screen.findByText(/模型服务连接成功/)).toBeTruthy();
+  });
+
   it('starts without credential defaults and allows secrets to be viewed', async () => {
     const user = userEvent.setup();
     const fake = createFakeConfigApi();

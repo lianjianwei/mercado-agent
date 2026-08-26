@@ -41,6 +41,13 @@ const desktopApi: DesktopApi = {
     saveCredentials: (input) =>
       invoke(IPC_CHANNELS.configSaveCredentials, input),
   },
+  diagnostics: {
+    getSnapshot: () => invoke(IPC_CHANNELS.diagnosticGetSnapshot),
+    testConnection: (kind) =>
+      invoke(IPC_CHANNELS.diagnosticTestConnection, kind),
+    cancelConnection: (kind) =>
+      invoke(IPC_CHANNELS.diagnosticCancelConnection, kind),
+  },
 };
 
 contextBridge.exposeInMainWorld('mercado', desktopApi);

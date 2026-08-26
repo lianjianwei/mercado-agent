@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { SettingsPage } from './pages/SettingsPage';
+import { DiagnosticsPage } from './pages/DiagnosticsPage';
 
 const navigation = [
   { id: 'workbench', label: '工作台', symbol: '工' },
@@ -78,7 +79,7 @@ export function App() {
           </div>
           <div className="topbar-actions">
             <span className="environment-badge">纯本地桌面应用</span>
-            <button className="secondary-button" type="button">
+            <button className="secondary-button" type="button" onClick={() => navigate('help')}>
               连接状态
             </button>
           </div>
@@ -86,6 +87,8 @@ export function App() {
 
         {activePage === 'settings' ? (
           <SettingsPage onDirtyChange={setSettingsDirty} />
+        ) : activePage === 'help' ? (
+          <DiagnosticsPage />
         ) : (
         <section className="workspace-card" aria-live="polite">
           <div className="workspace-intro">

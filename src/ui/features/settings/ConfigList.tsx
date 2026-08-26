@@ -8,6 +8,8 @@ type ConfigListProps = {
   onActivate(id: string): Promise<void>;
   onEdit(configuration: ProviderConfig): void;
   onDelete(id: string): Promise<void>;
+  onTest(kind: ProviderKind): Promise<void>;
+  testing: boolean;
 };
 
 const providerLabels: Record<ProviderConfig['provider'], string> = {
@@ -27,6 +29,8 @@ export function ConfigList({
   onActivate,
   onEdit,
   onDelete,
+  onTest,
+  testing,
 }: ConfigListProps) {
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -101,6 +105,17 @@ export function ConfigList({
               </div>
             </dl>
             <div className="config-item-actions">
+              {configuration.isActive && (
+                <button
+                  className="connection-test-button"
+                  type="button"
+                  aria-label={`测试 ${configuration.name} 连接`}
+                  disabled={testing}
+                  onClick={() => void onTest(kind)}
+                >
+                  {testing ? '测试中…' : '测试连接'}
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={`${secretVisible ? '隐藏' : '显示'} ${configuration.name} API Key`}

@@ -349,6 +349,49 @@
   font-size: 12px;
 }
 
+.proxy-config-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.2fr) auto;
+  align-items: end;
+  gap: 18px;
+  padding: 22px 24px 26px;
+}
+
+.proxy-toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 38px;
+}
+
+.proxy-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.proxy-toggle strong,
+.proxy-toggle small {
+  display: block;
+}
+
+.proxy-toggle strong { font-size: 13px; }
+.proxy-toggle small { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.proxy-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.proxy-fields input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: white;
+  color: var(--ink);
+}
+.proxy-fields input:focus {
+  outline: 2px solid rgba(30, 96, 165, 0.18);
+  border-color: #1e60a5;
+}
+.proxy-config-form > .form-error,
+.proxy-config-form > .credential-status { grid-column: 1 / -1; }
+
 @media (max-width: 1280px) {
   .provider-columns,
   .credential-grid {

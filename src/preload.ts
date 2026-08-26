@@ -48,6 +48,10 @@ const desktopApi: DesktopApi = {
     cancelConnection: (kind) =>
       invoke(IPC_CHANNELS.diagnosticCancelConnection, kind),
   },
+  proxy: {
+    get: () => invoke(IPC_CHANNELS.proxyGet),
+    save: (input) => invoke(IPC_CHANNELS.proxySave, input),
+  },
 };
 
 contextBridge.exposeInMainWorld('mercado', desktopApi);

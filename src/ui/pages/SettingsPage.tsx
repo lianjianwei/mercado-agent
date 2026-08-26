@@ -7,21 +7,24 @@ import type {
   ProviderKind,
 } from '../../domain/config';
 import type { AppCredentialsInput } from '../../shared/config-schemas';
-import type { ConfigApi, DiagnosticApi } from '../../shared/ipc-contract';
+import type { ConfigApi, DiagnosticApi, ProxyConfigApi } from '../../shared/ipc-contract';
 import { ConfigList } from '../features/settings/ConfigList';
 import { CredentialForm } from '../features/settings/CredentialForm';
 import { ProviderConfigForm } from '../features/settings/ProviderConfigForm';
+import { ProxyConfigForm } from '../features/settings/ProxyConfigForm';
 import '../features/settings/settings.css';
 
 type SettingsPageProps = {
   api?: ConfigApi;
   diagnosticsApi?: DiagnosticApi;
+  proxyApi?: ProxyConfigApi;
   onDirtyChange(dirty: boolean): void;
 };
 
-export function SettingsPage({ api, diagnosticsApi, onDirtyChange }: SettingsPageProps) {
+export function SettingsPage({ api, diagnosticsApi, proxyApi, onDirtyChange }: SettingsPageProps) {
   const configApi = api ?? window.mercado.config;
   const diagnosticApi = diagnosticsApi ?? window.mercado?.diagnostics;
+  const resolvedProxyApi = proxyApi ?? window.mercado?.proxy;
   const [textConfigs, setTextConfigs] = useState<ProviderConfig[]>([]);
   const [imageConfigs, setImageConfigs] = useState<ProviderConfig[]>([]);
   const [credentials, setCredentials] = useState<AppCredentials>({
@@ -211,6 +214,22 @@ export function SettingsPage({ api, diagnosticsApi, onDirtyChange }: SettingsPag
           </div>
         )}
       </section>
+
+      {resolvedProxyApi && (
+        <section className="settings-section">
+          <div className="settings-section-heading">
+            <div>
+              <span className="section-kicker">MODEL NETWORK</span>
+              <h2>模型网络代理</h2>
+              <p>为文本和生图模型配置独立的本机 HTTP 代理。</p>
+            </div>
+          </div>
+          <ProxyConfigForm
+            api={resolvedProxyApi}
+            onDirtyChange={(dirty) => updateDirtySection('model-proxy', dirty)}
+          />
+        </section>
+      )}
 
       <section className="settings-section">
         <div className="settings-section-heading">

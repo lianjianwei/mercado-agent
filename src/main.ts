@@ -7,9 +7,12 @@ import { registerHandlers } from './main/ipc/register-handlers';
 import { createDefaultProviderRegistrations } from './main/providers/default-provider-registrations';
 import { ProviderRegistry } from './main/providers/provider-registry';
 import { SqliteCredentialRepository } from './main/repositories/credential-repository';
+import { SqliteAppSettingsRepository } from './main/repositories/app-settings-repository';
 import { SqliteProviderConfigRepository } from './main/repositories/provider-config-repository';
+import { createElectronModelSession } from './main/network/electron-model-session';
 import { createMainWindowOptions } from './main/window-options';
 import { ConnectionTestService } from './main/services/connection-test-service';
+import { ModelProxyService } from './main/services/model-proxy-service';
 
 let appDatabase: DatabaseSync | null = null;
 
@@ -36,9 +39,15 @@ function createMainWindow(): BrowserWindow {
   return mainWindow;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const databasePath = resolveDatabasePath(app.getPath('userData'));
   appDatabase = openAppDatabase(databasePath);
+  const appSettings = new SqliteAppSettingsRepository(appDatabase);
+  const modelProxy = new ModelProxyService(
+    appSettings,
+    createElectronModelSession(),
+  );
+  await modelProxy.initialize();
   const providerConfigs = new SqliteProviderConfigRepository(appDatabase);
   const credentials = new SqliteCredentialRepository(appDatabase);
   const getAppInfo = () => ({
@@ -58,6 +67,7 @@ app.whenReady().then(() => {
     {
       providerConfigs,
       credentials,
+      modelProxy,
       getAppInfo,
       connectionTests: new ConnectionTestService(providerRegistry),
       getDiagnosticSnapshot: () => ({

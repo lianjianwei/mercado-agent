@@ -6,6 +6,7 @@ import type {
 } from '../domain/config';
 import type { AppCredentialsInput } from './config-schemas';
 import type { ConnectionResult } from '../domain/providers';
+import type { ModelProxyConfig } from '../domain/proxy';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -18,6 +19,8 @@ export const IPC_CHANNELS = {
   diagnosticGetSnapshot: 'diagnostic:get-snapshot',
   diagnosticTestConnection: 'diagnostic:test-connection',
   diagnosticCancelConnection: 'diagnostic:cancel-connection',
+  proxyGet: 'proxy:get',
+  proxySave: 'proxy:save',
 } as const;
 
 export type IpcErrorCode =
@@ -66,6 +69,11 @@ export interface DiagnosticApi {
   cancelConnection(kind: ProviderKind): Promise<void>;
 }
 
+export interface ProxyConfigApi {
+  get(): Promise<ModelProxyConfig>;
+  save(input: ModelProxyConfig): Promise<ModelProxyConfig>;
+}
+
 export interface ConfigApi {
   listProviders(kind: ProviderKind): Promise<ProviderConfig[]>;
   saveProvider(input: ProviderConfigInput): Promise<ProviderConfig>;
@@ -81,4 +89,5 @@ export interface DesktopApi {
   };
   config: ConfigApi;
   diagnostics: DiagnosticApi;
+  proxy: ProxyConfigApi;
 }

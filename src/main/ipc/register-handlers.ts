@@ -9,7 +9,9 @@ import {
 } from '../../shared/ipc-contract';
 import { registerConfigHandlers } from './config-handlers';
 import { registerDiagnosticHandlers } from './diagnostic-handlers';
+import { registerProxyConfigHandlers } from './proxy-config-handlers';
 import type { ConnectionTestService } from '../services/connection-test-service';
+import type { ModelProxyService } from '../services/model-proxy-service';
 import type { DiagnosticSnapshot } from '../../shared/ipc-contract';
 
 type HandlerDependencies = {
@@ -18,6 +20,7 @@ type HandlerDependencies = {
   getAppInfo(): AppInfo;
   getDiagnosticSnapshot(): DiagnosticSnapshot;
   connectionTests: ConnectionTestService;
+  modelProxy: ModelProxyService;
 };
 
 export function registerHandlers(
@@ -29,6 +32,7 @@ export function registerHandlers(
     getSnapshot: dependencies.getDiagnosticSnapshot,
     connectionTests: dependencies.connectionTests,
   });
+  registerProxyConfigHandlers(registrar, dependencies.modelProxy);
   registrar.handle(IPC_CHANNELS.appGetInfo, async () => ({
     ok: true,
     data: dependencies.getAppInfo(),

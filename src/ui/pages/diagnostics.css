@@ -65,6 +65,10 @@
   overflow-wrap: anywhere;
 }
 
+.environment-list .model-network-route dd {
+  color: #1e60a5;
+}
+
 .completeness-grid,
 .connection-grid {
   display: grid;

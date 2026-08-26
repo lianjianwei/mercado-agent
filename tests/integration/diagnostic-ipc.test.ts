@@ -17,6 +17,10 @@ describe('diagnostic IPC', () => {
     const snapshot: DiagnosticSnapshot = {
       app: { version: '0.1.0', platform: 'darwin' },
       databasePath: '/Users/test/mercado-agent.sqlite3',
+      modelNetwork: {
+        route: 'http_proxy',
+        proxyAddress: '127.0.0.1:7890',
+      },
       completeness: {
         textProvider: true,
         imageProvider: false,

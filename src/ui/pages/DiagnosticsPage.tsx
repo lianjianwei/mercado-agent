@@ -74,12 +74,20 @@ export function DiagnosticsPage({ api }: DiagnosticsPageProps) {
             <div className="diagnostic-heading">
               <span className="section-kicker">LOCAL ENVIRONMENT</span>
               <h2>本机环境</h2>
-              <p>此页面只显示运行信息和配置完成状态，不展示任何密钥。</p>
+              <p>模型代理仅用于文本和生图请求；妙手 ERP 与七牛云始终保持直连。此页面不展示任何密钥。</p>
             </div>
             <dl className="environment-list">
               <div><dt>应用版本</dt><dd>{snapshot.app.version}</dd></div>
               <div><dt>操作系统</dt><dd>{platformNames[snapshot.app.platform] ?? snapshot.app.platform}</dd></div>
               <div className="database-path"><dt>数据库位置</dt><dd>{snapshot.databasePath}</dd></div>
+              <div className="model-network-route">
+                <dt>模型网络</dt>
+                <dd>{snapshot.modelNetwork.route === 'http_proxy' ? 'HTTP 代理' : '直连'}</dd>
+              </div>
+              <div className="model-network-route">
+                <dt>代理地址</dt>
+                <dd>{snapshot.modelNetwork.proxyAddress ?? '未启用'}</dd>
+              </div>
             </dl>
           </section>
 

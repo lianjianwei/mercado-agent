@@ -55,6 +55,10 @@ export type AppInfo = {
 export type DiagnosticSnapshot = {
   app: AppInfo;
   databasePath: string;
+  modelNetwork: {
+    route: 'direct' | 'http_proxy';
+    proxyAddress: string | null;
+  };
   completeness: {
     textProvider: boolean;
     imageProvider: boolean;

@@ -74,16 +74,23 @@ app.whenReady().then(async () => {
         undefined,
         () => modelProxy.getRoute(),
       ),
-      getDiagnosticSnapshot: () => ({
-        app: getAppInfo(),
-        databasePath,
-        completeness: {
-          textProvider: providerConfigs.list('text').some((item) => item.isActive),
-          imageProvider: providerConfigs.list('image').some((item) => item.isActive),
-          miaoshou: credentials.getMiaoshou() !== null,
-          qiniu: credentials.getQiniu() !== null,
-        },
-      }),
+      getDiagnosticSnapshot: () => {
+        const proxy = modelProxy.get();
+        return {
+          app: getAppInfo(),
+          databasePath,
+          modelNetwork: {
+            route: modelProxy.getRoute(),
+            proxyAddress: proxy.enabled ? `${proxy.host}:${proxy.port}` : null,
+          },
+          completeness: {
+            textProvider: providerConfigs.list('text').some((item) => item.isActive),
+            imageProvider: providerConfigs.list('image').some((item) => item.isActive),
+            miaoshou: credentials.getMiaoshou() !== null,
+            qiniu: credentials.getQiniu() !== null,
+          },
+        };
+      },
     },
   );
 

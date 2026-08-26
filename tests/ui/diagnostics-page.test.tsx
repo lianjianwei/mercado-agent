@@ -16,6 +16,10 @@ describe('DiagnosticsPage', () => {
       getSnapshot: async () => ({
         app: { version: '0.1.0', platform: 'darwin' },
         databasePath: '/Users/test/mercado-agent.sqlite3',
+        modelNetwork: {
+          route: 'http_proxy',
+          proxyAddress: '127.0.0.1:7890',
+        },
         completeness: {
           textProvider: true,
           imageProvider: false,
@@ -32,6 +36,8 @@ describe('DiagnosticsPage', () => {
     expect(await screen.findByText('0.1.0')).toBeTruthy();
     expect(screen.getByText('macOS')).toBeTruthy();
     expect(screen.getByText('/Users/test/mercado-agent.sqlite3')).toBeTruthy();
+    expect(screen.getByText('HTTP 代理')).toBeTruthy();
+    expect(screen.getByText('127.0.0.1:7890')).toBeTruthy();
     expect(screen.getAllByText('已完成')).toHaveLength(2);
     expect(screen.getAllByText('未完成')).toHaveLength(2);
     expect(document.body.textContent).not.toContain('API Key');
@@ -45,6 +51,7 @@ describe('DiagnosticsPage', () => {
       getSnapshot: async () => ({
         app: { version: '0.1.0', platform: 'win32' },
         databasePath: 'C:\\data\\mercado-agent.sqlite3',
+        modelNetwork: { route: 'direct', proxyAddress: null },
         completeness: {
           textProvider: true,
           imageProvider: true,
@@ -67,6 +74,9 @@ describe('DiagnosticsPage', () => {
     };
     render(<DiagnosticsPage api={api} />);
 
+    expect(await screen.findByText('直连')).toBeTruthy();
+    expect(screen.getByText('未启用')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('127.0.0.1:7890');
     await user.click(await screen.findByRole('button', { name: '测试文本模型连接' }));
     await user.click(screen.getByRole('button', { name: '取消文本模型测试' }));
 

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { SettingsPage } from './pages/SettingsPage';
+
 const navigation = [
   { id: 'workbench', label: '工作台', symbol: '工' },
   { id: 'risk', label: '侵权检测', symbol: '检' },
@@ -14,7 +16,21 @@ type NavigationId = (typeof navigation)[number]['id'];
 
 export function App() {
   const [activePage, setActivePage] = useState<NavigationId>('workbench');
+  const [settingsDirty, setSettingsDirty] = useState(false);
   const activeItem = navigation.find((item) => item.id === activePage)!;
+
+  function navigate(nextPage: NavigationId) {
+    if (
+      activePage === 'settings' &&
+      nextPage !== 'settings' &&
+      settingsDirty &&
+      !window.confirm('当前配置还有未保存修改，确定离开吗？')
+    ) {
+      return;
+    }
+    setActivePage(nextPage);
+    setSettingsDirty(false);
+  }
 
   return (
     <div className="app-shell">
@@ -34,7 +50,7 @@ export function App() {
             <button
               className={item.id === activePage ? 'nav-item active' : 'nav-item'}
               key={item.id}
-              onClick={() => setActivePage(item.id)}
+              onClick={() => navigate(item.id)}
               type="button"
             >
               <span className="nav-symbol" aria-hidden="true">
@@ -68,6 +84,9 @@ export function App() {
           </div>
         </header>
 
+        {activePage === 'settings' ? (
+          <SettingsPage onDirtyChange={setSettingsDirty} />
+        ) : (
         <section className="workspace-card" aria-live="polite">
           <div className="workspace-intro">
             <span className="section-icon" aria-hidden="true">
@@ -96,6 +115,7 @@ export function App() {
             </article>
           </div>
         </section>
+        )}
       </main>
     </div>
   );

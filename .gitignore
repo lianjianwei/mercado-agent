@@ -1,2 +1,7 @@
 .superpowers/
 .worktrees/
+node_modules/
+.vite/
+src/.vite/
+out/
+coverage/

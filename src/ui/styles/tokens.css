@@ -1,0 +1,22 @@
+:root {
+  --navy-950: #071d33;
+  --navy-900: #0b2948;
+  --navy-800: #123a61;
+  --blue-600: #1769e0;
+  --blue-100: #eaf2ff;
+  --yellow-400: #ffd23f;
+  --surface: #ffffff;
+  --canvas: #f4f7fb;
+  --line: #dfe7f0;
+  --text: #15243a;
+  --muted: #64748b;
+  --success: #22c55e;
+  --shadow: 0 14px 40px rgb(10 36 64 / 8%);
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Microsoft YaHei", sans-serif;
+  color: var(--text);
+  background: var(--canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}

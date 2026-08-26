@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
+import { ProviderConfigNotFoundError } from '../../domain/config';
 import type {
   ProviderConfig,
   ProviderConfigInput,
@@ -143,7 +144,7 @@ export class SqliteProviderConfigRepository
   private requireById(id: string): ProviderConfig {
     const configuration = this.findById(id);
     if (!configuration) {
-      throw new Error(`Provider configuration not found: ${id}`);
+      throw new ProviderConfigNotFoundError();
     }
     return configuration;
   }

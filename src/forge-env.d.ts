@@ -1,8 +1,10 @@
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
-declare const MAIN_WINDOW_VITE_NAME: string;
+import type { DesktopApi } from './shared/ipc-contract';
 
-interface Window {
-  mercado: {
-    getAppInfo(): Promise<{ version: string; platform: string }>;
-  };
+declare global {
+  const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
+  const MAIN_WINDOW_VITE_NAME: string;
+
+  interface Window {
+    mercado: DesktopApi;
+  }
 }

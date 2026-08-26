@@ -3,6 +3,9 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { openAppDatabase, resolveDatabasePath } from './main/db/database';
+import { registerHandlers } from './main/ipc/register-handlers';
+import { SqliteCredentialRepository } from './main/repositories/credential-repository';
+import { SqliteProviderConfigRepository } from './main/repositories/provider-config-repository';
 import { createMainWindowOptions } from './main/window-options';
 
 let appDatabase: DatabaseSync | null = null;
@@ -32,11 +35,21 @@ function createMainWindow(): BrowserWindow {
 
 app.whenReady().then(() => {
   appDatabase = openAppDatabase(resolveDatabasePath(app.getPath('userData')));
-
-  ipcMain.handle('app:get-info', () => ({
-    version: app.getVersion(),
-    platform: process.platform,
-  }));
+  registerHandlers(
+    {
+      handle: (channel, listener) => {
+        ipcMain.handle(channel, listener);
+      },
+    },
+    {
+      providerConfigs: new SqliteProviderConfigRepository(appDatabase),
+      credentials: new SqliteCredentialRepository(appDatabase),
+      getAppInfo: () => ({
+        version: app.getVersion(),
+        platform: process.platform,
+      }),
+    },
+  );
 
   createMainWindow();
 

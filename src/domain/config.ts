@@ -43,6 +43,18 @@ export type QiniuCredential = {
   region: string;
 };
 
+export type AppCredentials = {
+  miaoshou: MiaoshouCredential | null;
+  qiniu: QiniuCredential | null;
+};
+
+export class ProviderConfigNotFoundError extends Error {
+  constructor() {
+    super('Provider configuration was not found');
+    this.name = 'ProviderConfigNotFoundError';
+  }
+}
+
 export interface ProviderConfigRepository {
   list(kind: ProviderKind): ProviderConfig[];
   save(input: ProviderConfigInput): ProviderConfig;

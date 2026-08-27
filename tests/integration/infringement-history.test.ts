@@ -110,7 +110,7 @@ describe('infringement run history', () => {
     const repository = new SqliteInfringementRepository(database);
     seedProduct(database, 'product-1');
     const engine = engineFor('none');
-    const service = new InfringementService(repository, engine as never);
+    const service = new InfringementService(repository, () => engine as never);
 
     const v1 = await service.analyzeProduct('product-1', product());
     const changedProduct = product({ title: 'Different wireless charger' });
@@ -128,7 +128,7 @@ describe('infringement run history', () => {
     const repository = new SqliteInfringementRepository(database);
     seedProduct(database, 'product-1');
     const engine = engineFor('low');
-    const service = new InfringementService(repository, engine as never);
+    const service = new InfringementService(repository, () => engine as never);
 
     await service.analyzeProduct('product-1', product());
     const changed = await service.analyzeProduct(
@@ -146,7 +146,7 @@ describe('infringement run history', () => {
     const repository = new SqliteInfringementRepository(database);
     seedProduct(database, 'product-1');
     const engine = engineFor('none');
-    const service = new InfringementService(repository, engine as never);
+    const service = new InfringementService(repository, () => engine as never);
 
     const first = await service.analyzeProduct('product-1', product());
     const repeat = await service.analyzeProduct('product-1', product());
@@ -168,7 +168,7 @@ describe('infringement run history', () => {
           decision(p, { level: 'medium' }),
         ),
     };
-    const service = new InfringementService(repository, engine as never);
+    const service = new InfringementService(repository, () => engine as never);
 
     const summary = await service.analyzeBatch(
       [

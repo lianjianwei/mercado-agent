@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { WorkbenchPage } from './pages/WorkbenchPage';
+import { InfringementPage } from './pages/InfringementPage';
 
 const navigation = [
   { id: 'workbench', label: '工作台', symbol: '工' },
@@ -94,6 +95,8 @@ export function App() {
 
         {activePage === 'workbench' ? (
           <WorkbenchPage />
+        ) : activePage === 'risk' ? (
+          <InfringementPage />
         ) : activePage === 'settings' ? (
           <SettingsPage onDirtyChange={setSettingsDirty} />
         ) : activePage === 'help' ? (

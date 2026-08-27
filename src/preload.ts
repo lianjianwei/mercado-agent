@@ -58,6 +58,14 @@ const desktopApi: DesktopApi = {
     reconcileTracked: (productIds) =>
       invoke(IPC_CHANNELS.productReconcileTracked, { productIds }),
   },
+  infringement: {
+    analyze: (productId) =>
+      invoke(IPC_CHANNELS.infringementAnalyze, { productId }),
+    history: (productId) =>
+      invoke(IPC_CHANNELS.infringementHistory, { productId }),
+    current: (productId) =>
+      invoke(IPC_CHANNELS.infringementCurrent, { productId }),
+  },
 };
 
 contextBridge.exposeInMainWorld('mercado', desktopApi);

@@ -12,6 +12,7 @@ import type {
   ProductPageQuery,
   ProductSyncSummary,
 } from '../domain/product';
+import type { InfringementRun } from '../domain/infringement';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -29,6 +30,9 @@ export const IPC_CHANNELS = {
   productPage: 'product:page',
   productSyncDefault: 'product:sync-default',
   productReconcileTracked: 'product:reconcile-tracked',
+  infringementAnalyze: 'infringement:analyze',
+  infringementHistory: 'infringement:history',
+  infringementCurrent: 'infringement:current',
 } as const;
 
 export type IpcErrorCode =
@@ -92,6 +96,12 @@ export interface ProductApi {
   reconcileTracked(productIds: string[]): Promise<ProductSyncSummary>;
 }
 
+export interface InfringementApi {
+  analyze(productId: string): Promise<InfringementRun>;
+  history(productId: string): Promise<InfringementRun[]>;
+  current(productId: string): Promise<InfringementRun | null>;
+}
+
 export interface ConfigApi {
   listProviders(kind: ProviderKind): Promise<ProviderConfig[]>;
   saveProvider(input: ProviderConfigInput): Promise<ProviderConfig>;
@@ -109,4 +119,5 @@ export interface DesktopApi {
   diagnostics: DiagnosticApi;
   proxy: ProxyConfigApi;
   products: ProductApi;
+  infringement: InfringementApi;
 }

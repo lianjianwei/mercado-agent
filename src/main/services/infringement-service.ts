@@ -28,7 +28,7 @@ export class InfringementService {
 
   constructor(
     private readonly repository: InfringementRepository,
-    private readonly analyzer: InfringementAnalyzer,
+    private readonly analyzerFactory: () => InfringementAnalyzer,
     options: { now?: () => string } = {},
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
@@ -45,7 +45,7 @@ export class InfringementService {
       // 内容未变化：沿用现有结果，不产生新 run。
       return current;
     }
-    const decision = await this.analyzer.analyze(
+    const decision = await this.analyzerFactory().analyze(
       product,
       signal ?? new AbortController().signal,
     );

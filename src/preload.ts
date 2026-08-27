@@ -54,6 +54,8 @@ const desktopApi: DesktopApi = {
   },
   products: {
     page: (query) => invoke(IPC_CHANNELS.productPage, query),
+    detail: (productId) =>
+      invoke(IPC_CHANNELS.productDetail, { productId }),
     syncDefault: () => invoke(IPC_CHANNELS.productSyncDefault),
     reconcileTracked: (productIds) =>
       invoke(IPC_CHANNELS.productReconcileTracked, { productIds }),

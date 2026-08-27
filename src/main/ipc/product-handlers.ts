@@ -2,7 +2,13 @@ import { z, ZodError } from 'zod';
 
 import type { ProductSyncService } from '../services/product-sync-service';
 import { IPC_CHANNELS, type IpcRegistrar } from '../../shared/ipc-contract';
-import type { ProductRepository } from '../../domain/product';
+import type {
+  ProductRepository,
+  ProductSnapshotRepository,
+} from '../../domain/product';
+import { ProductNotFoundError } from '../repositories/product-repository';
+import { productDetailFromSources } from './product-detail-mapper';
+import type { CollectBoxDetailDto } from '../../shared/miaoshou-schemas';
 
 const reconcileInputSchema = z.strictObject({
   productIds: z.array(z.string().min(1)).min(1),
@@ -26,7 +32,8 @@ const pageInputSchema = z.strictObject({
 });
 
 type ProductHandlerDependencies = {
-  products: Pick<ProductRepository, 'page'>;
+  products: Pick<ProductRepository, 'page' | 'getById'>;
+  snapshots?: Pick<ProductSnapshotRepository, 'listForProduct'>;
   sync?: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked' | 'syncOne'>;
 };
 
@@ -45,6 +52,39 @@ export function registerProductHandlers(
       return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品列表读取失败' } };
     }
   });
+  registrar.handle(IPC_CHANNELS.productDetail, async (_event, payload) => {
+    try {
+      const input = syncOneInputSchema.parse(payload);
+      const product = dependencies.products.getById(input.productId);
+      const snapshots =
+        dependencies.snapshots?.listForProduct(input.productId) ?? [];
+      const latest = snapshots[snapshots.length - 1]?.payload as
+        | CollectBoxDetailDto
+        | undefined;
+      return { ok: true, data: productDetailFromSources(product, latest) };
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return {
+          ok: false,
+          error: { code: 'VALIDATION_ERROR' as const, message: '商品 ID 无效' },
+        };
+      }
+      if (error instanceof ProductNotFoundError) {
+        return {
+          ok: false,
+          error: { code: 'NOT_FOUND' as const, message: '商品不存在' },
+        };
+      }
+      return {
+        ok: false,
+        error: {
+          code: 'INTERNAL_ERROR' as const,
+          message: '商品详情读取失败',
+        },
+      };
+    }
+  });
+
   registrar.handle(IPC_CHANNELS.productSyncDefault, async () => {
     try {
       if (!dependencies.sync) throw new Error('Product sync service is not configured');

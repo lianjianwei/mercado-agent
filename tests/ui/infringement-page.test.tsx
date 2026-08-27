@@ -36,6 +36,20 @@ const productsApi: ProductApi = {
   syncDefault: async () => ({ discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] }),
   reconcileTracked: async () => ({ discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] }),
   syncOne: async () => ({ status: 'deleted' }),
+  detail: async () => ({
+    productId: 'product-1',
+    title: 'Apple Watch Series 10',
+    description: null,
+    itemNumber: 'MLB-1001',
+    category: null,
+    sites: [],
+    stock: null,
+    netProfit: null,
+    sourcePrice: null,
+    mainImage: null,
+    images: [],
+    skuList: [],
+  }),
 };
 
 function run(overrides: Partial<InfringementRun> = {}): InfringementRun {

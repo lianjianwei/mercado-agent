@@ -77,6 +77,22 @@ const ssrProductApi: ProductApi = {
   async page(query) {
     return { items: [], offset: query.offset, limit: query.limit, total: 0 };
   },
+  async detail() {
+    return {
+      productId: '',
+      title: null,
+      description: null,
+      itemNumber: null,
+      category: null,
+      sites: [],
+      stock: null,
+      netProfit: null,
+      sourcePrice: null,
+      mainImage: null,
+      images: [],
+      skuList: [],
+    };
+  },
   async syncDefault() {
     return { discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] };
   },

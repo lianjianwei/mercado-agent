@@ -46,6 +46,7 @@ export function registerHandlers(
   registerProxyConfigHandlers(registrar, dependencies.modelProxy);
   registerProductHandlers(registrar, {
     products: dependencies.products,
+    snapshots: dependencies.snapshots,
     sync: dependencies.productSync,
   });
   registerInfringementHandlers(registrar, {

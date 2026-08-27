@@ -92,10 +92,25 @@ function createApi(allProducts: Product[] = products) {
     if (index >= 0) live.splice(index, 1);
     return { status: 'deleted' };
   });
+  const detail = vi.fn<ProductApi['detail']>(async () => ({
+    productId: 'detail-1',
+    title: 'Stainless Coffee Grinder',
+    description: null,
+    itemNumber: 'MLB-1001',
+    category: null,
+    sites: [],
+    stock: null,
+    netProfit: null,
+    sourcePrice: null,
+    mainImage: null,
+    images: [],
+    skuList: [],
+  }));
 
   return {
-    api: { page, syncDefault, reconcileTracked, syncOne },
+    api: { page, detail, syncDefault, reconcileTracked, syncOne },
     page,
+    detail,
     syncDefault,
     syncOne,
   };

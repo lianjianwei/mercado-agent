@@ -3,12 +3,9 @@ import { useState } from 'react';
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { WorkbenchPage } from './pages/WorkbenchPage';
-import { InfringementPage } from './pages/InfringementPage';
 
 const navigation = [
   { id: 'workbench', label: '工作台', symbol: '工' },
-  { id: 'risk', label: '侵权检测', symbol: '检' },
-  { id: 'edit', label: '产品编辑', symbol: '编' },
   { id: 'publish', label: '产品发布', symbol: '发' },
   { id: 'tasks', label: '任务记录', symbol: '任' },
   { id: 'settings', label: '模型与凭证', symbol: '配' },
@@ -95,8 +92,6 @@ export function App() {
 
         {activePage === 'workbench' ? (
           <WorkbenchPage />
-        ) : activePage === 'risk' ? (
-          <InfringementPage />
         ) : activePage === 'settings' ? (
           <SettingsPage onDirtyChange={setSettingsDirty} />
         ) : activePage === 'help' ? (
@@ -116,12 +111,12 @@ export function App() {
             <article>
               <span>01</span>
               <strong>侵权检测</strong>
-              <p>先检测并保留风险证据，由用户决定是否继续。</p>
+              <p>已并入工作台右侧「侵权检测」页签。</p>
             </article>
             <article>
               <span>02</span>
               <strong>产品编辑</strong>
-              <p>生成本地草稿，确认后保存妙手并回读核验。</p>
+              <p>已并入工作台右侧「AI编辑」页签。</p>
             </article>
             <article>
               <span>03</span>

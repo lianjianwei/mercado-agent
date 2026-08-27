@@ -6,14 +6,26 @@ import type {
   ProductPageQuery,
   ProductSyncSummary,
 } from '../../domain/product';
-import type { ProductApi } from '../../shared/ipc-contract';
+import type { InfringementRun } from '../../domain/infringement';
+import type { InfringementApi, ProductApi } from '../../shared/ipc-contract';
+import { ProductDetailModal } from '../components/ProductDetailModal';
+import {
+  RiskReviewPanel,
+  levelLabels,
+  levelPillClass,
+} from '../components/RiskReviewPanel';
 import './workbench.css';
+import './infringement.css';
 
 type WorkbenchPageProps = {
-  api?: ProductApi;
+  api?: {
+    products: ProductApi;
+    infringement: InfringementApi;
+  };
 };
 
 type ProductFilter = MiaoshouProductState | 'all';
+type RightTab = 'quick' | 'risk' | 'edit' | 'publish';
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +49,13 @@ const tabs: Array<{ id: ProductFilter; label: string }> = [
   { id: 'published', label: stateLabels.published },
   { id: 'missing', label: stateLabels.missing },
   { id: 'all', label: '全部记录' },
+];
+
+const rightTabs: Array<{ id: RightTab; label: string }> = [
+  { id: 'quick', label: '快速检查' },
+  { id: 'risk', label: '侵权检测' },
+  { id: 'edit', label: 'AI编辑' },
+  { id: 'publish', label: '发布' },
 ];
 
 function pageQuery(filter: ProductFilter, offset: number): ProductPageQuery {
@@ -73,6 +92,10 @@ function summaryMessage(summary: ProductSyncSummary): string {
   return `同步完成：发现 ${summary.discovered}，成功 ${summary.succeeded}，失败 ${summary.failed}，缺失 ${summary.missing}。`;
 }
 
+function sitesLabel(sites: string[] | null): string {
+  return sites && sites.length > 0 ? sites.join('、') : '—';
+}
+
 const ssrProductApi: ProductApi = {
   async page(query) {
     return { items: [], offset: query.offset, limit: query.limit, total: 0 };
@@ -104,9 +127,27 @@ const ssrProductApi: ProductApi = {
   },
 };
 
+const ssrInfringementApi: InfringementApi = {
+  async analyze() {
+    throw new Error('侵权检测服务未配置');
+  },
+  async history() {
+    return [];
+  },
+  async current() {
+    return null;
+  },
+};
+
 export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const productApi =
-    api ?? (typeof window === 'undefined' ? ssrProductApi : window.mercado.products);
+    api?.products ?? (typeof window === 'undefined' ? ssrProductApi : window.mercado.products);
+  const infringementApi =
+    api?.infringement ??
+    (typeof window === 'undefined'
+      ? ssrInfringementApi
+      : window.mercado.infringement);
+
   const [filter, setFilter] = useState<ProductFilter>('notPublished');
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<ProductPage | null>(null);
@@ -118,10 +159,28 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [syncSummary, setSyncSummary] = useState<ProductSyncSummary | null>(null);
   const [syncingOneId, setSyncingOneId] = useState<string | null>(null);
   const [syncOneMessage, setSyncOneMessage] = useState('');
+  const [rightTab, setRightTab] = useState<RightTab>('quick');
+  const [detailProductId, setDetailProductId] = useState<string | null>(null);
+  const [riskByProduct, setRiskByProduct] = useState<
+    Record<string, InfringementRun | null>
+  >({});
+  const [runsFor, setRunsFor] = useState<{
+    productId: string;
+    runs: InfringementRun[];
+    current: InfringementRun | null;
+  } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [riskError, setRiskError] = useState('');
+  const [continueEditId, setContinueEditId] = useState<string | null>(null);
 
   const selectedProduct = useMemo(
     () => page?.items.find((item) => item.id === selectedId) ?? page?.items[0] ?? null,
     [page, selectedId],
+  );
+
+  const detailProduct = useMemo(
+    () => page?.items.find((item) => item.id === detailProductId) ?? null,
+    [page, detailProductId],
   );
 
   const readCounts = useCallback(async () => {
@@ -178,6 +237,51 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     };
   }, [readPage]);
 
+  // Load the current risk pill for every product on the page.
+  useEffect(() => {
+    let cancelled = false;
+    if (!page || page.items.length === 0) return;
+    void Promise.all(
+      page.items.map(async (item) => {
+        const run = await infringementApi.current(item.id);
+        return [item.id, run] as const;
+      }),
+    )
+      .then((entries) => {
+        if (!cancelled) setRiskByProduct(Object.fromEntries(entries));
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : '风险状态读取失败。');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, infringementApi]);
+
+  // Load history + current for the selected product into the risk tab.
+  useEffect(() => {
+    if (!selectedProduct) return;
+    let cancelled = false;
+    const productId = selectedProduct.id;
+    void Promise.all([
+      infringementApi.history(productId),
+      infringementApi.current(productId),
+    ])
+      .then(([history, latest]) => {
+        if (!cancelled) setRunsFor({ productId, runs: history, current: latest });
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setRiskError(reason instanceof Error ? reason.message : '检测历史读取失败。');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProduct, infringementApi]);
+
   async function runDefaultSync() {
     setSyncing(true);
     setError('');
@@ -221,6 +325,35 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     }
   }
 
+  async function runAnalysis() {
+    if (!selectedProduct) return;
+    setAnalyzing(true);
+    setRiskError('');
+    setContinueEditId(null);
+    try {
+      const latest = await infringementApi.analyze(selectedProduct.id);
+      const history = await infringementApi.history(selectedProduct.id);
+      setRunsFor({ productId: selectedProduct.id, runs: history, current: latest });
+      setRiskByProduct((current) => ({
+        ...current,
+        [selectedProduct.id]: latest,
+      }));
+    } catch (reason) {
+      setRiskError(reason instanceof Error ? reason.message : '侵权检测未完成。');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  function recordContinueEdit() {
+    setContinueEditId(selectedProduct?.id ?? null);
+  }
+
+  function openAction(productId: string, tab: RightTab) {
+    setSelectedId(productId);
+    setRightTab(tab);
+  }
+
   function changeFilter(nextFilter: ProductFilter) {
     setLoading(true);
     setError('');
@@ -240,6 +373,9 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     setError('');
     setOffset(Math.max(0, offset - PAGE_SIZE));
   }
+
+  const selectedRuns =
+    selectedProduct && runsFor?.productId === selectedProduct.id ? runsFor : null;
 
   return (
     <section className="workbench-page">
@@ -317,103 +453,227 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           </div>
 
           <div className="product-table-wrap">
-            <table className="product-table">
+            <table className="product-table workbench-table">
               <thead>
                 <tr>
                   <th>商品</th>
-                  <th>状态</th>
-                  <th>编号</th>
+                  <th>类目</th>
+                  <th>净收益</th>
+                  <th>库存</th>
+                  <th>站点</th>
+                  <th>货源价</th>
                   <th>侵权</th>
                   <th>编辑</th>
-                  <th>最后同步</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7}>正在读取本地商品...</td></tr>
+                  <tr><td colSpan={9}>正在读取本地商品...</td></tr>
                 ) : page && page.items.length > 0 ? (
-                  page.items.map((product) => (
-                    <tr
-                      className={selectedProduct?.id === product.id ? 'selected' : ''}
-                      key={product.id}
-                      onClick={() => setSelectedId(product.id)}
-                      tabIndex={0}
-                    >
-                      <td>
-                        <div className="product-title-cell">
-                          {product.thumbnailUrl ? (
-                            <img alt="" src={product.thumbnailUrl} />
+                  page.items.map((product) => {
+                    const risk = riskByProduct[product.id] ?? null;
+                    return (
+                      <tr
+                        className={selectedProduct?.id === product.id ? 'selected' : ''}
+                        key={product.id}
+                        onClick={() => setSelectedId(product.id)}
+                        tabIndex={0}
+                      >
+                        <td>
+                          <div className="product-title-cell">
+                            {product.thumbnailUrl ? (
+                              <img alt="" src={product.thumbnailUrl} />
+                            ) : (
+                              <span aria-hidden="true">图</span>
+                            )}
+                            <strong>{product.title ?? '未命名商品'}</strong>
+                          </div>
+                        </td>
+                        <td>{product.category ?? '—'}</td>
+                        <td>{product.netProfit ?? '—'}</td>
+                        <td>{product.stock ?? '—'}</td>
+                        <td>{sitesLabel(product.sites)}</td>
+                        <td>{product.sourcePrice ?? '—'}</td>
+                        <td>
+                          {risk ? (
+                            <span className={levelPillClass(risk.level)}>
+                              {levelLabels[risk.level]}
+                            </span>
                           ) : (
-                            <span aria-hidden="true">图</span>
+                            <span className="muted-pill">未检测</span>
                           )}
-                          <strong>{product.title ?? '未命名商品'}</strong>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`state-pill ${product.state}`}>
-                          {stateLabels[product.state]}
-                        </span>
-                      </td>
-                      <td>{product.itemNumber ?? product.id}</td>
-                      <td><span className="muted-pill">未检测</span></td>
-                      <td><span className="muted-pill">未编辑</span></td>
-                      <td>{formatDate(product.lastSyncedAt)}</td>
-                      <td>
-                        <button
-                          className="secondary-button row-sync-button"
-                          disabled={syncingOneId === product.id}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void runSyncOne(product.id);
-                          }}
-                          type="button"
-                        >
-                          {syncingOneId === product.id ? '同步中…' : '同步'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td><span className="muted-pill">未编辑</span></td>
+                        <td>
+                          <div className="row-actions">
+                            <button
+                              className="row-action-button view"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDetailProductId(product.id);
+                              }}
+                              type="button"
+                            >
+                              详情
+                            </button>
+                            <button
+                              className="row-action-button"
+                              disabled={syncingOneId === product.id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void runSyncOne(product.id);
+                              }}
+                              type="button"
+                            >
+                              {syncingOneId === product.id ? '同步中…' : '同步'}
+                            </button>
+                            <button
+                              className="row-action-button risk"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openAction(product.id, 'risk');
+                              }}
+                              type="button"
+                            >
+                              侵权
+                            </button>
+                            <button
+                              className="row-action-button edit"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openAction(product.id, 'edit');
+                              }}
+                              type="button"
+                            >
+                              AI编辑
+                            </button>
+                            <button
+                              className="row-action-button publish"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openAction(product.id, 'publish');
+                              }}
+                              type="button"
+                            >
+                              发布
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
-                  <tr><td colSpan={7}>暂无本地商品记录</td></tr>
+                  <tr><td colSpan={9}>暂无本地商品记录</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </section>
 
-        <aside className="quick-inspection" aria-label="快速检查详情">
-          <h2>快速检查</h2>
-          {selectedProduct ? (
-            <>
-              <div className="inspection-title">
-                <strong>{selectedProduct.title ?? '未命名商品'}</strong>
-                <span>{stateLabels[selectedProduct.state]}</span>
-              </div>
-              <dl>
-                <div><dt>妙手详情 ID</dt><dd>{selectedProduct.id}</dd></div>
-                <div><dt>商品编号</dt><dd>{selectedProduct.itemNumber ?? '未提供'}</dd></div>
-                <div><dt>生命周期</dt><dd>{stateDescriptions[selectedProduct.state]}</dd></div>
-                <div><dt>侵权检测</dt><dd>未检测</dd></div>
-                <div><dt>编辑草稿</dt><dd>未编辑</dd></div>
-                <div><dt>最后同步</dt><dd>{formatDate(selectedProduct.lastSyncedAt)}</dd></div>
-              </dl>
+        <aside className="inspection-panel" aria-label="检查面板">
+          <div className="inspection-tabs" role="tablist" aria-label="操作检查">
+            {rightTabs.map((tab) => (
+              <button
+                aria-pressed={rightTab === tab.id}
+                aria-selected={rightTab === tab.id}
+                className={rightTab === tab.id ? 'inspection-tab active' : 'inspection-tab'}
+                key={tab.id}
+                onClick={() => setRightTab(tab.id)}
+                role="tab"
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-              <section className="readonly-detail" aria-label="只读详情">
-                <h2>只读详情概要</h2>
-                <p>当前任务只读，不编辑、不发布。</p>
-                <dl>
-                  <div><dt>商品</dt><dd>{selectedProduct.title ?? '未命名商品'}</dd></div>
-                  <div><dt>状态</dt><dd>{stateDescriptions[selectedProduct.state]}</dd></div>
-                  <div><dt>快照</dt><dd>已保留本地同步历史</dd></div>
-                </dl>
-              </section>
-            </>
-          ) : (
-            <p>暂无可检查商品。</p>
+          {rightTab === 'quick' && (
+            <div className="quick-inspection" aria-label="快速检查详情">
+              <h2>快速检查</h2>
+              {selectedProduct ? (
+                <>
+                  <div className="inspection-title">
+                    <strong>{selectedProduct.title ?? '未命名商品'}</strong>
+                    <span>{stateLabels[selectedProduct.state]}</span>
+                  </div>
+                  <dl>
+                    <div><dt>妙手详情 ID</dt><dd>{selectedProduct.id}</dd></div>
+                    <div><dt>商品编号</dt><dd>{selectedProduct.itemNumber ?? '未提供'}</dd></div>
+                    <div><dt>生命周期</dt><dd>{stateDescriptions[selectedProduct.state]}</dd></div>
+                    <div><dt>类目</dt><dd>{selectedProduct.category ?? '—'}</dd></div>
+                    <div><dt>净收益</dt><dd>{selectedProduct.netProfit ?? '—'}</dd></div>
+                    <div><dt>库存</dt><dd>{selectedProduct.stock ?? '—'}</dd></div>
+                    <div><dt>站点</dt><dd>{sitesLabel(selectedProduct.sites)}</dd></div>
+                    <div><dt>货源价</dt><dd>{selectedProduct.sourcePrice ?? '—'}</dd></div>
+                    <div><dt>侵权检测</dt><dd>
+                      {riskByProduct[selectedProduct.id] ? (
+                        <span className={levelPillClass(riskByProduct[selectedProduct.id]!.level)}>
+                          {levelLabels[riskByProduct[selectedProduct.id]!.level]}
+                        </span>
+                      ) : (
+                        <span className="muted-pill">未检测</span>
+                      )}
+                    </dd></div>
+                    <div><dt>编辑草稿</dt><dd><span className="muted-pill">未编辑</span></dd></div>
+                    <div><dt>最后同步</dt><dd>{formatDate(selectedProduct.lastSyncedAt)}</dd></div>
+                  </dl>
+
+                  <section className="readonly-detail" aria-label="只读详情">
+                    <h2>只读详情概要</h2>
+                    <p>当前任务只读，不编辑、不发布。</p>
+                    <dl>
+                      <div><dt>商品</dt><dd>{selectedProduct.title ?? '未命名商品'}</dd></div>
+                      <div><dt>状态</dt><dd>{stateDescriptions[selectedProduct.state]}</dd></div>
+                      <div><dt>快照</dt><dd>已保留本地同步历史</dd></div>
+                    </dl>
+                  </section>
+                </>
+              ) : (
+                <p>暂无可检查商品。</p>
+              )}
+            </div>
+          )}
+
+          {rightTab === 'risk' && selectedProduct && (
+            <RiskReviewPanel
+              analyzing={analyzing}
+              continueEditId={continueEditId}
+              current={selectedRuns?.current ?? null}
+              error={riskError}
+              onAnalyze={() => void runAnalysis()}
+              onContinueEdit={recordContinueEdit}
+              product={selectedProduct}
+              runs={selectedRuns?.runs ?? []}
+            />
+          )}
+          {rightTab === 'risk' && !selectedProduct && (
+            <p className="empty-risk">请选择一个商品查看或分析侵权风险。</p>
+          )}
+
+          {rightTab === 'edit' && (
+            <div className="placeholder-note">
+              <h2>AI 编辑</h2>
+              <p>AI 编辑功能将在后续阶段实现。届时可在本面板生成标题、描述、属性、SKU 草稿。</p>
+            </div>
+          )}
+
+          {rightTab === 'publish' && (
+            <div className="placeholder-note">
+              <h2>发布</h2>
+              <p>发布功能将在后续阶段实现。届时可独立提交发布并追踪妙手异步队列。</p>
+            </div>
           )}
         </aside>
       </div>
+
+      {detailProduct && (
+        <ProductDetailModal
+          api={productApi}
+          onClose={() => setDetailProductId(null)}
+          product={detailProduct}
+        />
+      )}
     </section>
   );
 }

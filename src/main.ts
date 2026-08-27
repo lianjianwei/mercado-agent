@@ -9,11 +9,15 @@ import { ProviderRegistry } from './main/providers/provider-registry';
 import { SqliteCredentialRepository } from './main/repositories/credential-repository';
 import { SqliteAppSettingsRepository } from './main/repositories/app-settings-repository';
 import { SqliteProviderConfigRepository } from './main/repositories/provider-config-repository';
+import { SqliteProductRepository } from './main/repositories/product-repository';
+import { SqliteSnapshotRepository } from './main/repositories/snapshot-repository';
 import { createElectronModelSession } from './main/network/electron-model-session';
 import { ModelNetworkClient } from './main/network/model-network-client';
 import { createMainWindowOptions } from './main/window-options';
 import { ConnectionTestService } from './main/services/connection-test-service';
 import { ModelProxyService } from './main/services/model-proxy-service';
+import { HttpMiaoshouGateway } from './main/gateways/miaoshou/http-miaoshou-gateway';
+import { ProductSyncService } from './main/services/product-sync-service';
 
 let appDatabase: DatabaseSync | null = null;
 
@@ -50,6 +54,25 @@ app.whenReady().then(async () => {
   const modelNetwork = new ModelNetworkClient(modelSession, () => modelProxy.getRoute());
   const providerConfigs = new SqliteProviderConfigRepository(appDatabase);
   const credentials = new SqliteCredentialRepository(appDatabase);
+  const products = new SqliteProductRepository(appDatabase);
+  const snapshots = new SqliteSnapshotRepository(appDatabase);
+  const createProductSyncService = () => {
+    const miaoshouCredentials = credentials.getMiaoshou();
+    if (!miaoshouCredentials) {
+      throw new Error('Miaoshou credentials are not configured');
+    }
+    return new ProductSyncService(
+      new HttpMiaoshouGateway(miaoshouCredentials),
+      products,
+      snapshots,
+    );
+  };
+  const productSync = {
+    syncDefault: (signal?: AbortSignal) =>
+      createProductSyncService().syncDefault(signal),
+    reconcileTracked: (productIds: string[], signal?: AbortSignal) =>
+      createProductSyncService().reconcileTracked(productIds, signal),
+  };
   const getAppInfo = () => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -67,6 +90,8 @@ app.whenReady().then(async () => {
     {
       providerConfigs,
       credentials,
+      products,
+      productSync,
       modelProxy,
       getAppInfo,
       connectionTests: new ConnectionTestService(

@@ -52,6 +52,12 @@ const desktopApi: DesktopApi = {
     get: () => invoke(IPC_CHANNELS.proxyGet),
     save: (input) => invoke(IPC_CHANNELS.proxySave, input),
   },
+  products: {
+    page: (query) => invoke(IPC_CHANNELS.productPage, query),
+    syncDefault: () => invoke(IPC_CHANNELS.productSyncDefault),
+    reconcileTracked: (productIds) =>
+      invoke(IPC_CHANNELS.productReconcileTracked, { productIds }),
+  },
 };
 
 contextBridge.exposeInMainWorld('mercado', desktopApi);

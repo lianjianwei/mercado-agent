@@ -1,0 +1,20 @@
+{
+  "result": "success",
+  "code": "success",
+  "message": "success",
+  "data": {
+    "detailList": [
+      {
+        "collectBoxDetailId": "90002",
+        "itemNum": null,
+        "breadcrumb": null,
+        "cid": null,
+        "editModel": null,
+        "subAppAccountId": null,
+        "remark": null,
+        "title": "Synthetic nullable-field product"
+      }
+    ],
+    "total": 1
+  }
+}

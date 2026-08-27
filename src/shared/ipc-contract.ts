@@ -7,6 +7,11 @@ import type {
 import type { AppCredentialsInput } from './config-schemas';
 import type { ConnectionResult } from '../domain/providers';
 import type { ModelProxyConfig } from '../domain/proxy';
+import type {
+  ProductPage,
+  ProductPageQuery,
+  ProductSyncSummary,
+} from '../domain/product';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -21,6 +26,9 @@ export const IPC_CHANNELS = {
   diagnosticCancelConnection: 'diagnostic:cancel-connection',
   proxyGet: 'proxy:get',
   proxySave: 'proxy:save',
+  productPage: 'product:page',
+  productSyncDefault: 'product:sync-default',
+  productReconcileTracked: 'product:reconcile-tracked',
 } as const;
 
 export type IpcErrorCode =
@@ -78,6 +86,12 @@ export interface ProxyConfigApi {
   save(input: ModelProxyConfig): Promise<ModelProxyConfig>;
 }
 
+export interface ProductApi {
+  page(query: ProductPageQuery): Promise<ProductPage>;
+  syncDefault(): Promise<ProductSyncSummary>;
+  reconcileTracked(productIds: string[]): Promise<ProductSyncSummary>;
+}
+
 export interface ConfigApi {
   listProviders(kind: ProviderKind): Promise<ProviderConfig[]>;
   saveProvider(input: ProviderConfigInput): Promise<ProviderConfig>;
@@ -94,4 +108,5 @@ export interface DesktopApi {
   config: ConfigApi;
   diagnostics: DiagnosticApi;
   proxy: ProxyConfigApi;
+  products: ProductApi;
 }

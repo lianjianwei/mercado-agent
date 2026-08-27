@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import initialMigration from './migrations/001_initial.sql?raw';
+import productsMigration from './migrations/002_products.sql?raw';
 
 type Migration = {
   version: number;
@@ -13,6 +14,11 @@ const migrations: Migration[] = [
     version: 1,
     name: 'initial',
     sql: initialMigration,
+  },
+  {
+    version: 2,
+    name: 'products',
+    sql: productsMigration,
   },
 ];
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { SettingsPage } from './pages/SettingsPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
+import { WorkbenchPage } from './pages/WorkbenchPage';
 
 const navigation = [
   { id: 'workbench', label: '工作台', symbol: '工' },
@@ -71,7 +72,13 @@ export function App() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main
+        className={
+          activePage === 'workbench'
+            ? 'main-content main-content--workbench'
+            : 'main-content'
+        }
+      >
         <header className="topbar">
           <div>
             <p className="eyebrow">MERCADO LIBRE OPERATIONS</p>
@@ -85,7 +92,9 @@ export function App() {
           </div>
         </header>
 
-        {activePage === 'settings' ? (
+        {activePage === 'workbench' ? (
+          <WorkbenchPage />
+        ) : activePage === 'settings' ? (
           <SettingsPage onDirtyChange={setSettingsDirty} />
         ) : activePage === 'help' ? (
           <DiagnosticsPage />

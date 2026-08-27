@@ -1,0 +1,38 @@
+{
+  "result": "success",
+  "code": "success",
+  "message": "success",
+  "data": {
+    "detailList": [
+      {
+        "collectBoxDetailId": "90001",
+        "itemNum": "SKU-001",
+        "breadcrumb": "Home > Kitchen",
+        "cid": "MLB1234",
+        "globalPrice": "8.50",
+        "stock": "5",
+        "price": "22.90",
+        "thumbnail": "https://images.example.test/product.jpg",
+        "gmtCreate": "2026-08-26 10:20:30",
+        "editModel": "single",
+        "commonCollectBoxDetailId": "80001",
+        "appAccountId": "70001",
+        "subAppAccountId": "70002",
+        "platform": "mercadolibre",
+        "title": "Silicone Kitchen Brush",
+        "remark": "source remark",
+        "copyType": "collect",
+        "collectBoxGroupId": "60001",
+        "collectBoxDetailShop": {
+          "shopId": "50001",
+          "pricingMode": "netProceeds",
+          "siteAndMaxPriceMap": { "MX": "9.50" },
+          "siteAndMinPriceMap": { "MX": "7.50" },
+          "siteAndPriceMap": { "MX": "8.50" },
+          "sites": ["MX", "BR"]
+        }
+      }
+    ],
+    "total": 1
+  }
+}

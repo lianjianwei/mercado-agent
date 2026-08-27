@@ -1,4 +1,5 @@
 import type { MiaoshouCredential } from '../../../domain/config';
+import { ZodError } from 'zod';
 import {
   collectBoxDetailResponseSchema,
   listCollectBoxInputSchema,
@@ -25,6 +26,7 @@ const COLLECT_BOX_PATH =
 const LIST_PATH = `${COLLECT_BOX_PATH}search_collect_box_detailList`;
 const DETAIL_PATH = `${COLLECT_BOX_PATH}get_site_collect_item_info`;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_REQUEST_INTERVAL_MS = 1_100;
 
 const AUTHENTICATION_CODES = new Set([
   'appNotFound',
@@ -50,10 +52,27 @@ const RATE_LIMIT_CODES = new Set([
   'platformQpdRateLimit',
 ]);
 
+const OPERATIONAL_ERROR_CODES = new Set([
+  'routeNotFound',
+  'upstreamError',
+  'upstreamConnectTimeout',
+  'upstreamReadTimeout',
+  'upstreamDnsError',
+  'upstreamReset',
+  'systemError',
+  'redisConnectionError',
+  'redisTimeout',
+]);
+
 type MiaoshouFetcher = (
   input: string | URL | Request,
   init?: RequestInit,
 ) => Promise<Response>;
+
+type MiaoshouWait = (
+  milliseconds: number,
+  signal?: AbortSignal,
+) => Promise<void>;
 
 export type MiaoshouLogEvent = {
   operation: 'listCollectBox' | 'getCollectBoxDetail';
@@ -69,11 +88,53 @@ export type MiaoshouLogEvent = {
   httpStatus?: number;
 };
 
-type HttpMiaoshouGatewayOptions = {
+export type MiaoshouInvalidResponseDiagnostic = {
+  operation: MiaoshouLogEvent['operation'];
+  issues: Array<{ path: string; message: string }>;
+  shape: unknown;
+};
+
+export function formatMiaoshouInvalidResponseDiagnostics(
+  diagnostics: readonly MiaoshouInvalidResponseDiagnostic[],
+): string {
+  return JSON.stringify(
+    diagnostics.map((diagnostic) => {
+      const issueCounts = new Map<
+        string,
+        { path: string; message: string; occurrences: number }
+      >();
+      for (const issue of diagnostic.issues) {
+        const path = issue.path.replace(/\.\d+(?=\.|$)/g, '[]');
+        const key = `${path}\u0000${issue.message}`;
+        const existing = issueCounts.get(key);
+        if (existing) existing.occurrences += 1;
+        else {
+          issueCounts.set(key, {
+            path,
+            message: issue.message,
+            occurrences: 1,
+          });
+        }
+      }
+      return {
+        operation: diagnostic.operation,
+        issues: [...issueCounts.values()],
+      };
+    }),
+    null,
+    2,
+  );
+}
+
+export type HttpMiaoshouGatewayOptions = {
   fetcher?: MiaoshouFetcher;
   now?: () => number;
+  monotonicNow?: () => number;
   timeoutMs?: number;
+  requestIntervalMs?: number;
+  wait?: MiaoshouWait;
   logger?: (event: MiaoshouLogEvent) => void;
+  onInvalidResponse?: (diagnostic: MiaoshouInvalidResponseDiagnostic) => void;
 };
 
 type MiaoshouOperation = MiaoshouLogEvent['operation'];
@@ -82,8 +143,14 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
   private readonly baseUrl: string;
   private readonly fetcher: MiaoshouFetcher;
   private readonly now: () => number;
+  private readonly monotonicNow: () => number;
   private readonly timeoutMs: number;
+  private readonly requestIntervalMs: number;
+  private readonly wait: MiaoshouWait;
   private readonly logger: (event: MiaoshouLogEvent) => void;
+  private readonly onInvalidResponse: (
+    diagnostic: MiaoshouInvalidResponseDiagnostic,
+  ) => void;
 
   constructor(
     private readonly credentials: MiaoshouCredential,
@@ -92,9 +159,16 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     this.baseUrl = credentials.baseUrl.replace(/\/+$/, '');
     this.fetcher = options.fetcher ?? fetch;
     this.now = options.now ?? Date.now;
+    this.monotonicNow = options.monotonicNow ?? (() => performance.now());
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.requestIntervalMs = options.requestIntervalMs
+      ?? DEFAULT_REQUEST_INTERVAL_MS;
+    this.wait = options.wait ?? waitWithAbort;
     this.logger = options.logger ?? (() => undefined);
+    this.onInvalidResponse = options.onInvalidResponse ?? (() => undefined);
   }
+
+  private lastRequestCompletedAt: number | null = null;
 
   async listCollectBox(
     input: ListCollectBoxInput,
@@ -117,7 +191,8 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
         response.httpStatus,
       );
       return page;
-    } catch {
+    } catch (error) {
+      this.reportInvalidResponse('listCollectBox', response.payload, error);
       this.log(
         'listCollectBox',
         'invalid_response',
@@ -154,7 +229,8 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
         response.httpStatus,
       );
       return detail;
-    } catch {
+    } catch (error) {
+      this.reportInvalidResponse('getCollectBoxDetail', response.payload, error);
       this.log(
         'getCollectBoxDetail',
         'invalid_response',
@@ -173,6 +249,11 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     externalSignal?: AbortSignal,
   ): Promise<{ payload: unknown; startedAt: number; httpStatus: number }> {
     const startedAt = performance.now();
+    try {
+      await this.waitForRequestSlot(externalSignal);
+    } catch {
+      this.throwRequestFailure(operation, startedAt, false, externalSignal);
+    }
     const bodyJson = compactMiaoshouBody(body);
     const timestamp = String(Math.floor(this.now() / 1000));
     const controller = new AbortController();
@@ -253,7 +334,16 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     } finally {
       clearTimeout(timeout);
       externalSignal?.removeEventListener('abort', onExternalAbort);
+      this.lastRequestCompletedAt = this.monotonicNow();
     }
+  }
+
+  private async waitForRequestSlot(signal?: AbortSignal): Promise<void> {
+    if (this.lastRequestCompletedAt === null) return;
+    const now = this.monotonicNow();
+    const elapsed = Math.max(0, now - this.lastRequestCompletedAt);
+    const waitMs = Math.max(0, this.requestIntervalMs - elapsed);
+    if (waitMs > 0) await this.wait(waitMs, signal);
   }
 
   private async readJson(response: Response, signal: AbortSignal): Promise<unknown> {
@@ -296,7 +386,14 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
   }
 
   private toSafeErrorCode(code: string | null, httpStatus: number): string {
-    if (code && (AUTHENTICATION_CODES.has(code) || RATE_LIMIT_CODES.has(code))) {
+    if (
+      code
+      && (
+        AUTHENTICATION_CODES.has(code)
+        || RATE_LIMIT_CODES.has(code)
+        || OPERATIONAL_ERROR_CODES.has(code)
+      )
+    ) {
       return code;
     }
     if (code === null && httpStatus >= 400 && httpStatus <= 599) {
@@ -320,4 +417,65 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
       ...(httpStatus === undefined ? {} : { httpStatus }),
     });
   }
+
+  private reportInvalidResponse(
+    operation: MiaoshouOperation,
+    payload: unknown,
+    error: unknown,
+  ): void {
+    const issues = error instanceof ZodError
+      ? error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        }))
+      : [{
+          path: '',
+          message: error instanceof Error ? error.message : 'Unknown validation error',
+        }];
+    this.onInvalidResponse({
+      operation,
+      issues,
+      shape: describeValueShape(payload),
+    });
+  }
+}
+
+function waitWithAbort(
+  milliseconds: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, milliseconds);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function describeValueShape(value: unknown, depth = 0): unknown {
+  if (value === null) return 'null';
+  if (depth >= 8) return Array.isArray(value) ? 'array' : typeof value;
+  if (Array.isArray(value)) {
+    return {
+      type: 'array',
+      length: value.length,
+      item: value.length > 0 ? describeValueShape(value[0], depth + 1) : null,
+    };
+  }
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, describeValueShape(child, depth + 1)]),
+    );
+  }
+  return typeof value;
 }

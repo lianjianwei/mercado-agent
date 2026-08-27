@@ -19,7 +19,7 @@ export type ProductSyncServiceOptions = {
   pageSize?: number;
 };
 
-const DEFAULT_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 20;
 
 export class ProductSyncCancelledError extends Error {
   constructor() {

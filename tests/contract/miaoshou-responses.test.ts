@@ -53,6 +53,25 @@ describe('Miaoshou collect-box contracts', () => {
     ).toMatchObject({ pageNo: 2, pageSize: 20, total: 1 });
   });
 
+  it('normalizes nullable list metadata observed in the live Miaoshou contract', () => {
+    const page = parseCollectBoxPage(fixture('list-nullable-fields.json'), {
+      pageNo: 1,
+      pageSize: 20,
+    });
+
+    expect(page.items).toEqual([{
+      collectBoxDetailId: '90002',
+      itemNum: undefined,
+      breadcrumb: undefined,
+      cid: undefined,
+      editModel: undefined,
+      subAppAccountId: undefined,
+      remark: undefined,
+      title: 'Synthetic nullable-field product',
+      sites: [],
+    }]);
+  });
+
   it('keeps an undocumented total as unknown and derives whether another page may exist', () => {
     const response = fixture('list-success.json') as {
       data: { total?: unknown; detailList: unknown[] };
@@ -96,6 +115,35 @@ describe('Miaoshou collect-box contracts', () => {
       title: 'Silicone Kitchen Brush',
       sites: ['MX', 'BR'],
       skuMap: { ';1;': { stock: 5, weight: 300 } },
+    });
+  });
+
+  it('preserves nullable detail metadata observed in the live Miaoshou contract', () => {
+    const detail = collectBoxDetailResponseSchema.parse(
+      fixture('detail-nullable-fields.json'),
+    );
+
+    expect(detail.data).toMatchObject({
+      saleAttributeRules: [{ values: [{ metadata: null }] }],
+      productAttributeRules: [
+        { values: null },
+        { values: [{ metadata: null }] },
+      ],
+      skuAttributeRules: [
+        { values: null },
+        { values: [{ metadata: null }] },
+      ],
+      siteCollectItemInfo: {
+        collectBoxDetailId: '90003',
+        itemNum: null,
+        firstSkuKey: null,
+        warrantyTime: null,
+        hasSaveSite: null,
+        saveDetailTs: null,
+        hasSavePrice: null,
+        site: null,
+        registrationType: null,
+      },
     });
   });
 

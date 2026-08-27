@@ -10,7 +10,9 @@ import {
   MiaoshouTimeoutError,
 } from '../../src/main/gateways/miaoshou/errors';
 import {
+  formatMiaoshouInvalidResponseDiagnostics,
   HttpMiaoshouGateway,
+  type HttpMiaoshouGatewayOptions,
   type MiaoshouLogEvent,
 } from '../../src/main/gateways/miaoshou/http-miaoshou-gateway';
 
@@ -63,6 +65,29 @@ describe('HttpMiaoshouGateway', () => {
       'x-timestamp': '1720000000',
       'x-sign': 'e80698540d76ba4915ae74a1d4bcf1f2fd9e3019f221f7930ac955f332e0259c',
     });
+  });
+
+  it('paces consecutive API requests to stay below the observed Miaoshou rate limit', async () => {
+    let monotonicTime = 0;
+    const waits: number[] = [];
+    const options: HttpMiaoshouGatewayOptions = {
+      fetcher: async () => {
+        monotonicTime += 400;
+        return Response.json(fixture('list-success.json'));
+      },
+      requestIntervalMs: 1_100,
+      monotonicNow: () => monotonicTime,
+      wait: async (milliseconds: number) => {
+        waits.push(milliseconds);
+        monotonicTime += milliseconds;
+      },
+    };
+    const gateway = new HttpMiaoshouGateway(credentials, options);
+
+    await gateway.listCollectBox({ pageNo: 1, pageSize: 20 });
+    await gateway.listCollectBox({ pageNo: 2, pageSize: 20 });
+
+    expect(waits).toEqual([1_100]);
   });
 
   it('requests a numeric detail id and returns the validated detail DTO', async () => {
@@ -122,12 +147,42 @@ describe('HttpMiaoshouGateway', () => {
     expect(String(error)).not.toContain('raw upstream message');
   });
 
-  it('rejects malformed success JSON with a safe validation error', async () => {
+  it('preserves documented operational error codes without exposing upstream messages', async () => {
     const events: MiaoshouLogEvent[] = [];
     const gateway = new HttpMiaoshouGateway(credentials, {
       logger: (event) => events.push(event),
       fetcher: async () =>
-        Response.json({ result: 'success', code: 'success', data: { total: 0 } }),
+        Response.json({
+          result: 'fail',
+          code: 'upstreamReadTimeout',
+          message: 'raw upstream infrastructure detail',
+          data: null,
+        }),
+    });
+
+    const error = await gateway
+      .listCollectBox({ pageNo: 2, pageSize: 20 })
+      .catch((reason: unknown) => reason);
+    expect(error).toMatchObject({
+      name: 'MiaoshouApiError',
+      code: 'upstreamReadTimeout',
+    });
+    expect(events).toMatchObject([{ code: 'upstreamReadTimeout' }]);
+    expect(String(error)).not.toContain('raw upstream infrastructure detail');
+  });
+
+  it('rejects malformed success JSON with a safe validation error', async () => {
+    const events: MiaoshouLogEvent[] = [];
+    const diagnostics: unknown[] = [];
+    const gateway = new HttpMiaoshouGateway(credentials, {
+      logger: (event) => events.push(event),
+      onInvalidResponse: (diagnostic) => diagnostics.push(diagnostic),
+      fetcher: async () =>
+        Response.json({
+          result: 'success',
+          code: 'success',
+          data: { total: 0, upstreamSecret: 'must-not-be-reported' },
+        }),
     });
 
     await expect(
@@ -138,6 +193,52 @@ describe('HttpMiaoshouGateway', () => {
       operation: 'listCollectBox',
       outcome: 'invalid_response',
     });
+    expect(diagnostics).toMatchObject([{
+      operation: 'listCollectBox',
+      issues: [{ path: 'data.detailList' }],
+      shape: {
+        code: 'string',
+        data: { total: 'number', upstreamSecret: 'string' },
+        result: 'string',
+      },
+    }]);
+    expect(JSON.stringify(diagnostics)).not.toContain('must-not-be-reported');
+  });
+
+  it('formats large response diagnostics as deduplicated issue paths without the full shape', () => {
+    const formatted = formatMiaoshouInvalidResponseDiagnostics([{
+      operation: 'listCollectBox',
+      issues: [
+        {
+          path: 'data.detailList.0.collectBoxDetailId',
+          message: 'Invalid input: expected string, received number',
+        },
+        {
+          path: 'data.detailList.1.collectBoxDetailId',
+          message: 'Invalid input: expected string, received number',
+        },
+      ],
+      shape: {
+        data: {
+          detailList: {
+            type: 'array',
+            length: 500,
+            item: {
+              collectBoxDetailId: 'number',
+              upstreamSecret: 'string',
+            },
+          },
+        },
+      },
+    }]);
+
+    expect(formatted).toContain(
+      '"path": "data.detailList[].collectBoxDetailId"',
+    );
+    expect(formatted).toContain('"occurrences": 2');
+    expect(formatted).not.toContain('"shape"');
+    expect(formatted).not.toContain('upstreamSecret');
+    expect(formatted).not.toContain('[Object]');
   });
 
   it('aborts a stalled request at the configured timeout without leaking network errors', async () => {

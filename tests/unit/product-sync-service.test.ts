@@ -56,6 +56,24 @@ describe('ProductSyncService', () => {
 
     await expect(service.syncDefault()).resolves.toMatchObject({ discovered: 3, succeeded: 3, failed: 0 });
     expect(gateway.listCollectBox).toHaveBeenCalledTimes(2);
+    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
+      1,
+      {
+        pageNo: 1,
+        pageSize: 20,
+        filter: { status: 'notPublished' },
+      },
+      undefined,
+    );
+    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
+      2,
+      {
+        pageNo: 2,
+        pageSize: 20,
+        filter: { status: 'notPublished' },
+      },
+      undefined,
+    );
     expect(gateway.getCollectBoxDetail).toHaveBeenCalledTimes(3);
     expect(repositories.snapshots).toHaveLength(3);
   });

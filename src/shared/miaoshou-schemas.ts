@@ -29,6 +29,15 @@ const collectBoxDetailIdSchema = z
   ])
   .transform(String);
 const numericValueSchema = z.union([z.number(), z.string()]);
+const nullableOptionalStringSchema = z
+  .string()
+  .nullable()
+  .transform((value) => value ?? undefined)
+  .optional();
+const nullableOptionalIdentifierSchema = identifierSchema
+  .nullable()
+  .transform((value) => value ?? undefined)
+  .optional();
 
 const collectBoxShopSchema = z.looseObject({
   shopId: identifierSchema.optional(),
@@ -41,21 +50,21 @@ const collectBoxShopSchema = z.looseObject({
 
 const collectBoxListItemSchema = z.looseObject({
   collectBoxDetailId: collectBoxDetailIdSchema,
-  itemNum: z.string().optional(),
-  breadcrumb: z.string().optional(),
-  cid: identifierSchema.optional(),
+  itemNum: nullableOptionalStringSchema,
+  breadcrumb: nullableOptionalStringSchema,
+  cid: nullableOptionalIdentifierSchema,
   globalPrice: numericValueSchema.optional(),
   stock: numericValueSchema.optional(),
   price: numericValueSchema.optional(),
   thumbnail: z.string().optional(),
   gmtCreate: z.string().optional(),
-  editModel: z.string().optional(),
+  editModel: nullableOptionalStringSchema,
   commonCollectBoxDetailId: identifierSchema.optional(),
   appAccountId: identifierSchema.optional(),
-  subAppAccountId: identifierSchema.optional(),
+  subAppAccountId: nullableOptionalIdentifierSchema,
   platform: z.string().optional(),
   title: z.string().optional(),
-  remark: z.string().optional(),
+  remark: nullableOptionalStringSchema,
   copyType: z.string().optional(),
   collectBoxGroupId: identifierSchema.optional(),
   collectBoxDetailShop: collectBoxShopSchema.optional(),
@@ -88,7 +97,7 @@ const attributeValueSchema = z.looseObject({
   id: identifierSchema.optional(),
   displayName: z.string().optional(),
   name: z.string().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const attributeRuleSchema = z.looseObject({
@@ -101,7 +110,7 @@ const attributeRuleSchema = z.looseObject({
   relevance: z.number().int().optional(),
   tags: z.record(z.string(), z.unknown()).optional(),
   valueType: z.string().optional(),
-  values: z.array(attributeValueSchema).optional(),
+  values: z.array(attributeValueSchema).nullable().optional(),
 });
 
 const productAttributeSchema = z.looseObject({
@@ -125,17 +134,17 @@ const siteCollectItemInfoSchema = z
     collectBoxDetailId: collectBoxDetailIdSchema.optional(),
     detailId: collectBoxDetailIdSchema.optional(),
     title: z.string().optional(),
-    itemNum: z.string().optional(),
+    itemNum: z.string().nullable().optional(),
     attributes: z.array(productAttributeSchema).optional(),
     cateList: z.array(z.unknown()).optional(),
-    firstSkuKey: z.string().optional(),
+    firstSkuKey: z.string().nullable().optional(),
     originPrice: numericValueSchema.optional(),
     price: numericValueSchema.optional(),
     cid: identifierSchema.optional(),
     notes: z.string().optional(),
     notesFull: z.string().optional(),
     warrantyType: z.string().optional(),
-    warrantyTime: z.string().optional(),
+    warrantyTime: z.string().nullable().optional(),
     warrantyTimeUnit: z.string().optional(),
     sourceImgUrls: z.array(z.string()).optional(),
     sourceItemUrl: z.string().optional(),
@@ -156,11 +165,11 @@ const siteCollectItemInfoSchema = z
     sites: z.array(z.string()).optional(),
     siteAndPriceMap: z.record(z.string(), numericValueSchema).optional(),
     skuMap: z.record(z.string(), z.looseObject({})).optional(),
-    hasSaveSite: z.number().int().optional(),
-    saveDetailTs: z.number().int().optional(),
-    hasSavePrice: z.number().int().optional(),
-    site: z.string().optional(),
-    registrationType: z.string().optional(),
+    hasSaveSite: z.number().int().nullable().optional(),
+    saveDetailTs: z.number().int().nullable().optional(),
+    hasSavePrice: z.number().int().nullable().optional(),
+    site: z.string().nullable().optional(),
+    registrationType: z.string().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (!value.collectBoxDetailId && !value.detailId) {

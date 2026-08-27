@@ -1,0 +1,38 @@
+{
+  "result": "success",
+  "code": "success",
+  "message": "success",
+  "data": {
+    "saleAttributeRules": [
+      {
+        "id": "sale-rule",
+        "values": [{ "id": "sale-value", "metadata": null }]
+      }
+    ],
+    "productAttributeRules": [
+      { "id": "product-rule-empty", "values": null },
+      {
+        "id": "product-rule-value",
+        "values": [{ "id": "product-value", "metadata": null }]
+      }
+    ],
+    "skuAttributeRules": [
+      { "id": "sku-rule-empty", "values": null },
+      {
+        "id": "sku-rule-value",
+        "values": [{ "id": "sku-value", "metadata": null }]
+      }
+    ],
+    "siteCollectItemInfo": {
+      "collectBoxDetailId": "90003",
+      "itemNum": null,
+      "firstSkuKey": null,
+      "warrantyTime": null,
+      "hasSaveSite": null,
+      "saveDetailTs": null,
+      "hasSavePrice": null,
+      "site": null,
+      "registrationType": null
+    }
+  }
+}

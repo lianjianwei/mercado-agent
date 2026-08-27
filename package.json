@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:e2e": "npm run package && playwright test --config=playwright.config.ts",
     "test:e2e:run": "playwright test --config=playwright.config.ts",
+    "verify:miaoshou-read": "vitest run --config scripts/vitest.config.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

@@ -72,7 +72,13 @@ export function App() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main
+        className={
+          activePage === 'workbench'
+            ? 'main-content main-content--workbench'
+            : 'main-content'
+        }
+      >
         <header className="topbar">
           <div>
             <p className="eyebrow">MERCADO LIBRE OPERATIONS</p>

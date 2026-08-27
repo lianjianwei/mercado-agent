@@ -1,6 +1,24 @@
+.main-content--workbench {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-content--workbench .topbar {
+  flex: 0 0 auto;
+}
+
+.main-content--workbench .workbench-page {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .workbench-page {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+  min-height: 0;
 }
 
 .workbench-toolbar,
@@ -85,12 +103,16 @@
 .workbench-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 16px;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .product-list-panel,
 .quick-inspection {
   min-width: 0;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -98,10 +120,14 @@
 }
 
 .product-list-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
 .list-header {
+  flex: 0 0 auto;
   justify-content: space-between;
   gap: 12px;
   min-height: 74px;
@@ -134,7 +160,9 @@
 }
 
 .product-table-wrap {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .product-table {
@@ -153,6 +181,9 @@
 }
 
 .product-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   color: #496784;
   background: #f8fbff;
   font-size: 11px;

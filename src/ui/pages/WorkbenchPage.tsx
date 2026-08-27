@@ -15,7 +15,7 @@ import {
   levelLabels,
   levelPillClass,
 } from '../components/RiskReviewPanel';
-import { SyncLogPanel } from '../components/SyncLogPanel';
+import { LogPanel, type LogKind } from '../components/LogPanel';
 import './workbench.css';
 import './infringement.css';
 
@@ -165,6 +165,12 @@ const ssrInfringementApi: InfringementApi = {
   async analyze() {
     throw new Error('侵权检测服务未配置');
   },
+  async analyzeBatch() {
+    return { discovered: 0, succeeded: 0, failed: 0, failures: [] };
+  },
+  onBatchLog() {
+    return () => undefined;
+  },
   async history() {
     return [];
   },
@@ -206,7 +212,13 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [riskError, setRiskError] = useState('');
   const [continueEditId, setContinueEditId] = useState<string | null>(null);
-  const [syncLogLines, setSyncLogLines] = useState<string[]>([]);
+  const [logLines, setLogLines] = useState<Record<LogKind, string[]>>({
+    sync: [],
+    infringement: [],
+    publish: [],
+  });
+  const [activeLogTab, setActiveLogTab] = useState<LogKind>('sync');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const selectedProduct = useMemo(
     () => page?.items.find((item) => item.id === selectedId) ?? page?.items[0] ?? null,
@@ -317,19 +329,39 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     };
   }, [selectedProduct, infringementApi]);
 
-  // Stream progress log lines from the main process into the sync panel.
+  // Stream progress log lines from the main process into the log panel.
   useEffect(() => {
     const unsubscribe = productApi.onSyncLog((line) => {
-      setSyncLogLines((current) => [...current, line]);
+      appendLog('sync', line);
     });
     return unsubscribe;
   }, [productApi]);
+
+  useEffect(() => {
+    const unsubscribe = infringementApi.onBatchLog((line) => {
+      appendLog('infringement', line);
+    });
+    return unsubscribe;
+  }, [infringementApi]);
+
+  // Cap each log category so the panel cannot grow without bound.
+  function appendLog(kind: LogKind, line: string) {
+    const MAX_LINES = 500;
+    setLogLines((current) => ({
+      ...current,
+      [kind]: [...current[kind], line].slice(-MAX_LINES),
+    }));
+  }
+
+  function clearLog(kind: LogKind) {
+    setLogLines((current) => ({ ...current, [kind]: [] }));
+  }
 
   async function runDefaultSync() {
     setSyncing(true);
     setError('');
     setSyncSummary(null);
-    setSyncLogLines([]);
+    clearLog('sync');
     try {
       const summary = await productApi.syncDefault();
       setSyncSummary(summary);
@@ -374,7 +406,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
       return;
     }
     setError('');
-    setSyncLogLines([]);
+    clearLog('sync');
     try {
       await productApi.clear();
       const [nextCounts, nextPage] = await Promise.all([readCounts(), readPage()]);
@@ -383,6 +415,49 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '商品数据清理未完成。');
     }
+  }
+
+  async function runBatchAnalysis() {
+    setError('');
+    clearLog('infringement');
+    const ids = [...selectedIds];
+    try {
+      const summary = await infringementApi.analyzeBatch(ids);
+      appendLog(
+        'infringement',
+        `批量检测完成：共 ${summary.discovered} 个，成功 ${summary.succeeded}，失败 ${summary.failed}。`,
+      );
+      const [nextCounts, nextPage] = await Promise.all([readCounts(), readPage()]);
+      setCounts(nextCounts);
+      applyPage(nextPage);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '批量侵权检测未完成。');
+    } finally {
+      setSelectedIds(new Set());
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((current) => {
+      if (!page) return current;
+      const pageIds = page.items.map((item) => item.id);
+      const allSelected = pageIds.every((id) => current.has(id));
+      const next = new Set(current);
+      for (const id of pageIds) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
   }
 
   async function runAnalysis() {
@@ -455,6 +530,14 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
         </div>
         <div className="toolbar-actions">
           <button
+            className="risk-button"
+            disabled={syncing}
+            onClick={() => void runBatchAnalysis()}
+            type="button"
+          >
+            {selectedIds.size > 0 ? '批量侵权检测' : '全部检测'}
+          </button>
+          <button
             className="secondary-button"
             disabled={syncing}
             onClick={() => void runClearData()}
@@ -526,6 +609,14 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
             <table className="product-table workbench-table">
               <thead>
                 <tr>
+                  <th className="select-column">
+                    <input
+                      aria-label="选择全部"
+                      checked={page ? page.items.length > 0 && page.items.every((item) => selectedIds.has(item.id)) : false}
+                      onChange={toggleSelectAll}
+                      type="checkbox"
+                    />
+                  </th>
                   <th>商品</th>
                   <th>类目</th>
                   <th>净收益</th>
@@ -540,7 +631,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={10}>正在读取本地商品...</td></tr>
+                  <tr><td colSpan={11}>正在读取本地商品...</td></tr>
                 ) : page && page.items.length > 0 ? (
                   page.items.map((product) => {
                     const risk = riskByProduct[product.id] ?? null;
@@ -551,6 +642,18 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                         onClick={() => setSelectedId(product.id)}
                         tabIndex={0}
                       >
+                        <td className="select-column">
+                          <input
+                            aria-label={`选择 ${product.title ?? product.id}`}
+                            checked={selectedIds.has(product.id)}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              toggleSelect(product.id);
+                            }}
+                            onClick={(event) => event.stopPropagation()}
+                            type="checkbox"
+                          />
+                        </td>
                         <td>
                           <div className="product-title-cell">
                             {product.thumbnailUrl ? (
@@ -640,7 +743,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                     );
                   })
                 ) : (
-                  <tr><td colSpan={10}>暂无本地商品记录</td></tr>
+                  <tr><td colSpan={11}>暂无本地商品记录</td></tr>
                 )}
               </tbody>
             </table>
@@ -744,7 +847,11 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
         </aside>
       </div>
 
-      <SyncLogPanel lines={syncLogLines} visible={syncLogLines.length > 0} />
+      <LogPanel
+        active={activeLogTab}
+        logs={logLines}
+        onSelectTab={setActiveLogTab}
+      />
 
       {detailProduct && (
         <ProductDetailModal

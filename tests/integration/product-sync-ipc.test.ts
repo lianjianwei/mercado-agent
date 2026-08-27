@@ -26,7 +26,7 @@ describe('product synchronization IPC', () => {
 
   it('forwards progress log lines through the injected sender', async () => {
     const handlers = new Map<string, IpcListener>();
-    const sent: string[] = [];
+    const sent: Array<{ channel: string; line: string }> = [];
     const service = {
       syncDefault: vi.fn(async (_signal: AbortSignal | undefined, onProgress?: (line: string) => void) => {
         onProgress?.('第 1 页完成：20 条。');
@@ -39,13 +39,13 @@ describe('product synchronization IPC', () => {
       {
         products: { page: vi.fn(), getById: vi.fn(), clearAll: vi.fn() },
         sync: service,
-        sendProgress: (line) => sent.push(line),
+        sendProgress: (channel, line) => sent.push({ channel, line }),
       },
     );
 
     await handlers.get(IPC_CHANNELS.productSyncDefault)?.({}, undefined);
 
-    expect(sent).toEqual(['第 1 页完成：20 条。']);
+    expect(sent).toEqual([{ channel: IPC_CHANNELS.productSyncLog, line: '第 1 页完成：20 条。' }]);
   });
 
   it('returns a state-filtered product page through IPC', async () => {

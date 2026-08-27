@@ -36,6 +36,8 @@ export const IPC_CHANNELS = {
   productSyncOne: 'product:sync-one',
   productClear: 'product:clear',
   infringementAnalyze: 'infringement:analyze',
+  infringementAnalyzeBatch: 'infringement:analyze-batch',
+  infringementBatchLog: 'infringement:batch-log',
   infringementHistory: 'infringement:history',
   infringementCurrent: 'infringement:current',
 } as const;
@@ -104,8 +106,19 @@ export interface ProductApi {
   clear(): Promise<void>;
 }
 
+export type InfringementBatchFailure = { productId: string; message: string };
+
+export type InfringementBatchSummary = {
+  discovered: number;
+  succeeded: number;
+  failed: number;
+  failures: InfringementBatchFailure[];
+};
+
 export interface InfringementApi {
   analyze(productId: string): Promise<InfringementRun>;
+  analyzeBatch(productIds: string[]): Promise<InfringementBatchSummary>;
+  onBatchLog(listener: (line: string) => void): () => void;
   history(productId: string): Promise<InfringementRun[]>;
   current(productId: string): Promise<InfringementRun | null>;
 }

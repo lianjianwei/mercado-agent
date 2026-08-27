@@ -22,6 +22,7 @@ import { WorkbenchPage } from '../../src/ui/pages/WorkbenchPage';
 afterEach(cleanup);
 
 const syncLogListeners = new Set<(line: string) => void>();
+const batchLogListeners = new Set<(line: string) => void>();
 
 const products: Product[] = [
   product({
@@ -66,11 +67,28 @@ function product(overrides: Partial<Product> & Pick<Product, 'id' | 'state' | 't
 
 function createInfringementApi() {
   const analyze = vi.fn<InfringementApi['analyze']>(async () => run());
+  const analyzeBatch = vi.fn<InfringementApi['analyzeBatch']>(async () => ({
+    discovered: 0,
+    succeeded: 0,
+    failed: 0,
+    failures: [],
+  }));
+  const onBatchLog = vi.fn<InfringementApi['onBatchLog']>((listener: (line: string) => void) => {
+    batchLogListeners.add(listener);
+    return () => batchLogListeners.delete(listener);
+  });
   const history = vi.fn<InfringementApi['history']>(async () => [run()]);
   const current = vi.fn<InfringementApi['current']>(async (productId: string) =>
     productId === 'detail-1' ? run() : null,
   );
-  return { api: { analyze, history, current }, analyze, history, current };
+  return {
+    api: { analyze, analyzeBatch, onBatchLog, history, current },
+    analyze,
+    analyzeBatch,
+    history,
+    current,
+    emitBatchLog: (line: string) => batchLogListeners.forEach((listener) => listener(line)),
+  };
 }
 
 function run(overrides: Partial<InfringementRun> = {}): InfringementRun {
@@ -399,5 +417,62 @@ describe('WorkbenchPage', () => {
     expect(fake.syncOne).toHaveBeenCalledWith('detail-1');
     expect(await screen.findByText('同步完成：Stainless Coffee Grinder')).toBeTruthy();
     expect(screen.getByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
+  });
+
+  it('offers 全部检测 when nothing is selected and runs against every product', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    const risk = createInfringementApi();
+    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+
+    await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    const button = screen.getByRole('button', { name: '全部检测' });
+
+    await user.click(button);
+
+    expect(risk.analyzeBatch).toHaveBeenCalledWith([]);
+  });
+
+  it('selects rows and runs 批量侵权检测 against the chosen ids', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    const risk = createInfringementApi();
+    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+
+    const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    await user.click(within(row).getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: '批量侵权检测' }));
+
+    expect(risk.analyzeBatch).toHaveBeenCalledWith(['detail-1']);
+  });
+
+  it('selects all rows through the header checkbox', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    const risk = createInfringementApi();
+    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+
+    await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    await user.click(screen.getByRole('checkbox', { name: '选择全部' }));
+    await user.click(screen.getByRole('button', { name: '批量侵权检测' }));
+
+    expect(risk.analyzeBatch).toHaveBeenCalledWith(['detail-1', 'detail-2']);
+  });
+
+  it('shows batch infringement progress in the 侵权检测日志 tab', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    const risk = createInfringementApi();
+    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+
+    const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    await user.click(within(row).getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: '批量侵权检测' }));
+    risk.emitBatchLog('商品 detail-1 侵权检测成功。');
+
+    await user.click(await screen.findByRole('tab', { name: /侵权检测日志/ }));
+
+    const logPanel = screen.getByRole('log');
+    expect(logPanel.textContent).toContain('商品 detail-1 侵权检测成功。');
   });
 });

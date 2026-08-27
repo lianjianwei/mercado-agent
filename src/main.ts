@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { IPC_CHANNELS } from './shared/ipc-contract';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
@@ -119,9 +118,9 @@ app.whenReady().then(async () => {
       infringementService,
       modelProxy,
       getAppInfo,
-      sendProgress: (line) => {
+      sendProgress: (channel, line) => {
         for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send(IPC_CHANNELS.productSyncLog, { line });
+          window.webContents.send(channel, { line });
         }
       },
       connectionTests: new ConnectionTestService(

@@ -293,6 +293,13 @@ describe('settings page', () => {
           syncOne: async () => ({ status: 'deleted' as const }),
           clear: async () => undefined,
         },
+        infringement: {
+          analyze: async () => { throw new Error('no provider'); },
+          analyzeBatch: async () => ({ discovered: 0, succeeded: 0, failed: 0, failures: [] }),
+          onBatchLog: () => () => undefined,
+          history: async () => [],
+          current: async () => null,
+        },
       },
     });
     Object.defineProperty(window, 'confirm', {

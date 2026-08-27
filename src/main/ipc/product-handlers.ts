@@ -38,7 +38,7 @@ type ProductHandlerDependencies = {
   products: Pick<ProductRepository, 'page' | 'getById' | 'clearAll'>;
   snapshots?: Pick<ProductSnapshotRepository, 'listForProduct'>;
   sync?: Pick<ProductSyncService, 'syncDefault' | 'syncOne'>;
-  sendProgress?: (line: string) => void;
+  sendProgress?: (channel: string, line: string) => void;
 };
 
 export function registerProductHandlers(
@@ -94,7 +94,9 @@ export function registerProductHandlers(
       if (!dependencies.sync) throw new Error('Product sync service is not configured');
       const data = await dependencies.sync.syncDefault(
         undefined,
-        dependencies.sendProgress,
+        dependencies.sendProgress
+          ? (line) => dependencies.sendProgress!(IPC_CHANNELS.productSyncLog, line)
+          : undefined,
       );
       return { ok: true, data };
     } catch {

@@ -193,7 +193,7 @@ test('analyzes a synced product for infringement and keeps history', async () =>
     // Run infringement analysis from the workbench risk tab.
     const productRow = page.getByRole('row', { name: /E2E Branded Watch/ });
     await productRow.getByRole('button', { name: '侵权' }).click();
-    await expect(page.getByRole('tab', { name: '侵权检测' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '侵权检测', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '分析侵权风险' }).click();
 
     await expect(page.locator('.current-decision')).toBeVisible();
@@ -213,6 +213,57 @@ test('analyzes a synced product for infringement and keeps history', async () =>
     await page.getByRole('row', { name: /E2E Branded Watch/ }).getByRole('button', { name: '侵权' }).click();
     await expect(page.getByRole('button', { name: '分析侵权风险' })).toBeVisible();
     await expect(page.locator('.current-decision').getByText('高风险').first()).toBeVisible();
+  } finally {
+    await application?.close();
+    await new Promise<void>((resolve, reject) => gateway.server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => modelProvider.server.close((error) => error ? reject(error) : resolve()));
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('selects rows for batch infringement analysis and streams progress into the log', async () => {
+  const userDataDir = await mkdtemp(path.join(tmpdir(), 'mercado-agent-batch-risk-e2e-'));
+  const gateway = await startGateway();
+  const modelProvider = await startModelProvider();
+  let application: ElectronApplication | undefined;
+
+  try {
+    const launched = await launch(userDataDir);
+    application = launched.application;
+    const page = launched.page;
+
+    await page.getByRole('button', { name: '模型与凭证' }).click();
+    await page.getByLabel('妙手 App Key').fill('e2e-app-key');
+    await page.getByRole('textbox', { name: /妙手 App Secret/ }).fill('e2e-app-secret');
+    await page.getByLabel('妙手 Base URL').fill(gateway.baseUrl);
+    await page.getByRole('button', { name: '保存妙手凭证' }).click();
+    await expect(page.getByText('妙手凭证已保存到本机。')).toBeVisible();
+
+    const textPanel = page.locator('.provider-panel').first();
+    await textPanel.getByLabel('提供商').selectOption('openai');
+    await textPanel.getByLabel('配置名称').fill('E2E Vision');
+    await textPanel.getByLabel('Base URL').fill(modelProvider.baseUrl);
+    await textPanel.getByRole('textbox', { name: '文本模型 API Key' }).fill('e2e-api-key');
+    await textPanel.getByLabel('模型名称').fill('vision-model');
+    await textPanel.getByRole('button', { name: '保存模型配置' }).click();
+    await expect(textPanel.getByText('E2E Vision')).toBeVisible();
+    await textPanel.getByRole('button', { name: '启用 E2E Vision' }).click();
+
+    await page.getByRole('button', { name: '工作台' }).click();
+    await page.getByRole('button', { name: '同步全部' }).click();
+    await expect(page.getByRole('row', { name: /E2E Branded Watch/ })).toBeVisible();
+
+    // With nothing selected the toolbar offers 全部检测.
+    await expect(page.getByRole('button', { name: '全部检测' })).toBeVisible();
+
+    // Select the product and run 批量侵权检测.
+    const productRow = page.getByRole('row', { name: /E2E Branded Watch/ });
+    await productRow.getByRole('checkbox').check();
+    await page.getByRole('button', { name: '批量侵权检测' }).click();
+
+    // Progress lands in the 侵权检测日志 tab.
+    await page.getByRole('tab', { name: /侵权检测日志/ }).click();
+    await expect(page.getByRole('log').getByText(/商品 90002 侵权检测成功/)).toBeVisible();
   } finally {
     await application?.close();
     await new Promise<void>((resolve, reject) => gateway.server.close((error) => error ? reject(error) : resolve()));

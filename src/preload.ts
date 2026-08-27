@@ -78,6 +78,22 @@ const desktopApi: DesktopApi = {
   infringement: {
     analyze: (productId) =>
       invoke(IPC_CHANNELS.infringementAnalyze, { productId }),
+    analyzeBatch: (productIds) =>
+      invoke(IPC_CHANNELS.infringementAnalyzeBatch, { productIds }),
+    onBatchLog: (listener) => {
+      const onEvent = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        if (
+          payload
+          && typeof payload === 'object'
+          && 'line' in payload
+          && typeof (payload as { line: unknown }).line === 'string'
+        ) {
+          listener((payload as { line: string }).line);
+        }
+      };
+      ipcRenderer.on(IPC_CHANNELS.infringementBatchLog, onEvent);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.infringementBatchLog, onEvent);
+    },
     history: (productId) =>
       invoke(IPC_CHANNELS.infringementHistory, { productId }),
     current: (productId) =>

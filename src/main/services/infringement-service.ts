@@ -16,6 +16,10 @@ export type InfringementBatchItem = {
   product: RiskRelevantProduct;
 };
 
+export type InfringementProgress = (line: string) => void;
+
+const BATCH_CONCURRENCY = 3;
+
 export type InfringementBatchSummary = {
   discovered: number;
   succeeded: number;
@@ -55,6 +59,7 @@ export class InfringementService {
   async analyzeBatch(
     items: InfringementBatchItem[],
     signal?: AbortSignal,
+    onProgress?: InfringementProgress,
   ): Promise<InfringementBatchSummary> {
     const summary: InfringementBatchSummary = {
       discovered: items.length,
@@ -62,19 +67,43 @@ export class InfringementService {
       failed: 0,
       failures: [],
     };
-    for (const item of items) {
+    // A bounded worker pool keeps concurrent model calls from tripping provider
+    // rate limits while still finishing the batch much faster than serially.
+    const queue = [...items];
+    const workers = Array.from(
+      { length: Math.min(BATCH_CONCURRENCY, queue.length) },
+      () => this.runWorker(queue, summary, signal, onProgress),
+    );
+    await Promise.all(workers);
+    return summary;
+  }
+
+  private async runWorker(
+    queue: InfringementBatchItem[],
+    summary: InfringementBatchSummary,
+    signal?: AbortSignal,
+    onProgress?: InfringementProgress,
+  ): Promise<void> {
+    while (true) {
+      const item = queue.shift();
+      if (!item) return;
       try {
         await this.analyzeProduct(item.productId, item.product, signal);
         summary.succeeded += 1;
+        onProgress?.(`商品 ${item.productId} 侵权检测成功。`);
       } catch (error) {
         summary.failed += 1;
         summary.failures.push({
           productId: item.productId,
           message: error instanceof Error ? error.message : '检测失败',
         });
+        onProgress?.(
+          `商品 ${item.productId} 侵权检测失败：${
+            error instanceof Error ? error.message : '检测失败'
+          }。`,
+        );
       }
     }
-    return summary;
   }
 
   private appendRun(

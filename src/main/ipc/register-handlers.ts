@@ -32,7 +32,7 @@ type HandlerDependencies = {
   snapshots: ProductSnapshotRepository;
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;
-  sendProgress: (line: string) => void;
+  sendProgress: (channel: string, line: string) => void;
 };
 
 export function registerHandlers(
@@ -52,9 +52,11 @@ export function registerHandlers(
     sendProgress: dependencies.sendProgress,
   });
   registerInfringementHandlers(registrar, {
+    products: dependencies.products,
     snapshots: dependencies.snapshots,
     repository: dependencies.infringementRepository,
     service: dependencies.infringementService,
+    sendProgress: dependencies.sendProgress,
   });
   registrar.handle(IPC_CHANNELS.appGetInfo, async () => ({
     ok: true,

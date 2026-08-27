@@ -190,9 +190,10 @@ test('analyzes a synced product for infringement and keeps history', async () =>
     await page.getByRole('button', { name: '同步未发布商品' }).click();
     await expect(page.getByRole('row', { name: /E2E Branded Watch/ })).toBeVisible();
 
-    // Run infringement analysis.
-    await page.getByRole('button', { name: '侵权检测' }).click();
-    await expect(page.getByRole('row', { name: /E2E Branded Watch/ })).toBeVisible();
+    // Run infringement analysis from the workbench risk tab.
+    const productRow = page.getByRole('row', { name: /E2E Branded Watch/ });
+    await productRow.getByRole('button', { name: '侵权' }).click();
+    await expect(page.getByRole('tab', { name: '侵权检测' })).toBeVisible();
     await page.getByRole('button', { name: '分析侵权风险' }).click();
 
     await expect(page.locator('.current-decision')).toBeVisible();
@@ -208,8 +209,9 @@ test('analyzes a synced product for infringement and keeps history', async () =>
     launched = await launch(userDataDir);
     application = launched.application;
     page = launched.page;
-    await page.getByRole('button', { name: '侵权检测' }).click();
-    await expect(page.getByRole('row', { name: /E2E Branded Watch/ })).toBeVisible();
+    await page.getByRole('button', { name: '工作台' }).click();
+    await page.getByRole('row', { name: /E2E Branded Watch/ }).getByRole('button', { name: '侵权' }).click();
+    await expect(page.getByRole('button', { name: '分析侵权风险' })).toBeVisible();
     await expect(page.locator('.current-decision').getByText('高风险').first()).toBeVisible();
   } finally {
     await application?.close();

@@ -79,7 +79,11 @@ async function startGateway(): Promise<{ server: Server; baseUrl: string }> {
               itemNum: 'E2E-001',
               title: 'E2E Kitchen Brush',
               thumbnail: 'https://images.example.test/e2e.jpg',
-              collectBoxDetailShop: { sites: ['MLB'] },
+              breadcrumb: '厨房用具 / 清洁刷',
+              globalPrice: 21.8,
+              stock: 32,
+              price: 9.9,
+              collectBoxDetailShop: { sites: ['MLB', 'MPE'] },
             }]
           : [];
         writeJson(response, {
@@ -139,7 +143,12 @@ test('synchronizes the workbench and retains history when a product disappears',
     await page.getByRole('button', { name: '同步未发布商品' }).click();
     const productRow = page.getByRole('row', { name: /E2E Kitchen Brush/ });
     await expect(productRow).toBeVisible();
+    // The list shows the persisted list columns.
+    await expect(productRow.getByText('厨房用具 / 清洁刷')).toBeVisible();
+    await expect(productRow.getByText('21.8')).toBeVisible();
+    await expect(productRow.getByText('MLB、MPE')).toBeVisible();
     await productRow.click();
+    await expect(page.getByRole('tab', { name: '快速检查' })).toBeVisible();
     await expect(page.getByRole('heading', { name: '只读详情概要' })).toBeVisible();
 
     // Per-row sync refreshes the product in place (it still exists remotely).

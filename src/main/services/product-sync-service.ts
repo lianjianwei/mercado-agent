@@ -7,6 +7,7 @@ import type {
   CollectBoxListItemDto,
 } from '../../shared/miaoshou-schemas';
 import type {
+  MiaoshouProductState,
   ProductRepository,
   ProductSnapshotRepository,
   RemoteMiaoshouProductState,
@@ -25,6 +26,46 @@ export type ProductSyncServiceOptions = {
 };
 
 const DEFAULT_PAGE_SIZE = 20;
+
+type ListColumnFallback = {
+  category: string | null;
+  stock: string | null;
+  sites: string[] | null;
+  sourcePrice: string | null;
+};
+
+// Detail responses carry list-only columns that a list response may omit:
+// the category breadcrumb, the first SKU's stock and source price, and the
+// publish sites. Extract them so the workbench always has values even when
+// the list API leaves the fields empty. Site codes arrive as "BR(Up)" and are
+// stripped to the bare "BR" the list API (and the UI) uses.
+function listColumnsFromDetail(detail: CollectBoxDetailDto): ListColumnFallback {
+  const info = detail.siteCollectItemInfo;
+  const cateList = Array.isArray(info.cateList)
+    ? info.cateList.filter((segment): segment is string => typeof segment === 'string')
+    : [];
+  const category = cateList.length > 0 ? cateList.join(' / ') : null;
+
+  const skuMap = info.skuMap ?? {};
+  const preferred = info.firstSkuKey ? skuMap[info.firstSkuKey] : undefined;
+  const firstSku = preferred ?? Object.values(skuMap)[0] as
+    | { stock?: unknown; originPrice?: unknown }
+    | undefined;
+  const stock =
+    firstSku?.stock === undefined || firstSku?.stock === null
+      ? null
+      : String(firstSku.stock);
+  const sourcePrice =
+    firstSku?.originPrice === undefined || firstSku?.originPrice === null
+      ? null
+      : String(firstSku.originPrice);
+
+  const sites = Array.isArray(info.sites) && info.sites.length > 0
+    ? info.sites.map((site) => site.replace(/\s*\([^)]*\)$/, ''))
+    : null;
+
+  return { category, stock, sites, sourcePrice };
+}
 
 export class ProductSyncCancelledError extends Error {
   constructor() {
@@ -48,7 +89,15 @@ export class ProductSyncService {
   }
 
   async syncDefault(signal?: AbortSignal): Promise<SyncSummary> {
-    return this.syncStatus('notPublished', signal);
+    // Query every lifecycle state so a product that was published (or timed)
+    // on Miaoshou since the last sync is picked up with its real state instead
+    // of staying stuck in notPublished.
+    const summary = this.emptySummary();
+    const seen = new Set<string>();
+    for (const state of ['notPublished', 'timingPublish', 'published'] as const) {
+      await this.syncStatus(state, summary, seen, signal);
+    }
+    return summary;
   }
 
   async syncOne(productId: string, signal?: AbortSignal): Promise<SyncOneResult> {
@@ -57,22 +106,24 @@ export class ProductSyncService {
       const detail = await this.gateway.getCollectBoxDetail(productId, signal);
       this.throwIfCancelled(signal);
       const current = this.products.getById(productId);
+      const state = await this.locateState(productId, current.state, signal);
       const syncedAt = this.now();
       const transactionRunner = this.products as ProductRepository & TransactionRunner;
+      const fallback = listColumnsFromDetail(detail);
       const updated = transactionRunner.transaction(() => {
         const product = this.products.upsertRemoteIdentity({
           id: productId,
-          state: current.state === 'missing' ? 'notPublished' : current.state,
+          state,
           title: detail.siteCollectItemInfo.title ?? undefined,
           itemNumber: detail.siteCollectItemInfo.itemNum ?? undefined,
           thumbnailUrl: this.thumbnailOf(detail),
-          // A detail response has no list-only fields; pass null so the
-          // repository COALESCE keeps whatever a list-driven sync stored.
-          category: null,
+          // A detail response has no list fields; extract them from the detail
+          // and fall back to the repository COALESCE to keep existing values.
+          category: fallback.category,
           netProfit: null,
-          stock: null,
-          sites: null,
-          sourcePrice: null,
+          stock: fallback.stock,
+          sites: fallback.sites,
+          sourcePrice: fallback.sourcePrice,
           syncedAt,
         });
         this.snapshots.append({
@@ -142,10 +193,10 @@ export class ProductSyncService {
 
   private async syncStatus(
     state: RemoteMiaoshouProductState,
+    summary: SyncSummary,
+    seen: Set<string>,
     signal?: AbortSignal,
-  ): Promise<SyncSummary> {
-    const summary = this.emptySummary();
-    const seen = new Set<string>();
+  ): Promise<void> {
     let pageNo = 1;
     while (true) {
       this.throwIfCancelled(signal);
@@ -162,7 +213,33 @@ export class ProductSyncService {
       if (!page.hasMore) break;
       pageNo += 1;
     }
-    return summary;
+  }
+
+  // The detail API does not report lifecycle state, so a single-product sync
+  // confirms the real state by checking which lifecycle list contains the id.
+  // List queries may fail (network, rate limit): treat them as inconclusive and
+  // keep the current state rather than guessing.
+  private async locateState(
+    productId: string,
+    current: MiaoshouProductState,
+    signal?: AbortSignal,
+  ): Promise<RemoteMiaoshouProductState> {
+    if (current === 'missing') return 'notPublished';
+    try {
+      for (const state of ['published', 'timingPublish'] as const) {
+        const page = await this.gateway.listCollectBox(
+          { pageNo: 1, pageSize: this.pageSize, filter: { status: state } },
+          signal,
+        );
+        if (page.items.some((item) => item.collectBoxDetailId === productId)) {
+          return state;
+        }
+      }
+    } catch {
+      if (signal?.aborted) throw new ProductSyncCancelledError();
+      // Inconclusive; keep whatever the current state was.
+    }
+    return current;
   }
 
   private async syncItem(
@@ -176,6 +253,7 @@ export class ProductSyncService {
       const detail = await this.gateway.getCollectBoxDetail(item.collectBoxDetailId, signal);
       const syncedAt = this.now();
       const transactionRunner = this.products as ProductRepository & TransactionRunner;
+      const fallback = listColumnsFromDetail(detail);
       transactionRunner.transaction(() => {
         this.products.upsertRemoteIdentity({
           id: item.collectBoxDetailId,
@@ -183,11 +261,11 @@ export class ProductSyncService {
           title: item.title,
           itemNumber: item.itemNum,
           thumbnailUrl: item.thumbnail,
-          category: item.breadcrumb ?? null,
+          category: item.breadcrumb ?? fallback.category,
           netProfit: item.globalPrice === undefined ? null : String(item.globalPrice),
-          stock: item.stock === undefined ? null : String(item.stock),
-          sites: item.sites.length > 0 ? item.sites : null,
-          sourcePrice: item.price === undefined ? null : String(item.price),
+          stock: item.stock === undefined ? fallback.stock : String(item.stock),
+          sites: item.sites.length > 0 ? item.sites : fallback.sites,
+          sourcePrice: item.price === undefined ? fallback.sourcePrice : String(item.price),
           syncedAt,
         });
         this.snapshots.append({

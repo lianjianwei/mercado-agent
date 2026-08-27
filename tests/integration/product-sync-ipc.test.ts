@@ -124,7 +124,7 @@ describe('product synchronization IPC', () => {
               itemNum: 'MLB-1',
               notes: 'Latest description',
               notesFull: 'Longer description',
-              sites: ['BR', 'MX'],
+              sites: ['BR(Up)', 'MX(Up)'],
               skuMap: {
                 ';0a310071;': { itemNum: 'SKU-A', stock: 12, imgUrls: ['https://img.test/a.jpg'] },
                 ';502c632b;': { itemNum: 'SKU-B', stock: 3, imgUrls: ['https://img.test/b.jpg', 'https://img.test/a.jpg'] },

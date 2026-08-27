@@ -399,7 +399,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           onClick={() => void runDefaultSync()}
           type="button"
         >
-          {syncing ? '同步中...' : '同步未发布商品'}
+          {syncing ? '同步中...' : '同步全部'}
         </button>
       </div>
 

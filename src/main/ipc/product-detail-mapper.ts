@@ -10,6 +10,12 @@ function stringValue(value: unknown): string | null {
   return value === undefined || value === null ? null : String(value);
 }
 
+// Site codes arrive from the detail API as "BR(Up)"; strip the parenthesized
+// suffix so they match the bare codes the list API and the workbench use.
+function normalizeSites(sites: string[] | undefined): string[] {
+  return (sites ?? []).map((site) => site.replace(/\s*\([^)]*\)$/, ''));
+}
+
 function collectImages(
   info: CollectBoxDetailDto['siteCollectItemInfo'],
 ): string[] {
@@ -73,7 +79,7 @@ export function productDetailFromSources(
     : [];
 
   const detailSites = info?.sites && info.sites.length > 0
-    ? info.sites
+    ? normalizeSites(info.sites)
     : product.sites;
 
   return {

@@ -140,7 +140,7 @@ test('synchronizes the workbench and retains history when a product disappears',
     await expect(page.getByText('妙手凭证已保存到本机。')).toBeVisible();
 
     await page.getByRole('button', { name: '工作台' }).click();
-    await page.getByRole('button', { name: '同步未发布商品' }).click();
+    await page.getByRole('button', { name: '同步全部' }).click();
     const productRow = page.getByRole('row', { name: /E2E Kitchen Brush/ });
     await expect(productRow).toBeVisible();
     // The list shows the persisted list columns.

@@ -317,7 +317,7 @@ describe('WorkbenchPage', () => {
     fake.syncDefault.mockResolvedValueOnce(summary);
     render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
 
-    await user.click(await screen.findByRole('button', { name: '同步未发布商品' }));
+    await user.click(await screen.findByRole('button', { name: '同步全部' }));
 
     expect(await screen.findByText('同步完成：发现 2，成功 1，失败 1，缺失 0。')).toBeTruthy();
     expect(screen.getByText('detail-9：详情读取失败')).toBeTruthy();

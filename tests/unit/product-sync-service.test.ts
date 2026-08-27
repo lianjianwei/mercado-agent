@@ -28,6 +28,19 @@ const detail = (id: string): CollectBoxDetailDto => ({
   siteCollectItemInfo: { collectBoxDetailId: id, title: `Product ${id}` },
 });
 
+const detailWithListColumns = (id: string): CollectBoxDetailDto => ({
+  siteCollectItemInfo: {
+    collectBoxDetailId: id,
+    title: `Product ${id}`,
+    cateList: ['发饰、头饰', '发箍'],
+    sites: ['BR(Up)', 'MX(Up)'],
+    skuMap: {
+      ';red;': { stock: 42, originPrice: 12.5, imgUrls: ['https://img.test/1.jpg'] },
+      ';blue;': { stock: 7, originPrice: 9.9 },
+    },
+  },
+});
+
 function fakeRepositories() {
   const products = new Map<string, Product>();
   const snapshots: ProductSnapshot[] = [];
@@ -68,15 +81,21 @@ describe('ProductSyncService', () => {
   it('paginates notPublished items, deduplicates ids, and writes identity plus snapshot', async () => {
     const repositories = fakeRepositories();
     const gateway: MiaoshouGateway = {
-      listCollectBox: vi.fn()
-        .mockResolvedValueOnce({ pageNo: 1, pageSize: 20, total: 3, hasMore: true, items: [item('1'), item('2')] })
-        .mockResolvedValueOnce({ pageNo: 2, pageSize: 20, total: 3, hasMore: false, items: [item('2'), item('3')] }),
+      listCollectBox: vi.fn(async (input) => {
+        const status = input.filter?.status;
+        if (status === 'notPublished') {
+          // First page, then a second page with an overlapping item to prove dedup.
+          return input.pageNo === 1
+            ? { pageNo: 1, pageSize: 20, total: 3, hasMore: true, items: [item('1'), item('2')] }
+            : { pageNo: 2, pageSize: 20, total: 3, hasMore: false, items: [item('2'), item('3')] };
+        }
+        return { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] };
+      }),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
 
     await expect(service.syncDefault()).resolves.toMatchObject({ discovered: 3, succeeded: 3, failed: 0 });
-    expect(gateway.listCollectBox).toHaveBeenCalledTimes(2);
     expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
       1,
       {
@@ -111,13 +130,49 @@ describe('ProductSyncService', () => {
   it('continues a batch when one detail fails and reports the failed id', async () => {
     const repositories = fakeRepositories();
     const gateway: MiaoshouGateway = {
-      listCollectBox: vi.fn().mockResolvedValue({ pageNo: 1, pageSize: 20, total: 2, hasMore: false, items: [item('1'), item('2')] }),
+      listCollectBox: vi.fn(async (input) => input.filter?.status === 'notPublished'
+        ? { pageNo: 1, pageSize: 20, total: 2, hasMore: false, items: [item('1'), item('2')] }
+        : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
       getCollectBoxDetail: vi.fn(async (id) => { if (id === '1') throw new Error('detail unavailable'); return detail(id); }),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
     await expect(service.syncDefault()).resolves.toMatchObject({ discovered: 2, succeeded: 1, failed: 1, failures: [{ id: '1' }] });
     expect(repositories.productRepository.upsertRemoteIdentity).toHaveBeenCalledTimes(1);
+  });
+
+  it('syncs all three lifecycle states during a full sync', async () => {
+    const repositories = fakeRepositories();
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(async (input) => {
+        const status = input.filter?.status;
+        if (status === 'notPublished') return { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] };
+        if (status === 'timingPublish') return { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('2')] };
+        return { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('3')] };
+      }),
+      getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
+
+    await expect(service.syncDefault()).resolves.toMatchObject({ discovered: 3, succeeded: 3, failed: 0 });
+    expect(repositories.products.get('1')?.state).toBe('notPublished');
+    expect(repositories.products.get('2')?.state).toBe('timingPublish');
+    expect(repositories.products.get('3')?.state).toBe('published');
+    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
+      1,
+      { pageNo: 1, pageSize: 20, filter: { status: 'notPublished' } },
+      undefined,
+    );
+    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
+      2,
+      { pageNo: 1, pageSize: 20, filter: { status: 'timingPublish' } },
+      undefined,
+    );
+    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
+      3,
+      { pageNo: 1, pageSize: 20, filter: { status: 'published' } },
+      undefined,
+    );
   });
 
   it('reconciles tracked ids across timingPublish and published before marking missing', async () => {
@@ -170,7 +225,7 @@ describe('ProductSyncService', () => {
     const repositories = fakeRepositories();
     repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
     const gateway: MiaoshouGateway = {
-      listCollectBox: vi.fn(),
+      listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] })),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
@@ -183,6 +238,92 @@ describe('ProductSyncService', () => {
     expect(repositories.snapshots).toHaveLength(1);
     expect(repositories.snapshots[0]?.productId).toBe('1');
     expect(gateway.getCollectBoxDetail).toHaveBeenCalledWith('1', undefined);
+  });
+
+  it('moves a single product to published when it appears in the published list', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(async (input) => input.filter?.status === 'published'
+        ? { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] }
+        : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
+      getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    const result = await service.syncOne('1');
+
+    expect(result.status).toBe('synced');
+    expect(repositories.products.get('1')?.state).toBe('published');
+    if (result.status === 'synced') {
+      expect(result.product.state).toBe('published');
+    }
+  });
+
+  it('moves a single product to timingPublish when it appears there', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(async (input) => input.filter?.status === 'timingPublish'
+        ? { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] }
+        : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
+      getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    await service.syncOne('1');
+
+    expect(repositories.products.get('1')?.state).toBe('timingPublish');
+  });
+
+  it('falls back to detail list columns when the list item omits them', async () => {
+    const repositories = fakeRepositories();
+    const bareItem: CollectBoxListItemDto = {
+      collectBoxDetailId: '1',
+      itemNum: 'ITEM-1',
+      title: 'Product 1',
+      thumbnail: 'https://img.test/1.jpg',
+      sites: [],
+    };
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn().mockResolvedValue({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [bareItem] }),
+      getCollectBoxDetail: vi.fn(async (id) => detailWithListColumns(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    await service.syncDefault();
+
+    expect(repositories.productRepository.upsertRemoteIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: '发饰、头饰 / 发箍',
+        netProfit: null,
+        stock: '42',
+        sites: ['BR', 'MX'],
+        sourcePrice: '12.5',
+      }),
+    );
+  });
+
+  it('fills list columns from the detail during a single-product sync', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(),
+      getCollectBoxDetail: vi.fn(async (id) => detailWithListColumns(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    await service.syncOne('1');
+
+    expect(repositories.productRepository.upsertRemoteIdentity).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        category: '发饰、头饰 / 发箍',
+        netProfit: null,
+        stock: '42',
+        sites: ['BR', 'MX'],
+        sourcePrice: '12.5',
+      }),
+    );
   });
 
   it('passes null for list-only fields during a single-product sync', async () => {

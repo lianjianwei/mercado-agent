@@ -187,7 +187,7 @@ test('analyzes a synced product for infringement and keeps history', async () =>
 
     // Sync the product.
     await page.getByRole('button', { name: '工作台' }).click();
-    await page.getByRole('button', { name: '同步未发布商品' }).click();
+    await page.getByRole('button', { name: '同步全部' }).click();
     await expect(page.getByRole('row', { name: /E2E Branded Watch/ })).toBeVisible();
 
     // Run infringement analysis from the workbench risk tab.

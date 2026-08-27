@@ -72,3 +72,13 @@ export interface ProductSnapshotRepository {
 export interface TransactionRunner {
   transaction<T>(operation: () => T): T;
 }
+
+export type ProductSyncFailure = { id: string; message: string };
+
+export type ProductSyncSummary = {
+  discovered: number;
+  succeeded: number;
+  failed: number;
+  missing: number;
+  failures: ProductSyncFailure[];
+};

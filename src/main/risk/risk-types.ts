@@ -1,1 +1,1 @@
-export type RiskLevel = 'none' | 'low' | 'medium' | 'high';
+export type { RiskLevel } from '../../shared/infringement-schema';

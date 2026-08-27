@@ -1,5 +1,8 @@
 import type { TextModelProvider } from '../../domain/providers';
-import { aiInfringementDecisionSchema } from '../../shared/infringement-schema';
+import {
+  aiInfringementDecisionSchema,
+  type InfringementDecision,
+} from '../../shared/infringement-schema';
 import { ModelStructuredOutputError } from '../providers/openai-compatible-text-provider';
 import { riskFingerprint, type RiskRelevantProduct } from './fingerprint';
 import {
@@ -7,21 +10,6 @@ import {
   type LocalRuleHit,
 } from './local-rules';
 import type { RiskLevel } from './risk-types';
-
-export type InfringementDecision = {
-  level: RiskLevel;
-  kind: 'brand_owner' | 'compatible_accessory' | 'unbranded' | 'unknown';
-  fingerprint: string;
-  imagesIncluded: boolean;
-  rules: LocalRuleHit[];
-  summary: string;
-  evidence: Array<{ source: 'image' | 'text'; quote: string; explanation: string }>;
-  ai: {
-    summary: string;
-    evidence: Array<{ source: 'image' | 'text'; quote: string; explanation: string }>;
-    imageEvidence: string[];
-  } | null;
-};
 
 const RULE_TO_KIND: Record<string, InfringementDecision['kind']> = {
   'brand-owner-high': 'brand_owner',

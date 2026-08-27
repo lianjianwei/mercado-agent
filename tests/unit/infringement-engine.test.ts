@@ -18,7 +18,16 @@ function sampleProduct(): RiskRelevantProduct {
 
 function fakeProvider(decision: unknown) {
   return {
-    generate: vi.fn(async () => decision),
+    generate: vi.fn(
+      async (
+        request: MultimodalRequest,
+        signal: AbortSignal,
+      ): Promise<unknown> => {
+        expect(request).toBeDefined();
+        expect(signal).toBeDefined();
+        return decision;
+      },
+    ),
   };
 }
 
@@ -58,7 +67,7 @@ describe('InfringementEngine', () => {
     const decision = await engine.analyze(product, new AbortController().signal);
 
     expect(provider.generate).toHaveBeenCalledTimes(1);
-    const request = provider.generate.mock.calls[0][0] as MultimodalRequest;
+    const request = provider.generate.mock.calls[0][0];
     expect(request.imageUrls).toEqual(product.imageUrls);
     expect(request.prompt).toContain(product.title);
     expect(decision.level).toBe('low');

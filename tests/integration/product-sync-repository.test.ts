@@ -64,6 +64,7 @@ describe('product synchronization repositories', () => {
     ).toEqual([
       { version: 1, name: 'initial' },
       { version: 2, name: 'products' },
+      { version: 3, name: 'infringement' },
     ]);
     secondConnection.close();
   });

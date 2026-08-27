@@ -1,0 +1,6 @@
+{
+  "result": "fail",
+  "code": "signInvalid",
+  "message": "签名验证不通过",
+  "data": null
+}

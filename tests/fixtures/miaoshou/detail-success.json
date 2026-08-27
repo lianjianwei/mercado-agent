@@ -1,0 +1,75 @@
+{
+  "result": "success",
+  "code": "success",
+  "message": "success",
+  "data": {
+    "saleAttributeRules": [
+      {
+        "id": "COLOR",
+        "name": "Color",
+        "displayName": "Color",
+        "hierarchy": "PARENT_PK",
+        "relevance": 1,
+        "tags": { "required": "true", "allowVariations": "true" },
+        "valueType": "list",
+        "values": [
+          { "id": "1", "name": "Black", "displayName": "Black", "metadata": { "rgb": "000000" } }
+        ]
+      }
+    ],
+    "productAttributeRules": [],
+    "skuAttributeRules": [],
+    "siteCollectItemInfo": {
+      "title": "Silicone Kitchen Brush",
+      "itemNum": "SKU-001",
+      "attributes": [
+        { "name": "Brand", "valueType": "string", "values": [{ "name": "Generic" }] }
+      ],
+      "cateList": ["Home", "Kitchen"],
+      "firstSkuKey": ";1;",
+      "originPrice": 20,
+      "price": 22.9,
+      "cid": "MLB1234",
+      "notes": "A reusable silicone kitchen brush.",
+      "notesFull": "A reusable silicone kitchen brush.",
+      "warrantyType": "no_warranty",
+      "sourceImgUrls": ["https://images.example.test/product.jpg"],
+      "sourceItemUrl": "https://detail.1688.com/offer/123.html",
+      "collectBoxDetailId": "90001",
+      "detailId": "90001",
+      "source": "1688",
+      "sourceItemId": "123",
+      "siteAndListingTypeList": [
+        { "site": "MX", "listingType": "gold_special" }
+      ],
+      "siteAndTitleList": [
+        { "site": "MX", "title": "Cepillo de cocina de silicona" }
+      ],
+      "pricingMode": "netProceeds",
+      "shopId": "50001",
+      "saleAttributes": [
+        { "name": "Color", "values": [{ "skuKey": "1", "name": "Black" }] }
+      ],
+      "sites": ["MX", "BR"],
+      "siteAndPriceMap": { "MX": 8.5, "BR": 8.5 },
+      "skuMap": {
+        ";1;": {
+          "stock": 5,
+          "itemNum": "SKU-001-BLACK",
+          "imgUrls": ["https://images.example.test/product-black.jpg"],
+          "length": 20,
+          "width": 10,
+          "height": 5,
+          "lengthWidthHeightUnit": "cm",
+          "weight": 300,
+          "weightUnit": "g"
+        }
+      },
+      "hasSaveSite": 1,
+      "saveDetailTs": 1787710830,
+      "hasSavePrice": 1,
+      "site": "MX",
+      "registrationType": "CBT"
+    }
+  }
+}

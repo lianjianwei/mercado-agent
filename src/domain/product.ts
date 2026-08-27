@@ -46,6 +46,8 @@ export interface ProductRepository {
   upsertRemoteIdentity(product: RemoteProductIdentity): Product;
   transition(id: string, state: MiaoshouProductState, at: string): void;
   page(query: ProductPageQuery): ProductPage;
+  getById(id: string): Product;
+  delete(id: string): void;
 }
 
 export type ProductSnapshotKind =
@@ -82,3 +84,7 @@ export type ProductSyncSummary = {
   missing: number;
   failures: ProductSyncFailure[];
 };
+
+export type SyncOneResult =
+  | { status: 'synced'; product: Product }
+  | { status: 'deleted' };

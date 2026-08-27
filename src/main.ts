@@ -77,6 +77,8 @@ app.whenReady().then(async () => {
       createProductSyncService().syncDefault(signal),
     reconcileTracked: (productIds: string[], signal?: AbortSignal) =>
       createProductSyncService().reconcileTracked(productIds, signal),
+    syncOne: (productId: string, signal?: AbortSignal) =>
+      createProductSyncService().syncOne(productId, signal),
   };
   const getAppInfo = () => ({
     version: app.getVersion(),

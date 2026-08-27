@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MiaoshouGateway } from '../../src/main/gateways/miaoshou/miaoshou-gateway';
+import { MiaoshouApiError } from '../../src/main/gateways/miaoshou/errors';
 import type { CollectBoxDetailDto, CollectBoxListItemDto } from '../../src/shared/miaoshou-schemas';
 import type {
   ProductRepository,
@@ -34,6 +35,8 @@ function fakeRepositories() {
     }),
     transition: vi.fn((id, state, at) => { const product = products.get(id); if (!product) throw new Error('missing'); product.state = state; product.lastSyncedAt = at; }),
     page: vi.fn((query): ProductPage => ({ items: [...products.values()].filter((p) => !query.state || p.state === query.state), offset: query.offset, limit: query.limit, total: products.size })),
+    getById: vi.fn((id) => { const product = products.get(id); if (!product) throw new Error('missing'); return product; }),
+    delete: vi.fn((id) => { products.delete(id); }),
     transaction: (fn) => fn(),
   };
   const snapshotRepository: ProductSnapshotRepository = {
@@ -134,5 +137,53 @@ describe('ProductSyncService', () => {
 
     await expect(service.syncDefault(controller.signal)).rejects.toThrow('同步已取消');
     expect(repositories.productRepository.upsertRemoteIdentity).not.toHaveBeenCalled();
+  });
+
+  it('syncs a single product by id, keeping its state and appending a snapshot', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(),
+      getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
+
+    const result = await service.syncOne('1');
+
+    expect(result.status).toBe('synced');
+    expect(repositories.products.get('1')?.title).toBe('Product 1');
+    expect(repositories.products.get('1')?.state).toBe('notPublished');
+    expect(repositories.snapshots).toHaveLength(1);
+    expect(repositories.snapshots[0]?.productId).toBe('1');
+    expect(gateway.getCollectBoxDetail).toHaveBeenCalledWith('1', undefined);
+  });
+
+  it('deletes the local product and its snapshots when Miaoshou confirms it is gone', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'One', syncedAt: '2026-08-26T00:00:00.000Z' });
+    repositories.snapshotRepository.append({ id: 's1', productId: '1', kind: 'miaoshou', capturedAt: '2026-08-26T00:00:00.000Z', payload: {} });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(),
+      getCollectBoxDetail: vi.fn(async () => { throw new MiaoshouApiError('product_not_found'); }),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    const result = await service.syncOne('1');
+
+    expect(result.status).toBe('deleted');
+    expect(repositories.products.has('1')).toBe(false);
+  });
+
+  it('rethrows non-api errors from a single product sync', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'One', syncedAt: '2026-08-26T00:00:00.000Z' });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(),
+      getCollectBoxDetail: vi.fn(async () => { throw new Error('network down'); }),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    await expect(service.syncOne('1')).rejects.toThrow('network down');
+    expect(repositories.products.has('1')).toBe(true);
   });
 });

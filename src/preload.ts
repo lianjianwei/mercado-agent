@@ -57,6 +57,8 @@ const desktopApi: DesktopApi = {
     syncDefault: () => invoke(IPC_CHANNELS.productSyncDefault),
     reconcileTracked: (productIds) =>
       invoke(IPC_CHANNELS.productReconcileTracked, { productIds }),
+    syncOne: (productId) =>
+      invoke(IPC_CHANNELS.productSyncOne, { productId }),
   },
   infringement: {
     analyze: (productId) =>

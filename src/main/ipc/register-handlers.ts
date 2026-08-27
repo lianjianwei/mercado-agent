@@ -28,7 +28,7 @@ type HandlerDependencies = {
   connectionTests: ConnectionTestService;
   modelProxy: ModelProxyService;
   products: ProductRepository;
-  productSync: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked'>;
+  productSync: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked' | 'syncOne'>;
   snapshots: ProductSnapshotRepository;
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;

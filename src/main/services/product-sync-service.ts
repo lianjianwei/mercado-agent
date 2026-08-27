@@ -1,7 +1,11 @@
 import type {
   MiaoshouGateway,
 } from '../gateways/miaoshou/miaoshou-gateway';
-import type { CollectBoxListItemDto } from '../../shared/miaoshou-schemas';
+import { MiaoshouApiError } from '../gateways/miaoshou/errors';
+import type {
+  CollectBoxDetailDto,
+  CollectBoxListItemDto,
+} from '../../shared/miaoshou-schemas';
 import type {
   ProductRepository,
   ProductSnapshotRepository,
@@ -9,6 +13,7 @@ import type {
   TransactionRunner,
   ProductSyncFailure,
   ProductSyncSummary,
+  SyncOneResult,
 } from '../../domain/product';
 
 export type SyncFailure = ProductSyncFailure;
@@ -44,6 +49,47 @@ export class ProductSyncService {
 
   async syncDefault(signal?: AbortSignal): Promise<SyncSummary> {
     return this.syncStatus('notPublished', signal);
+  }
+
+  async syncOne(productId: string, signal?: AbortSignal): Promise<SyncOneResult> {
+    this.throwIfCancelled(signal);
+    try {
+      const detail = await this.gateway.getCollectBoxDetail(productId, signal);
+      this.throwIfCancelled(signal);
+      const current = this.products.getById(productId);
+      const syncedAt = this.now();
+      const transactionRunner = this.products as ProductRepository & TransactionRunner;
+      const updated = transactionRunner.transaction(() => {
+        const product = this.products.upsertRemoteIdentity({
+          id: productId,
+          state: current.state === 'missing' ? 'notPublished' : current.state,
+          title: detail.siteCollectItemInfo.title ?? undefined,
+          itemNumber: detail.siteCollectItemInfo.itemNum ?? undefined,
+          thumbnailUrl: this.thumbnailOf(detail),
+          syncedAt,
+        });
+        this.snapshots.append({
+          id: `${productId}:${syncedAt}`,
+          productId,
+          kind: 'miaoshou',
+          capturedAt: syncedAt,
+          payload: detail,
+        });
+        return product;
+      });
+      return { status: 'synced', product: updated };
+    } catch (error) {
+      if (error instanceof MiaoshouApiError) {
+        // The detail endpoint answered with a business error for this id;
+        // treat it as the product no longer existing in Miaoshou.
+        const transactionRunner = this.products as ProductRepository & TransactionRunner;
+        transactionRunner.transaction(() => {
+          this.products.delete(productId);
+        });
+        return { status: 'deleted' };
+      }
+      throw error;
+    }
   }
 
   async reconcileTracked(
@@ -149,6 +195,17 @@ export class ProductSyncService {
         message: this.safeMessage(error),
       });
     }
+  }
+
+  private thumbnailOf(detail: CollectBoxDetailDto): string | undefined {
+    const info = detail.siteCollectItemInfo;
+    for (const sku of Object.values(info.skuMap ?? {})) {
+      if (!Array.isArray(sku?.imgUrls)) continue;
+      for (const url of sku.imgUrls) {
+        if (typeof url === 'string' && /^https:\/\//i.test(url)) return url;
+      }
+    }
+    return undefined;
   }
 
   private emptySummary(): SyncSummary {

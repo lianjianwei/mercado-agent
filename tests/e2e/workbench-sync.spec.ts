@@ -139,8 +139,13 @@ test('synchronizes the workbench and retains history when a product disappears',
     await page.getByRole('button', { name: '同步未发布商品' }).click();
     const productRow = page.getByRole('row', { name: /E2E Kitchen Brush/ });
     await expect(productRow).toBeVisible();
-    await productRow.dblclick();
+    await productRow.click();
     await expect(page.getByRole('heading', { name: '只读详情概要' })).toBeVisible();
+
+    // Per-row sync refreshes the product in place (it still exists remotely).
+    const rowSyncButton = productRow.getByRole('button', { name: '同步' });
+    await rowSyncButton.click();
+    await expect(page.getByText(/同步完成：E2E Kitchen Brush/)).toBeVisible();
 
     const summary = await page.evaluate(async (id) => {
       return window.mercado.products.reconcileTracked([id]);
@@ -159,7 +164,7 @@ test('synchronizes the workbench and retains history when a product disappears',
       });
       expect(
         database.prepare('SELECT COUNT(*) AS count FROM product_snapshots WHERE product_id = ?').get(detailId),
-      ).toEqual({ count: 1 });
+      ).toEqual({ count: 2 });
     } finally {
       database.close();
     }

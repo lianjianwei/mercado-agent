@@ -11,6 +11,7 @@ import type {
   ProductPage,
   ProductPageQuery,
   ProductSyncSummary,
+  SyncOneResult,
 } from '../domain/product';
 import type { InfringementRun } from '../domain/infringement';
 
@@ -30,6 +31,7 @@ export const IPC_CHANNELS = {
   productPage: 'product:page',
   productSyncDefault: 'product:sync-default',
   productReconcileTracked: 'product:reconcile-tracked',
+  productSyncOne: 'product:sync-one',
   infringementAnalyze: 'infringement:analyze',
   infringementHistory: 'infringement:history',
   infringementCurrent: 'infringement:current',
@@ -94,6 +96,7 @@ export interface ProductApi {
   page(query: ProductPageQuery): Promise<ProductPage>;
   syncDefault(): Promise<ProductSyncSummary>;
   reconcileTracked(productIds: string[]): Promise<ProductSyncSummary>;
+  syncOne(productId: string): Promise<SyncOneResult>;
 }
 
 export interface InfringementApi {

@@ -74,6 +74,12 @@
   opacity: 0.58;
 }
 
+.row-sync-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .page-error,
 .sync-result {
   padding: 11px 13px;

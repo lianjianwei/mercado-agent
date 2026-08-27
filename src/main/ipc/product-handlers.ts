@@ -8,6 +8,10 @@ const reconcileInputSchema = z.strictObject({
   productIds: z.array(z.string().min(1)).min(1),
 });
 
+const syncOneInputSchema = z.strictObject({
+  productId: z.string().min(1),
+});
+
 const productStateSchema = z.enum([
   'notPublished',
   'timingPublish',
@@ -23,7 +27,7 @@ const pageInputSchema = z.strictObject({
 
 type ProductHandlerDependencies = {
   products: Pick<ProductRepository, 'page'>;
-  sync?: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked'>;
+  sync?: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked' | 'syncOne'>;
 };
 
 export function registerProductHandlers(
@@ -59,6 +63,18 @@ export function registerProductHandlers(
         return { ok: false, error: { code: 'VALIDATION_ERROR' as const, message: '商品 ID 列表无效' } };
       }
       return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品对账未完成' } };
+    }
+  });
+  registrar.handle(IPC_CHANNELS.productSyncOne, async (_event, payload) => {
+    try {
+      const input = syncOneInputSchema.parse(payload);
+      if (!dependencies.sync) throw new Error('Product sync service is not configured');
+      return { ok: true, data: await dependencies.sync.syncOne(input.productId) };
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return { ok: false, error: { code: 'VALIDATION_ERROR' as const, message: '商品 ID 无效' } };
+      }
+      return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品同步未完成' } };
     }
   });
 }

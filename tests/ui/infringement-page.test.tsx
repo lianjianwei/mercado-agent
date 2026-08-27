@@ -30,6 +30,7 @@ const productsApi: ProductApi = {
   }),
   syncDefault: async () => ({ discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] }),
   reconcileTracked: async () => ({ discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] }),
+  syncOne: async () => ({ status: 'deleted' }),
 };
 
 function run(overrides: Partial<InfringementRun> = {}): InfringementRun {

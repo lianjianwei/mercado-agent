@@ -129,6 +129,19 @@ export class SqliteProductRepository
     }
   }
 
+  getById(id: string): Product {
+    return this.requireById(id);
+  }
+
+  delete(id: string): void {
+    // product_snapshots references products(id); delete snapshots first so the
+    // foreign key is satisfied, then remove the product row itself.
+    this.database
+      .prepare('DELETE FROM product_snapshots WHERE product_id = ?')
+      .run(id);
+    this.database.prepare('DELETE FROM products WHERE id = ?').run(id);
+  }
+
   private requireById(id: string): Product {
     const row = this.database
       .prepare(

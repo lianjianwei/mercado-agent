@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
   MiaoshouProductState,
-  Product,
   ProductPage,
   ProductPageQuery,
   ProductSyncSummary,
@@ -84,6 +83,9 @@ const ssrProductApi: ProductApi = {
   async reconcileTracked() {
     return { discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] };
   },
+  async syncOne() {
+    return { status: 'deleted' };
+  },
 };
 
 export function WorkbenchPage({ api }: WorkbenchPageProps) {
@@ -94,11 +96,12 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [page, setPage] = useState<ProductPage | null>(null);
   const [counts, setCounts] = useState<Partial<Record<ProductFilter, number>>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [syncSummary, setSyncSummary] = useState<ProductSyncSummary | null>(null);
+  const [syncingOneId, setSyncingOneId] = useState<string | null>(null);
+  const [syncOneMessage, setSyncOneMessage] = useState('');
 
   const selectedProduct = useMemo(
     () => page?.items.find((item) => item.id === selectedId) ?? page?.items[0] ?? null,
@@ -178,12 +181,35 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     }
   }
 
+  async function runSyncOne(productId: string) {
+    setSyncingOneId(productId);
+    setError('');
+    setSyncOneMessage('');
+    try {
+      const result = await productApi.syncOne(productId);
+      if (result.status === 'deleted') {
+        setSyncOneMessage('该商品已从妙手删除，已移除本地记录。');
+        const [nextCounts, nextPage] = await Promise.all([readCounts(), readPage()]);
+        setCounts(nextCounts);
+        applyPage(nextPage);
+      } else {
+        setSyncOneMessage(`同步完成：${result.product.title ?? '未命名商品'}`);
+        const [nextCounts, nextPage] = await Promise.all([readCounts(), readPage()]);
+        setCounts(nextCounts);
+        applyPage(nextPage);
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '商品同步未完成。');
+    } finally {
+      setSyncingOneId(null);
+    }
+  }
+
   function changeFilter(nextFilter: ProductFilter) {
     setLoading(true);
     setError('');
     setFilter(nextFilter);
     setOffset(0);
-    setDetailProduct(null);
   }
 
   function nextPage() {
@@ -226,6 +252,11 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
       </div>
 
       {error && <div className="page-error">{error}</div>}
+      {syncOneMessage && (
+        <div className="sync-result" role="status">
+          <strong>{syncOneMessage}</strong>
+        </div>
+      )}
       {syncSummary && (
         <div className="sync-result" role="status">
           <strong>{summaryMessage(syncSummary)}</strong>
@@ -279,18 +310,18 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                   <th>侵权</th>
                   <th>编辑</th>
                   <th>最后同步</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6}>正在读取本地商品...</td></tr>
+                  <tr><td colSpan={7}>正在读取本地商品...</td></tr>
                 ) : page && page.items.length > 0 ? (
                   page.items.map((product) => (
                     <tr
                       className={selectedProduct?.id === product.id ? 'selected' : ''}
                       key={product.id}
                       onClick={() => setSelectedId(product.id)}
-                      onDoubleClick={() => setDetailProduct(product)}
                       tabIndex={0}
                     >
                       <td>
@@ -312,10 +343,23 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                       <td><span className="muted-pill">未检测</span></td>
                       <td><span className="muted-pill">未编辑</span></td>
                       <td>{formatDate(product.lastSyncedAt)}</td>
+                      <td>
+                        <button
+                          className="secondary-button row-sync-button"
+                          disabled={syncingOneId === product.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void runSyncOne(product.id);
+                          }}
+                          type="button"
+                        >
+                          {syncingOneId === product.id ? '同步中…' : '同步'}
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={6}>暂无本地商品记录</td></tr>
+                  <tr><td colSpan={7}>暂无本地商品记录</td></tr>
                 )}
               </tbody>
             </table>
@@ -338,21 +382,19 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                 <div><dt>编辑草稿</dt><dd>未编辑</dd></div>
                 <div><dt>最后同步</dt><dd>{formatDate(selectedProduct.lastSyncedAt)}</dd></div>
               </dl>
+
+              <section className="readonly-detail" aria-label="只读详情">
+                <h2>只读详情概要</h2>
+                <p>当前任务只读，不编辑、不发布。</p>
+                <dl>
+                  <div><dt>商品</dt><dd>{selectedProduct.title ?? '未命名商品'}</dd></div>
+                  <div><dt>状态</dt><dd>{stateDescriptions[selectedProduct.state]}</dd></div>
+                  <div><dt>快照</dt><dd>已保留本地同步历史</dd></div>
+                </dl>
+              </section>
             </>
           ) : (
             <p>暂无可检查商品。</p>
-          )}
-
-          {detailProduct && (
-            <section className="readonly-detail" aria-label="只读详情">
-              <h2>只读详情概要</h2>
-              <p>当前任务只读，不编辑、不发布。</p>
-              <dl>
-                <div><dt>商品</dt><dd>{detailProduct.title ?? '未命名商品'}</dd></div>
-                <div><dt>状态</dt><dd>{stateDescriptions[detailProduct.state]}</dd></div>
-                <div><dt>快照</dt><dd>已保留本地同步历史</dd></div>
-              </dl>
-            </section>
           )}
         </aside>
       </div>

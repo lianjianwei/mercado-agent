@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -54,10 +60,11 @@ function product(overrides: Partial<Product> & Pick<Product, 'id' | 'state' | 't
 }
 
 function createApi(allProducts: Product[] = products) {
+  const live = [...allProducts];
   const page = vi.fn<ProductApi['page']>(async (query: ProductPageQuery) => {
     const filtered = query.state
-      ? allProducts.filter((item) => item.state === query.state)
-      : allProducts;
+      ? live.filter((item) => item.state === query.state)
+      : live;
     const items = filtered.slice(query.offset, query.offset + query.limit);
     return { items, offset: query.offset, limit: query.limit, total: filtered.length };
   });
@@ -75,11 +82,17 @@ function createApi(allProducts: Product[] = products) {
     missing: 0,
     failures: [],
   }));
+  const syncOne = vi.fn<ProductApi['syncOne']>(async (productId: string) => {
+    const index = live.findIndex((item) => item.id === productId);
+    if (index >= 0) live.splice(index, 1);
+    return { status: 'deleted' };
+  });
 
   return {
-    api: { page, syncDefault, reconcileTracked },
+    api: { page, syncDefault, reconcileTracked, syncOne },
     page,
     syncDefault,
+    syncOne,
   };
 }
 
@@ -110,7 +123,7 @@ describe('WorkbenchPage', () => {
 
     await user.click(screen.getByRole('button', { name: '远端缺失 1' }));
     expect(await screen.findByRole('row', { name: /Missing Silicone Lid/ })).toBeTruthy();
-    expect(screen.getByText('远端三状态均未命中，只读保留')).toBeTruthy();
+    expect(screen.getAllByText('远端三状态均未命中，只读保留').length).toBeGreaterThanOrEqual(1);
 
     await user.click(screen.getByRole('button', { name: '全部记录 4' }));
     expect(await screen.findByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
@@ -145,7 +158,7 @@ describe('WorkbenchPage', () => {
     expect(screen.getByText('21-21 / 21')).toBeTruthy();
   });
 
-  it('selects rows and opens a read-only detail summary on double click', async () => {
+  it('shows quick inspection and readonly detail for the selected row', async () => {
     const user = userEvent.setup();
     const fake = createApi();
     render(<WorkbenchPage api={fake.api} />);
@@ -154,9 +167,7 @@ describe('WorkbenchPage', () => {
     await user.click(row);
     expect(screen.getByRole('heading', { name: '快速检查' })).toBeTruthy();
     expect(within(screen.getByLabelText('快速检查详情')).getByText('MLB-1001')).toBeTruthy();
-
-    await user.dblClick(row);
-    expect(await screen.findByRole('heading', { name: '只读详情概要' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '只读详情概要' })).toBeTruthy();
     expect(screen.getByText('当前任务只读，不编辑、不发布。')).toBeTruthy();
   });
 
@@ -179,5 +190,59 @@ describe('WorkbenchPage', () => {
     expect(screen.getByText('detail-9：详情读取失败')).toBeTruthy();
     expect(await screen.findByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
     expect(screen.queryByText('正在读取本地商品...')).toBeNull();
+  });
+
+  it('shows the readonly detail summary alongside quick inspection without double-click', async () => {
+    const fake = createApi();
+    render(<WorkbenchPage api={fake.api} />);
+
+    expect(await screen.findByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
+    // The readonly detail summary is visible immediately for the selected product.
+    expect(screen.getByRole('heading', { name: '只读详情概要' })).toBeTruthy();
+    expect(screen.getByText('当前任务只读，不编辑、不发布。')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '编辑' })).toBeNull();
+  });
+
+  it('runs a per-row sync and removes the row when the product was deleted remotely', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    render(<WorkbenchPage api={fake.api} />);
+
+    const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    const syncButton = within(row).getByRole('button', { name: /同步/ });
+    await user.click(syncButton);
+
+    expect(fake.syncOne).toHaveBeenCalledWith('detail-1');
+    expect(await screen.findByText('该商品已从妙手删除，已移除本地记录。')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole('row', { name: /Stainless Coffee Grinder/ })).toBeNull();
+    });
+  });
+
+  it('keeps the row and shows success when a per-row sync succeeds', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    render(<WorkbenchPage api={fake.api} />);
+
+    const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    const syncButton = within(row).getByRole('button', { name: /同步/ });
+    fake.syncOne.mockResolvedValueOnce({
+      status: 'synced',
+      product: {
+        id: 'detail-1',
+        state: 'notPublished',
+        title: 'Stainless Coffee Grinder',
+        itemNumber: 'MLB-1001',
+        thumbnailUrl: null,
+        lastSyncedAt: '2026-08-27T03:00:00.000Z',
+        createdAt: '2026-08-27T01:00:00.000Z',
+        updatedAt: '2026-08-27T03:00:00.000Z',
+      },
+    });
+    await user.click(syncButton);
+
+    expect(fake.syncOne).toHaveBeenCalledWith('detail-1');
+    expect(await screen.findByText('同步完成：Stainless Coffee Grinder')).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
   });
 });

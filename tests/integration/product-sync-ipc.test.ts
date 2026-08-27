@@ -10,6 +10,7 @@ describe('product synchronization IPC', () => {
     const service = {
       syncDefault: vi.fn().mockResolvedValue({ discovered: 1, succeeded: 1, failed: 0, missing: 0, failures: [] }),
       reconcileTracked: vi.fn(),
+      syncOne: vi.fn(),
     };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
@@ -25,7 +26,7 @@ describe('product synchronization IPC', () => {
 
   it('validates tracked ids before reconciliation', async () => {
     const handlers = new Map<string, IpcListener>();
-    const service = { syncDefault: vi.fn(), reconcileTracked: vi.fn() };
+    const service = { syncDefault: vi.fn(), reconcileTracked: vi.fn(), syncOne: vi.fn() };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
       { products: { page: vi.fn() }, sync: service },
@@ -57,6 +58,7 @@ describe('product synchronization IPC', () => {
     const service = {
       syncDefault: vi.fn(),
       reconcileTracked: vi.fn(),
+      syncOne: vi.fn(),
     };
     const products = { page: vi.fn().mockReturnValue(page) };
     registerProductHandlers(
@@ -75,7 +77,7 @@ describe('product synchronization IPC', () => {
     const products = { page: vi.fn() };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { products, sync: { syncDefault: vi.fn(), reconcileTracked: vi.fn() } },
+      { products, sync: { syncDefault: vi.fn(), reconcileTracked: vi.fn(), syncOne: vi.fn() } },
     );
 
     await expect(

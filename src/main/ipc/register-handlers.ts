@@ -28,10 +28,11 @@ type HandlerDependencies = {
   connectionTests: ConnectionTestService;
   modelProxy: ModelProxyService;
   products: ProductRepository;
-  productSync: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked' | 'syncOne'>;
+  productSync: Pick<ProductSyncService, 'syncDefault' | 'syncOne'>;
   snapshots: ProductSnapshotRepository;
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;
+  sendProgress: (line: string) => void;
 };
 
 export function registerHandlers(
@@ -48,6 +49,7 @@ export function registerHandlers(
     products: dependencies.products,
     snapshots: dependencies.snapshots,
     sync: dependencies.productSync,
+    sendProgress: dependencies.sendProgress,
   });
   registerInfringementHandlers(registrar, {
     snapshots: dependencies.snapshots,

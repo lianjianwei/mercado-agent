@@ -272,6 +272,27 @@ describe('settings page', () => {
       value: {
         app: { getInfo: async () => ({ version: '0.1.0', platform: 'darwin' }) },
         config: fake.api,
+        products: {
+          page: async () => ({ items: [], offset: 0, limit: 20, total: 0 }),
+          detail: async () => ({
+            productId: '',
+            title: null,
+            description: null,
+            itemNumber: null,
+            category: null,
+            sites: [],
+            stock: null,
+            netProfit: null,
+            sourcePrice: null,
+            mainImage: null,
+            images: [],
+            skuList: [],
+          }),
+          syncDefault: async () => ({ discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [], durationMs: 0 }),
+          onSyncLog: () => () => undefined,
+          syncOne: async () => ({ status: 'deleted' as const }),
+          clear: async () => undefined,
+        },
       },
     });
     Object.defineProperty(window, 'confirm', {

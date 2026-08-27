@@ -21,6 +21,8 @@ import { WorkbenchPage } from '../../src/ui/pages/WorkbenchPage';
 
 afterEach(cleanup);
 
+const syncLogListeners = new Set<(line: string) => void>();
+
 const products: Product[] = [
   product({
     id: 'detail-1',
@@ -36,21 +38,11 @@ const products: Product[] = [
   }),
   product({
     id: 'detail-2',
-    state: 'timingPublish',
-    title: 'Timed Ceramic Mug',
+    state: 'notPublished',
+    title: 'Locally Published Mug',
     itemNumber: 'MLB-1002',
-  }),
-  product({
-    id: 'detail-3',
-    state: 'published',
-    title: 'Published Kitchen Scale',
-    itemNumber: 'MLB-1003',
-  }),
-  product({
-    id: 'detail-4',
-    state: 'missing',
-    title: 'Missing Silicone Lid',
-    itemNumber: 'MLB-1004',
+    localPublishState: 'localPublished',
+    localPublishedAt: '2026-08-27T02:00:00.000Z',
   }),
 ];
 
@@ -63,6 +55,8 @@ function product(overrides: Partial<Product> & Pick<Product, 'id' | 'state' | 't
     stock: null,
     sites: [],
     sourcePrice: null,
+    localPublishState: 'notPublished',
+    localPublishedAt: null,
     lastSyncedAt: '2026-08-27T01:00:00.000Z',
     createdAt: '2026-08-27T01:00:00.000Z',
     updatedAt: '2026-08-27T01:00:00.000Z',
@@ -109,9 +103,11 @@ function run(overrides: Partial<InfringementRun> = {}): InfringementRun {
 function createApi(allProducts: Product[] = products) {
   const live = [...allProducts];
   const page = vi.fn<ProductApi['page']>(async (query: ProductPageQuery) => {
-    const filtered = query.state
-      ? live.filter((item) => item.state === query.state)
-      : live;
+    const filtered = live.filter((item) => {
+      if (query.state && item.state !== query.state) return false;
+      if (query.localPublishState && item.localPublishState !== query.localPublishState) return false;
+      return true;
+    });
     const items = filtered.slice(query.offset, query.offset + query.limit);
     return { items, offset: query.offset, limit: query.limit, total: filtered.length };
   });
@@ -121,18 +117,19 @@ function createApi(allProducts: Product[] = products) {
     failed: 0,
     missing: 0,
     failures: [],
+    durationMs: 0,
   }));
-  const reconcileTracked = vi.fn<ProductApi['reconcileTracked']>(async () => ({
-    discovered: 0,
-    succeeded: 0,
-    failed: 0,
-    missing: 0,
-    failures: [],
-  }));
+  const onSyncLog = vi.fn<ProductApi['onSyncLog']>((listener: (line: string) => void) => {
+    syncLogListeners.add(listener);
+    return () => syncLogListeners.delete(listener);
+  });
   const syncOne = vi.fn<ProductApi['syncOne']>(async (productId: string) => {
     const index = live.findIndex((item) => item.id === productId);
     if (index >= 0) live.splice(index, 1);
     return { status: 'deleted' };
+  });
+  const clear = vi.fn<ProductApi['clear']>(async () => {
+    live.length = 0;
   });
   const detail = vi.fn<ProductApi['detail']>(async () => ({
     productId: 'detail-1',
@@ -153,11 +150,13 @@ function createApi(allProducts: Product[] = products) {
   }));
 
   return {
-    api: { page, detail, syncDefault, reconcileTracked, syncOne },
+    api: { page, detail, syncDefault, onSyncLog, syncOne, clear },
     page,
     detail,
     syncDefault,
     syncOne,
+    clear,
+    emitSyncLog: (line: string) => syncLogListeners.forEach((listener) => listener(line)),
   };
 }
 
@@ -166,7 +165,8 @@ describe('WorkbenchPage', () => {
     const fake = createApi();
     render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
 
-    expect(await screen.findByRole('button', { name: '未发布 1' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: '未发布 2' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '本地已发布 1' })).toBeTruthy();
     expect(fake.page).toHaveBeenCalledWith({ state: 'notPublished', offset: 0, limit: 20 });
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     expect(within(row).getByText('厨房用具')).toBeTruthy();
@@ -174,30 +174,28 @@ describe('WorkbenchPage', () => {
     expect(within(row).getByText('86')).toBeTruthy();
     expect(within(row).getByText('BR、MX')).toBeTruthy();
     expect(within(row).getByText('18.9')).toBeTruthy();
+    // 本地发布列 defaults to 未发布 for products without a local publish.
+    expect(within(row).getByText('未发布')).toBeTruthy();
     // 侵权列 shows the current risk from the infringement API.
     expect((await screen.findAllByText('高风险')).length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText('Timed Ceramic Mug')).toBeNull();
+    // A locally-published product still appears here (it is still notPublished
+    // on Miaoshou) with its local badge visible.
+    expect(screen.queryByText('Locally Published Mug')).toBeTruthy();
   });
 
-  it('switches across lifecycle state tabs and all records', async () => {
+  it('switches to the locally-published tab and filters by local state', async () => {
     const user = userEvent.setup();
     const fake = createApi();
     render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
 
-    await user.click(await screen.findByRole('button', { name: '定时发布 1' }));
-    expect(await screen.findByRole('row', { name: /Timed Ceramic Mug/ })).toBeTruthy();
-    expect(fake.page).toHaveBeenLastCalledWith({ state: 'timingPublish', offset: 0, limit: 20 });
-
-    await user.click(screen.getByRole('button', { name: '已发布历史 1' }));
-    expect(await screen.findByRole('row', { name: /Published Kitchen Scale/ })).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: '远端缺失 1' }));
-    expect(await screen.findByRole('row', { name: /Missing Silicone Lid/ })).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: '全部记录 4' }));
-    expect(await screen.findByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
-    expect(screen.getByRole('row', { name: /Missing Silicone Lid/ })).toBeTruthy();
-    expect(fake.page).toHaveBeenLastCalledWith({ offset: 0, limit: 20 });
+    await user.click(await screen.findByRole('button', { name: '本地已发布 1' }));
+    expect(await screen.findByRole('row', { name: /Locally Published Mug/ })).toBeTruthy();
+    expect(screen.queryByRole('row', { name: /Stainless Coffee Grinder/ })).toBeNull();
+    expect(fake.page).toHaveBeenLastCalledWith({
+      localPublishState: 'localPublished',
+      offset: 0,
+      limit: 20,
+    });
   });
 
   it('paginates local history without changing the active state filter', async () => {
@@ -304,7 +302,7 @@ describe('WorkbenchPage', () => {
     });
   });
 
-  it('shows per-product synchronization failures', async () => {
+  it('shows per-product synchronization failures and the elapsed time', async () => {
     const user = userEvent.setup();
     const summary: ProductSyncSummary = {
       discovered: 2,
@@ -312,6 +310,7 @@ describe('WorkbenchPage', () => {
       failed: 1,
       missing: 0,
       failures: [{ id: 'detail-9', message: '详情读取失败' }],
+      durationMs: 71_000,
     };
     const fake = createApi();
     fake.syncDefault.mockResolvedValueOnce(summary);
@@ -319,9 +318,37 @@ describe('WorkbenchPage', () => {
 
     await user.click(await screen.findByRole('button', { name: '同步全部' }));
 
-    expect(await screen.findByText('同步完成：发现 2，成功 1，失败 1，缺失 0。')).toBeTruthy();
+    expect(await screen.findByText(/同步完成：发现 2，成功 1，失败 1，耗时 1 分 11 秒/)).toBeTruthy();
     expect(screen.getByText('detail-9：详情读取失败')).toBeTruthy();
     expect(await screen.findByRole('row', { name: /Stainless Coffee Grinder/ })).toBeTruthy();
+  });
+
+  it('streams progress log lines into the sync log panel', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+
+    await user.click(await screen.findByRole('button', { name: '同步全部' }));
+    fake.emitSyncLog('正在请求未发布商品第 1 页…');
+    fake.emitSyncLog('第 1 页完成：20 条。');
+
+    const log = await screen.findByRole('log');
+    expect(log.textContent).toContain('正在请求未发布商品第 1 页…');
+    expect(log.textContent).toContain('第 1 页完成：20 条。');
+  });
+
+  it('clears all product data after confirmation', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+
+    await user.click(await screen.findByRole('button', { name: '清理数据' }));
+
+    expect(fake.clear).toHaveBeenCalledOnce();
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(await screen.findByText('暂无本地商品记录')).toBeTruthy();
+    confirmSpy.mockRestore();
   });
 
   it('runs a per-row sync and removes the row when the product was deleted remotely', async () => {
@@ -360,6 +387,8 @@ describe('WorkbenchPage', () => {
         stock: '86',
         sites: ['BR'],
         sourcePrice: '18.9',
+        localPublishState: 'notPublished',
+        localPublishedAt: null,
         lastSyncedAt: '2026-08-27T03:00:00.000Z',
         createdAt: '2026-08-27T01:00:00.000Z',
         updatedAt: '2026-08-27T03:00:00.000Z',

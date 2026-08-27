@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MiaoshouGateway } from '../../src/main/gateways/miaoshou/miaoshou-gateway';
-import { MiaoshouApiError } from '../../src/main/gateways/miaoshou/errors';
+import {
+  MiaoshouApiError,
+  MiaoshouRateLimitError,
+  MiaoshouTimeoutError,
+  MiaoshouUnavailableError,
+} from '../../src/main/gateways/miaoshou/errors';
 import type { CollectBoxDetailDto, CollectBoxListItemDto } from '../../src/shared/miaoshou-schemas';
 import type {
   ProductRepository,
@@ -57,6 +62,8 @@ function fakeRepositories() {
         stock: input.stock ?? null,
         sites: input.sites ?? [],
         sourcePrice: input.sourcePrice ?? null,
+        localPublishState: 'notPublished' as const,
+        localPublishedAt: null,
         lastSyncedAt: input.syncedAt,
         createdAt: input.syncedAt,
         updatedAt: input.syncedAt,
@@ -65,9 +72,11 @@ function fakeRepositories() {
       return product;
     }),
     transition: vi.fn((id, state, at) => { const product = products.get(id); if (!product) throw new Error('missing'); product.state = state; product.lastSyncedAt = at; }),
+    setLocalPublishState: vi.fn((id, state, at) => { const product = products.get(id); if (!product) throw new Error('missing'); product.localPublishState = state; product.localPublishedAt = at; }),
     page: vi.fn((query): ProductPage => ({ items: [...products.values()].filter((p) => !query.state || p.state === query.state), offset: query.offset, limit: query.limit, total: products.size })),
     getById: vi.fn((id) => { const product = products.get(id); if (!product) throw new Error('missing'); return product; }),
     delete: vi.fn((id) => { products.delete(id); }),
+    clearAll: vi.fn(() => { products.clear(); snapshots.length = 0; }),
     transaction: (fn) => fn(),
   };
   const snapshotRepository: ProductSnapshotRepository = {
@@ -141,7 +150,7 @@ describe('ProductSyncService', () => {
     expect(repositories.productRepository.upsertRemoteIdentity).toHaveBeenCalledTimes(1);
   });
 
-  it('syncs all three lifecycle states during a full sync', async () => {
+  it('syncs only the notPublished state during a full sync', async () => {
     const repositories = fakeRepositories();
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async (input) => {
@@ -154,42 +163,16 @@ describe('ProductSyncService', () => {
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
 
-    await expect(service.syncDefault()).resolves.toMatchObject({ discovered: 3, succeeded: 3, failed: 0 });
+    await expect(service.syncDefault()).resolves.toMatchObject({ discovered: 1, succeeded: 1, failed: 0 });
     expect(repositories.products.get('1')?.state).toBe('notPublished');
-    expect(repositories.products.get('2')?.state).toBe('timingPublish');
-    expect(repositories.products.get('3')?.state).toBe('published');
+    expect(repositories.products.has('2')).toBe(false);
+    expect(repositories.products.has('3')).toBe(false);
+    expect(gateway.listCollectBox).toHaveBeenCalledTimes(1);
     expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
       1,
       { pageNo: 1, pageSize: 20, filter: { status: 'notPublished' } },
       undefined,
     );
-    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
-      2,
-      { pageNo: 1, pageSize: 20, filter: { status: 'timingPublish' } },
-      undefined,
-    );
-    expect(gateway.listCollectBox).toHaveBeenNthCalledWith(
-      3,
-      { pageNo: 1, pageSize: 20, filter: { status: 'published' } },
-      undefined,
-    );
-  });
-
-  it('reconciles tracked ids across timingPublish and published before marking missing', async () => {
-    const repositories = fakeRepositories();
-    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'One', syncedAt: '2026-08-26T00:00:00.000Z' });
-    repositories.productRepository.upsertRemoteIdentity({ id: '2', state: 'notPublished', title: 'Two', syncedAt: '2026-08-26T00:00:00.000Z' });
-    const gateway: MiaoshouGateway = {
-      listCollectBox: vi.fn(async (input) => input.filter?.status === 'timingPublish'
-        ? { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] }
-        : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
-      getCollectBoxDetail: vi.fn(async (id) => detail(id)),
-    };
-    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T01:00:00.000Z' });
-
-    await expect(service.reconcileTracked(['1', '2'])).resolves.toMatchObject({ discovered: 1, succeeded: 1, missing: 1, failed: 0 });
-    expect(repositories.products.get('1')?.state).toBe('timingPublish');
-    expect(repositories.products.get('2')?.state).toBe('missing');
   });
 
   it('stops before another page when cancelled', async () => {
@@ -240,40 +223,87 @@ describe('ProductSyncService', () => {
     expect(gateway.getCollectBoxDetail).toHaveBeenCalledWith('1', undefined);
   });
 
-  it('moves a single product to published when it appears in the published list', async () => {
+  it('emits progress log lines and reports the elapsed duration', async () => {
     const repositories = fakeRepositories();
-    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
     const gateway: MiaoshouGateway = {
-      listCollectBox: vi.fn(async (input) => input.filter?.status === 'published'
-        ? { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] }
-        : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
+      listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
     };
-    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
+    const lines: string[] = [];
+    const onProgress = (line: string) => lines.push(line);
 
-    const result = await service.syncOne('1');
+    const summary = await service.syncDefault(undefined, onProgress);
 
-    expect(result.status).toBe('synced');
-    expect(repositories.products.get('1')?.state).toBe('published');
-    if (result.status === 'synced') {
-      expect(result.product.state).toBe('published');
-    }
+    expect(typeof summary.durationMs).toBe('number');
+    expect(summary.durationMs).toBeGreaterThanOrEqual(0);
+    expect(lines.some((line) => line.includes('第 1 页'))).toBe(true);
+    expect(lines.some((line) => line.includes('同步商品 1'))).toBe(true);
+    expect(lines.some((line) => line.includes('同步完成'))).toBe(true);
   });
 
-  it('moves a single product to timingPublish when it appears there', async () => {
+  it('retries a rate-limited or unavailable detail once before failing', async () => {
     const repositories = fakeRepositories();
-    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
     const gateway: MiaoshouGateway = {
-      listCollectBox: vi.fn(async (input) => input.filter?.status === 'timingPublish'
-        ? { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] }
-        : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
+      listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
+      getCollectBoxDetail: vi.fn(async () => { throw new MiaoshouRateLimitError('accountQpsRateLimit'); }),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    const summary = await service.syncDefault();
+
+    expect(gateway.getCollectBoxDetail).toHaveBeenCalledTimes(2);
+    expect(summary).toMatchObject({ failed: 1, succeeded: 0 });
+  });
+
+  it('retries an unavailable detail once then succeeds', async () => {
+    const repositories = fakeRepositories();
+    let detailAttempts = 0;
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
+      getCollectBoxDetail: vi.fn(async (id) => {
+        detailAttempts += 1;
+        if (detailAttempts === 1) {
+          throw new MiaoshouUnavailableError();
+        }
+        return detail(id);
+      }),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    const summary = await service.syncDefault();
+
+    expect(gateway.getCollectBoxDetail).toHaveBeenCalledTimes(2);
+    expect(summary).toMatchObject({ failed: 0, succeeded: 1 });
+    expect(repositories.products.has('1')).toBe(true);
+  });
+
+  it('does not retry a business-level Miaoshou API error', async () => {
+    const repositories = fakeRepositories();
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
+      getCollectBoxDetail: vi.fn(async () => { throw new MiaoshouApiError('some_business_error'); }),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    const summary = await service.syncDefault();
+
+    expect(gateway.getCollectBoxDetail).toHaveBeenCalledTimes(1);
+    expect(summary).toMatchObject({ failed: 1, succeeded: 0 });
+  });
+
+  it('does not retry a timeout or network failure on a full sync', async () => {
+    const repositories = fakeRepositories();
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(async () => { throw new MiaoshouTimeoutError(); }),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
-    await service.syncOne('1');
+    const summary = await service.syncDefault();
 
-    expect(repositories.products.get('1')?.state).toBe('timingPublish');
+    expect(gateway.listCollectBox).toHaveBeenCalledTimes(1);
+    expect(summary).toMatchObject({ failed: 0, succeeded: 0 });
   });
 
   it('falls back to detail list columns when the list item omits them', async () => {

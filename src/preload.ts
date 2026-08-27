@@ -57,10 +57,23 @@ const desktopApi: DesktopApi = {
     detail: (productId) =>
       invoke(IPC_CHANNELS.productDetail, { productId }),
     syncDefault: () => invoke(IPC_CHANNELS.productSyncDefault),
-    reconcileTracked: (productIds) =>
-      invoke(IPC_CHANNELS.productReconcileTracked, { productIds }),
+    onSyncLog: (listener) => {
+      const onEvent = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        if (
+          payload
+          && typeof payload === 'object'
+          && 'line' in payload
+          && typeof (payload as { line: unknown }).line === 'string'
+        ) {
+          listener((payload as { line: string }).line);
+        }
+      };
+      ipcRenderer.on(IPC_CHANNELS.productSyncLog, onEvent);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.productSyncLog, onEvent);
+    },
     syncOne: (productId) =>
       invoke(IPC_CHANNELS.productSyncOne, { productId }),
+    clear: () => invoke(IPC_CHANNELS.productClear),
   },
   infringement: {
     analyze: (productId) =>

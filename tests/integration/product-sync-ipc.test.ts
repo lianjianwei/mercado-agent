@@ -9,32 +9,43 @@ describe('product synchronization IPC', () => {
   it('runs the default sync through a typed handler', async () => {
     const handlers = new Map<string, IpcListener>();
     const service = {
-      syncDefault: vi.fn().mockResolvedValue({ discovered: 1, succeeded: 1, failed: 0, missing: 0, failures: [] }),
-      reconcileTracked: vi.fn(),
+      syncDefault: vi.fn().mockResolvedValue({ discovered: 1, succeeded: 1, failed: 0, missing: 0, failures: [], durationMs: 120 }),
       syncOne: vi.fn(),
     };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { products: { page: vi.fn(), getById: vi.fn() }, sync: service },
+      { products: { page: vi.fn(), getById: vi.fn(), clearAll: vi.fn() }, sync: service },
     );
 
     await expect(handlers.get(IPC_CHANNELS.productSyncDefault)?.({}, undefined)).resolves.toEqual({
       ok: true,
-      data: { discovered: 1, succeeded: 1, failed: 0, missing: 0, failures: [] },
+      data: { discovered: 1, succeeded: 1, failed: 0, missing: 0, failures: [], durationMs: 120 },
     });
     expect(service.syncDefault).toHaveBeenCalledOnce();
   });
 
-  it('validates tracked ids before reconciliation', async () => {
+  it('forwards progress log lines through the injected sender', async () => {
     const handlers = new Map<string, IpcListener>();
-    const service = { syncDefault: vi.fn(), reconcileTracked: vi.fn(), syncOne: vi.fn() };
+    const sent: string[] = [];
+    const service = {
+      syncDefault: vi.fn(async (_signal: AbortSignal | undefined, onProgress?: (line: string) => void) => {
+        onProgress?.('第 1 页完成：20 条。');
+        return { discovered: 20, succeeded: 20, failed: 0, missing: 0, failures: [], durationMs: 500 };
+      }),
+      syncOne: vi.fn(),
+    };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { products: { page: vi.fn(), getById: vi.fn() }, sync: service },
+      {
+        products: { page: vi.fn(), getById: vi.fn(), clearAll: vi.fn() },
+        sync: service,
+        sendProgress: (line) => sent.push(line),
+      },
     );
 
-    await expect(handlers.get(IPC_CHANNELS.productReconcileTracked)?.({}, { productIds: ['1', 2] })).resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
-    expect(service.reconcileTracked).not.toHaveBeenCalled();
+    await handlers.get(IPC_CHANNELS.productSyncDefault)?.({}, undefined);
+
+    expect(sent).toEqual(['第 1 页完成：20 条。']);
   });
 
   it('returns a state-filtered product page through IPC', async () => {
@@ -52,6 +63,8 @@ describe('product synchronization IPC', () => {
           stock: null,
           sites: [],
           sourcePrice: null,
+          localPublishState: 'notPublished' as const,
+          localPublishedAt: null,
           lastSyncedAt: '2026-08-27T01:00:00.000Z',
           createdAt: '2026-08-27T01:00:00.000Z',
           updatedAt: '2026-08-27T01:00:00.000Z',
@@ -63,10 +76,9 @@ describe('product synchronization IPC', () => {
     };
     const service = {
       syncDefault: vi.fn(),
-      reconcileTracked: vi.fn(),
       syncOne: vi.fn(),
     };
-    const products = { page: vi.fn().mockReturnValue(page), getById: vi.fn() };
+    const products = { page: vi.fn().mockReturnValue(page), getById: vi.fn(), clearAll: vi.fn() };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
       { products, sync: service },
@@ -80,10 +92,10 @@ describe('product synchronization IPC', () => {
 
   it('rejects invalid product page requests', async () => {
     const handlers = new Map<string, IpcListener>();
-    const products = { page: vi.fn(), getById: vi.fn() };
+    const products = { page: vi.fn(), getById: vi.fn(), clearAll: vi.fn() };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { products, sync: { syncDefault: vi.fn(), reconcileTracked: vi.fn(), syncOne: vi.fn() } },
+      { products, sync: { syncDefault: vi.fn(), syncOne: vi.fn() } },
     );
 
     await expect(
@@ -105,11 +117,13 @@ describe('product synchronization IPC', () => {
       stock: '86',
       sites: ['BR'],
       sourcePrice: '18.9',
+      localPublishState: 'notPublished' as const,
+      localPublishedAt: null,
       lastSyncedAt: '2026-08-27T01:00:00.000Z',
       createdAt: '2026-08-27T01:00:00.000Z',
       updatedAt: '2026-08-27T01:00:00.000Z',
     };
-    const products = { page: vi.fn(), getById: vi.fn().mockReturnValue(product) };
+    const products = { page: vi.fn(), getById: vi.fn().mockReturnValue(product), clearAll: vi.fn() };
     const snapshots = {
       listForProduct: vi.fn().mockReturnValue([
         {
@@ -136,7 +150,7 @@ describe('product synchronization IPC', () => {
     };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { products, snapshots, sync: { syncDefault: vi.fn(), reconcileTracked: vi.fn(), syncOne: vi.fn() } },
+      { products, snapshots, sync: { syncDefault: vi.fn(), syncOne: vi.fn() } },
     );
 
     await expect(
@@ -171,14 +185,29 @@ describe('product synchronization IPC', () => {
       getById: vi.fn(() => {
         throw new ProductNotFoundError('nope');
       }),
+      clearAll: vi.fn(),
     };
     registerProductHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { products, sync: { syncDefault: vi.fn(), reconcileTracked: vi.fn(), syncOne: vi.fn() } },
+      { products, sync: { syncDefault: vi.fn(), syncOne: vi.fn() } },
     );
 
     await expect(
       handlers.get(IPC_CHANNELS.productDetail)?.({}, { productId: 'nope' }),
     ).resolves.toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+
+  it('clears all product data through IPC', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const products = { page: vi.fn(), getById: vi.fn(), clearAll: vi.fn() };
+    registerProductHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { products, sync: { syncDefault: vi.fn(), syncOne: vi.fn() } },
+    );
+
+    await expect(
+      handlers.get(IPC_CHANNELS.productClear)?.({}, undefined),
+    ).resolves.toEqual({ ok: true, data: undefined });
+    expect(products.clearAll).toHaveBeenCalledOnce();
   });
 });

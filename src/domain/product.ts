@@ -9,6 +9,14 @@ export type RemoteMiaoshouProductState = Exclude<
   'missing'
 >;
 
+// A local marker the app owns: this app submitted a publish for the product
+// through the Miaoshou endpoint. It is independent of the remote lifecycle
+// (state) and is only ever set by the local publish flow.
+export type LocalPublishState =
+  | 'notPublished'
+  | 'localPublished'
+  | 'localFailed';
+
 export type RemoteProductIdentity = {
   id: string;
   state: RemoteMiaoshouProductState;
@@ -34,6 +42,8 @@ export type Product = {
   stock: string | null;
   sites: string[];
   sourcePrice: string | null;
+  localPublishState: LocalPublishState;
+  localPublishedAt: string | null;
   lastSyncedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -41,6 +51,7 @@ export type Product = {
 
 export type ProductPageQuery = {
   state?: MiaoshouProductState;
+  localPublishState?: LocalPublishState;
   offset: number;
   limit: number;
 };
@@ -55,9 +66,15 @@ export type ProductPage = {
 export interface ProductRepository {
   upsertRemoteIdentity(product: RemoteProductIdentity): Product;
   transition(id: string, state: MiaoshouProductState, at: string): void;
+  setLocalPublishState(
+    id: string,
+    state: LocalPublishState,
+    at: string | null,
+  ): void;
   page(query: ProductPageQuery): ProductPage;
   getById(id: string): Product;
   delete(id: string): void;
+  clearAll(): void;
 }
 
 export type ProductSnapshotKind =
@@ -93,6 +110,7 @@ export type ProductSyncSummary = {
   failed: number;
   missing: number;
   failures: ProductSyncFailure[];
+  durationMs: number;
 };
 
 export type SyncOneResult =

@@ -21,6 +21,8 @@ const product: Product = {
   stock: null,
   sites: [],
   sourcePrice: null,
+  localPublishState: 'notPublished',
+  localPublishedAt: null,
   lastSyncedAt: '2026-08-27T01:00:00.000Z',
   createdAt: '2026-08-27T01:00:00.000Z',
   updatedAt: '2026-08-27T01:00:00.000Z',

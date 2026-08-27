@@ -32,8 +32,9 @@ export const IPC_CHANNELS = {
   productPage: 'product:page',
   productDetail: 'product:detail',
   productSyncDefault: 'product:sync-default',
-  productReconcileTracked: 'product:reconcile-tracked',
+  productSyncLog: 'product:sync-log',
   productSyncOne: 'product:sync-one',
+  productClear: 'product:clear',
   infringementAnalyze: 'infringement:analyze',
   infringementHistory: 'infringement:history',
   infringementCurrent: 'infringement:current',
@@ -98,8 +99,9 @@ export interface ProductApi {
   page(query: ProductPageQuery): Promise<ProductPage>;
   detail(productId: string): Promise<ProductDetail>;
   syncDefault(): Promise<ProductSyncSummary>;
-  reconcileTracked(productIds: string[]): Promise<ProductSyncSummary>;
+  onSyncLog(listener: (line: string) => void): () => void;
   syncOne(productId: string): Promise<SyncOneResult>;
+  clear(): Promise<void>;
 }
 
 export interface InfringementApi {

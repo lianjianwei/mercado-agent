@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
+  LocalPublishState,
   MiaoshouProductState,
   ProductPage,
   ProductPageQuery,
@@ -14,6 +15,7 @@ import {
   levelLabels,
   levelPillClass,
 } from '../components/RiskReviewPanel';
+import { SyncLogPanel } from '../components/SyncLogPanel';
 import './workbench.css';
 import './infringement.css';
 
@@ -24,7 +26,7 @@ type WorkbenchPageProps = {
   };
 };
 
-type ProductFilter = MiaoshouProductState | 'all';
+type ProductFilter = 'notPublished' | 'localPublished';
 type RightTab = 'quick' | 'risk' | 'edit' | 'publish';
 
 const PAGE_SIZE = 20;
@@ -43,12 +45,15 @@ const stateDescriptions: Record<MiaoshouProductState, string> = {
   missing: '远端三状态均未命中，只读保留',
 };
 
+const localPublishLabels: Record<LocalPublishState, string> = {
+  notPublished: '未发布',
+  localPublished: '本地已发布',
+  localFailed: '发布失败',
+};
+
 const tabs: Array<{ id: ProductFilter; label: string }> = [
   { id: 'notPublished', label: stateLabels.notPublished },
-  { id: 'timingPublish', label: stateLabels.timingPublish },
-  { id: 'published', label: stateLabels.published },
-  { id: 'missing', label: stateLabels.missing },
-  { id: 'all', label: '全部记录' },
+  { id: 'localPublished', label: localPublishLabels.localPublished },
 ];
 
 const rightTabs: Array<{ id: RightTab; label: string }> = [
@@ -59,15 +64,15 @@ const rightTabs: Array<{ id: RightTab; label: string }> = [
 ];
 
 function pageQuery(filter: ProductFilter, offset: number): ProductPageQuery {
-  return filter === 'all'
-    ? { offset, limit: PAGE_SIZE }
-    : { state: filter, offset, limit: PAGE_SIZE };
+  return filter === 'localPublished'
+    ? { localPublishState: 'localPublished', offset, limit: PAGE_SIZE }
+    : { state: 'notPublished', offset, limit: PAGE_SIZE };
 }
 
 function countQuery(filter: ProductFilter): ProductPageQuery {
-  return filter === 'all'
-    ? { offset: 0, limit: 1 }
-    : { state: filter, offset: 0, limit: 1 };
+  return filter === 'localPublished'
+    ? { localPublishState: 'localPublished', offset: 0, limit: 1 }
+    : { state: 'notPublished', offset: 0, limit: 1 };
 }
 
 function formatDate(value: string): string {
@@ -89,11 +94,30 @@ function rangeLabel(page: ProductPage | null): string {
 }
 
 function summaryMessage(summary: ProductSyncSummary): string {
-  return `同步完成：发现 ${summary.discovered}，成功 ${summary.succeeded}，失败 ${summary.failed}，缺失 ${summary.missing}。`;
+  return `同步完成：发现 ${summary.discovered}，成功 ${summary.succeeded}，失败 ${summary.failed}，耗时 ${formatElapsed(summary.durationMs)}。`;
+}
+
+function formatElapsed(milliseconds: number): string {
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder > 0 ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分`;
 }
 
 function sitesLabel(sites: string[] | null): string {
   return sites && sites.length > 0 ? sites.join('、') : '—';
+}
+
+function localPublishPillClass(state: LocalPublishState): string {
+  switch (state) {
+    case 'localPublished':
+      return 'local-pill published';
+    case 'localFailed':
+      return 'local-pill failed';
+    default:
+      return 'local-pill';
+  }
 }
 
 const ssrProductApi: ProductApi = {
@@ -117,13 +141,23 @@ const ssrProductApi: ProductApi = {
     };
   },
   async syncDefault() {
-    return { discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] };
+    return {
+      discovered: 0,
+      succeeded: 0,
+      failed: 0,
+      missing: 0,
+      failures: [],
+      durationMs: 0,
+    };
   },
-  async reconcileTracked() {
-    return { discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] };
+  onSyncLog() {
+    return () => undefined;
   },
   async syncOne() {
     return { status: 'deleted' };
+  },
+  async clear() {
+    return undefined;
   },
 };
 
@@ -172,6 +206,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [riskError, setRiskError] = useState('');
   const [continueEditId, setContinueEditId] = useState<string | null>(null);
+  const [syncLogLines, setSyncLogLines] = useState<string[]>([]);
 
   const selectedProduct = useMemo(
     () => page?.items.find((item) => item.id === selectedId) ?? page?.items[0] ?? null,
@@ -282,10 +317,19 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     };
   }, [selectedProduct, infringementApi]);
 
+  // Stream progress log lines from the main process into the sync panel.
+  useEffect(() => {
+    const unsubscribe = productApi.onSyncLog((line) => {
+      setSyncLogLines((current) => [...current, line]);
+    });
+    return unsubscribe;
+  }, [productApi]);
+
   async function runDefaultSync() {
     setSyncing(true);
     setError('');
     setSyncSummary(null);
+    setSyncLogLines([]);
     try {
       const summary = await productApi.syncDefault();
       setSyncSummary(summary);
@@ -322,6 +366,22 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
       setError(reason instanceof Error ? reason.message : '商品同步未完成。');
     } finally {
       setSyncingOneId(null);
+    }
+  }
+
+  async function runClearData() {
+    if (!window.confirm('确定清理本机全部妙手商品数据吗？将删除商品、快照与风险记录，凭证配置会保留。')) {
+      return;
+    }
+    setError('');
+    setSyncLogLines([]);
+    try {
+      await productApi.clear();
+      const [nextCounts, nextPage] = await Promise.all([readCounts(), readPage()]);
+      setCounts(nextCounts);
+      applyPage(nextPage);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '商品数据清理未完成。');
     }
   }
 
@@ -393,14 +453,24 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
             </button>
           ))}
         </div>
-        <button
-          className="primary-button"
-          disabled={syncing}
-          onClick={() => void runDefaultSync()}
-          type="button"
-        >
-          {syncing ? '同步中...' : '同步全部'}
-        </button>
+        <div className="toolbar-actions">
+          <button
+            className="secondary-button"
+            disabled={syncing}
+            onClick={() => void runClearData()}
+            type="button"
+          >
+            清理数据
+          </button>
+          <button
+            className="primary-button"
+            disabled={syncing}
+            onClick={() => void runDefaultSync()}
+            type="button"
+          >
+            {syncing ? '同步中...' : '同步全部'}
+          </button>
+        </div>
       </div>
 
       {error && <div className="page-error">{error}</div>}
@@ -429,7 +499,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           <div className="list-header">
             <div>
               <span className="section-kicker">MIAOSHOU COLLECT BOX</span>
-              <h2>{filter === 'all' ? '全部本地记录' : stateLabels[filter]}</h2>
+              <h2>{filter === 'localPublished' ? '本地已发布' : '未发布商品'}</h2>
             </div>
             <div className="pagination-controls" aria-label="分页">
               <button
@@ -462,6 +532,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                   <th>库存</th>
                   <th>站点</th>
                   <th>货源价</th>
+                  <th>本地发布</th>
                   <th>侵权</th>
                   <th>编辑</th>
                   <th>操作</th>
@@ -469,7 +540,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9}>正在读取本地商品...</td></tr>
+                  <tr><td colSpan={10}>正在读取本地商品...</td></tr>
                 ) : page && page.items.length > 0 ? (
                   page.items.map((product) => {
                     const risk = riskByProduct[product.id] ?? null;
@@ -495,6 +566,11 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                         <td>{product.stock ?? '—'}</td>
                         <td>{sitesLabel(product.sites)}</td>
                         <td>{product.sourcePrice ?? '—'}</td>
+                        <td>
+                          <span className={localPublishPillClass(product.localPublishState)}>
+                            {localPublishLabels[product.localPublishState]}
+                          </span>
+                        </td>
                         <td>
                           {risk ? (
                             <span className={levelPillClass(risk.level)}>
@@ -564,7 +640,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                     );
                   })
                 ) : (
-                  <tr><td colSpan={9}>暂无本地商品记录</td></tr>
+                  <tr><td colSpan={10}>暂无本地商品记录</td></tr>
                 )}
               </tbody>
             </table>
@@ -606,6 +682,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                     <div><dt>库存</dt><dd>{selectedProduct.stock ?? '—'}</dd></div>
                     <div><dt>站点</dt><dd>{sitesLabel(selectedProduct.sites)}</dd></div>
                     <div><dt>货源价</dt><dd>{selectedProduct.sourcePrice ?? '—'}</dd></div>
+                    <div><dt>本地发布</dt><dd>{localPublishLabels[selectedProduct.localPublishState]}</dd></div>
                     <div><dt>侵权检测</dt><dd>
                       {riskByProduct[selectedProduct.id] ? (
                         <span className={levelPillClass(riskByProduct[selectedProduct.id]!.level)}>
@@ -666,6 +743,8 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           )}
         </aside>
       </div>
+
+      <SyncLogPanel lines={syncLogLines} visible={syncLogLines.length > 0} />
 
       {detailProduct && (
         <ProductDetailModal

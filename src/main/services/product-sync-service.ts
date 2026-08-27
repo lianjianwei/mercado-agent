@@ -1,13 +1,16 @@
 import type {
   MiaoshouGateway,
 } from '../gateways/miaoshou/miaoshou-gateway';
-import { MiaoshouApiError } from '../gateways/miaoshou/errors';
+import {
+  MiaoshouApiError,
+  MiaoshouRateLimitError,
+  MiaoshouUnavailableError,
+} from '../gateways/miaoshou/errors';
 import type {
   CollectBoxDetailDto,
   CollectBoxListItemDto,
 } from '../../shared/miaoshou-schemas';
 import type {
-  MiaoshouProductState,
   ProductRepository,
   ProductSnapshotRepository,
   RemoteMiaoshouProductState,
@@ -19,6 +22,8 @@ import type {
 
 export type SyncFailure = ProductSyncFailure;
 export type SyncSummary = ProductSyncSummary;
+
+export type ProductSyncProgress = (line: string) => void;
 
 export type ProductSyncServiceOptions = {
   now?: () => string;
@@ -88,15 +93,27 @@ export class ProductSyncService {
     this.pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
   }
 
-  async syncDefault(signal?: AbortSignal): Promise<SyncSummary> {
-    // Query every lifecycle state so a product that was published (or timed)
-    // on Miaoshou since the last sync is picked up with its real state instead
-    // of staying stuck in notPublished.
+  async syncDefault(
+    signal?: AbortSignal,
+    onProgress?: ProductSyncProgress,
+  ): Promise<SyncSummary> {
+    // A full sync only reconciles the notPublished list: this is the working
+    // set the workbench acts on. timingPublish and published are read-only
+    // history that the app no longer tracks as sync targets.
+    const startedAt = performance.now();
     const summary = this.emptySummary();
     const seen = new Set<string>();
-    for (const state of ['notPublished', 'timingPublish', 'published'] as const) {
-      await this.syncStatus(state, summary, seen, signal);
+    onProgress?.('开始同步，仅拉取未发布商品…');
+    try {
+      await this.syncStatus('notPublished', summary, seen, signal, onProgress);
+    } catch (error) {
+      if (signal?.aborted) throw new ProductSyncCancelledError();
+      onProgress?.(`同步中断：${this.safeMessage(error)}`);
     }
+    summary.durationMs = Math.max(0, Math.round(performance.now() - startedAt));
+    onProgress?.(
+      `同步完成：发现 ${summary.discovered}，成功 ${summary.succeeded}，失败 ${summary.failed}，耗时 ${formatDuration(summary.durationMs)}。`,
+    );
     return summary;
   }
 
@@ -106,7 +123,7 @@ export class ProductSyncService {
       const detail = await this.gateway.getCollectBoxDetail(productId, signal);
       this.throwIfCancelled(signal);
       const current = this.products.getById(productId);
-      const state = await this.locateState(productId, current.state, signal);
+      const state = current.state === 'missing' ? 'notPublished' : current.state;
       const syncedAt = this.now();
       const transactionRunner = this.products as ProductRepository & TransactionRunner;
       const fallback = listColumnsFromDetail(detail);
@@ -150,96 +167,33 @@ export class ProductSyncService {
     }
   }
 
-  async reconcileTracked(
-    productIds: string[],
-    signal?: AbortSignal,
-  ): Promise<SyncSummary> {
-    const tracked = new Set(productIds);
-    const summary = this.emptySummary();
-    const found = new Set<string>();
-
-    for (const state of ['timingPublish', 'published'] as const) {
-      let pageNo = 1;
-      while (true) {
-        this.throwIfCancelled(signal);
-        const page = await this.gateway.listCollectBox(
-          { pageNo, pageSize: this.pageSize, filter: { status: state } },
-          signal,
-        );
-        for (const item of page.items) {
-          if (!tracked.has(item.collectBoxDetailId) || found.has(item.collectBoxDetailId)) continue;
-          found.add(item.collectBoxDetailId);
-          summary.discovered += 1;
-          await this.syncItem(item, state, summary, signal);
-        }
-        if (!page.hasMore) break;
-        pageNo += 1;
-      }
-    }
-
-    for (const id of tracked) {
-      if (found.has(id)) continue;
-      this.throwIfCancelled(signal);
-      try {
-        this.products.transition(id, 'missing', this.now());
-        summary.missing += 1;
-      } catch (error) {
-        summary.failures.push({ id, message: this.safeMessage(error) });
-        summary.failed += 1;
-      }
-    }
-    return summary;
-  }
-
   private async syncStatus(
     state: RemoteMiaoshouProductState,
     summary: SyncSummary,
     seen: Set<string>,
     signal?: AbortSignal,
+    onProgress?: ProductSyncProgress,
   ): Promise<void> {
     let pageNo = 1;
     while (true) {
       this.throwIfCancelled(signal);
+      onProgress?.(`正在请求未发布商品第 ${pageNo} 页…`);
       const page = await this.gateway.listCollectBox(
         { pageNo, pageSize: this.pageSize, filter: { status: state } },
         signal,
+      );
+      onProgress?.(
+        `第 ${pageNo} 页完成：${page.items.length} 条。`,
       );
       for (const item of page.items) {
         if (seen.has(item.collectBoxDetailId)) continue;
         seen.add(item.collectBoxDetailId);
         summary.discovered += 1;
-        await this.syncItem(item, state, summary, signal);
+        await this.syncItem(item, state, summary, signal, onProgress);
       }
       if (!page.hasMore) break;
       pageNo += 1;
     }
-  }
-
-  // The detail API does not report lifecycle state, so a single-product sync
-  // confirms the real state by checking which lifecycle list contains the id.
-  // List queries may fail (network, rate limit): treat them as inconclusive and
-  // keep the current state rather than guessing.
-  private async locateState(
-    productId: string,
-    current: MiaoshouProductState,
-    signal?: AbortSignal,
-  ): Promise<RemoteMiaoshouProductState> {
-    if (current === 'missing') return 'notPublished';
-    try {
-      for (const state of ['published', 'timingPublish'] as const) {
-        const page = await this.gateway.listCollectBox(
-          { pageNo: 1, pageSize: this.pageSize, filter: { status: state } },
-          signal,
-        );
-        if (page.items.some((item) => item.collectBoxDetailId === productId)) {
-          return state;
-        }
-      }
-    } catch {
-      if (signal?.aborted) throw new ProductSyncCancelledError();
-      // Inconclusive; keep whatever the current state was.
-    }
-    return current;
   }
 
   private async syncItem(
@@ -247,10 +201,18 @@ export class ProductSyncService {
     state: RemoteMiaoshouProductState,
     summary: SyncSummary,
     signal?: AbortSignal,
+    onProgress?: ProductSyncProgress,
   ): Promise<void> {
     this.throwIfCancelled(signal);
+    const label = item.title || item.collectBoxDetailId;
+    onProgress?.(`正在同步商品 ${item.collectBoxDetailId}（${label}）…`);
     try {
-      const detail = await this.gateway.getCollectBoxDetail(item.collectBoxDetailId, signal);
+      const detail = await this.fetchDetailWithRetry(
+        item.collectBoxDetailId,
+        signal,
+        onProgress,
+      );
+      this.throwIfCancelled(signal);
       const syncedAt = this.now();
       const transactionRunner = this.products as ProductRepository & TransactionRunner;
       const fallback = listColumnsFromDetail(detail);
@@ -277,6 +239,7 @@ export class ProductSyncService {
         });
       });
       summary.succeeded += 1;
+      onProgress?.(`商品 ${item.collectBoxDetailId} 同步成功。`);
     } catch (error) {
       if (signal?.aborted) throw new ProductSyncCancelledError();
       summary.failed += 1;
@@ -284,6 +247,29 @@ export class ProductSyncService {
         id: item.collectBoxDetailId,
         message: this.safeMessage(error),
       });
+      onProgress?.(`商品 ${item.collectBoxDetailId} 同步失败：${this.safeMessage(error)}。`);
+    }
+  }
+
+  // Transient gateway failures (rate limit, temporary unavailability) are worth
+  // one retry; business errors and cancellation pass through. Timeout and
+  // network errors during a list page abort the whole sync rather than guessing.
+  private async fetchDetailWithRetry(
+    detailId: string,
+    signal?: AbortSignal,
+    onProgress?: ProductSyncProgress,
+  ): Promise<CollectBoxDetailDto> {
+    try {
+      return await this.gateway.getCollectBoxDetail(detailId, signal);
+    } catch (error) {
+      if (
+        error instanceof MiaoshouRateLimitError
+        || error instanceof MiaoshouUnavailableError
+      ) {
+        onProgress?.(`商品 ${detailId} 请求受限/服务不可用，正在重试…`);
+        return await this.gateway.getCollectBoxDetail(detailId, signal);
+      }
+      throw error;
     }
   }
 
@@ -299,7 +285,14 @@ export class ProductSyncService {
   }
 
   private emptySummary(): SyncSummary {
-    return { discovered: 0, succeeded: 0, failed: 0, missing: 0, failures: [] };
+    return {
+      discovered: 0,
+      succeeded: 0,
+      failed: 0,
+      missing: 0,
+      failures: [],
+      durationMs: 0,
+    };
   }
 
   private throwIfCancelled(signal?: AbortSignal): void {
@@ -309,4 +302,12 @@ export class ProductSyncService {
   private safeMessage(error: unknown): string {
     return error instanceof Error ? error.message : '同步失败';
   }
+}
+
+function formatDuration(milliseconds: number): string {
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder > 0 ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分`;
 }

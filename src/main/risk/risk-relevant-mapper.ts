@@ -2,9 +2,11 @@ import type { RiskRelevantProduct } from './fingerprint';
 import type { CollectBoxDetailDto } from '../../shared/miaoshou-schemas';
 
 // Vision models download each image server-side; an unreachable or non-HTTPS
-// URL makes the whole request fail with a 400. Cap the image batch and drop
-// tracking/code images so a large collect-box detail cannot break analysis.
-const MAX_MODEL_IMAGES = 5;
+// URL makes the whole request fail with a 400. Only images selected on SKUs
+// are sent (each SKU keeps one main image in `skuMap[sku].imgUrls`), capped to
+// a small batch and with tracking/code images dropped, so a large collect-box
+// detail cannot break analysis.
+const MAX_MODEL_IMAGES = 6;
 
 function isDownloadableImage(url: string): boolean {
   return /^https:\/\//i.test(url);
@@ -21,6 +23,20 @@ function selectModelImages(urls: string[] | undefined): string[] {
   return urls
     .filter((url) => isDownloadableImage(url) && !isTrackingImage(url))
     .slice(0, MAX_MODEL_IMAGES);
+}
+
+function skuSelectedImages(
+  skuMap: Record<string, { imgUrls?: unknown }> | undefined,
+): string[] {
+  if (!skuMap) return [];
+  const urls: string[] = [];
+  for (const sku of Object.values(skuMap)) {
+    if (!Array.isArray(sku?.imgUrls)) continue;
+    for (const url of sku.imgUrls) {
+      if (typeof url === 'string') urls.push(url);
+    }
+  }
+  return urls;
 }
 
 function flattenAttributes(
@@ -57,6 +73,6 @@ export function riskRelevantProductFromDetail(
     category: info.cid ? String(info.cid) : null,
     attributes: flattenAttributes(info.attributes),
     skuName: info.firstSkuKey ?? null,
-    imageUrls: selectModelImages(info.sourceImgUrls),
+    imageUrls: selectModelImages(skuSelectedImages(info.skuMap)),
   };
 }

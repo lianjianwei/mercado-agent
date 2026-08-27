@@ -9,8 +9,6 @@ describe('application shell', () => {
 
     for (const label of [
       '工作台',
-      '侵权检测',
-      '产品编辑',
       '产品发布',
       '任务记录',
       '模型与凭证',

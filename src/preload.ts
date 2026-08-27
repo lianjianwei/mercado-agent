@@ -54,9 +54,21 @@ const desktopApi: DesktopApi = {
   },
   products: {
     page: (query) => invoke(IPC_CHANNELS.productPage, query),
+    detail: (productId) =>
+      invoke(IPC_CHANNELS.productDetail, { productId }),
     syncDefault: () => invoke(IPC_CHANNELS.productSyncDefault),
     reconcileTracked: (productIds) =>
       invoke(IPC_CHANNELS.productReconcileTracked, { productIds }),
+    syncOne: (productId) =>
+      invoke(IPC_CHANNELS.productSyncOne, { productId }),
+  },
+  infringement: {
+    analyze: (productId) =>
+      invoke(IPC_CHANNELS.infringementAnalyze, { productId }),
+    history: (productId) =>
+      invoke(IPC_CHANNELS.infringementHistory, { productId }),
+    current: (productId) =>
+      invoke(IPC_CHANNELS.infringementCurrent, { productId }),
   },
 };
 

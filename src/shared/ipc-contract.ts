@@ -8,10 +8,13 @@ import type { AppCredentialsInput } from './config-schemas';
 import type { ConnectionResult } from '../domain/providers';
 import type { ModelProxyConfig } from '../domain/proxy';
 import type {
+  ProductDetail,
   ProductPage,
   ProductPageQuery,
   ProductSyncSummary,
+  SyncOneResult,
 } from '../domain/product';
+import type { InfringementRun } from '../domain/infringement';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -27,8 +30,13 @@ export const IPC_CHANNELS = {
   proxyGet: 'proxy:get',
   proxySave: 'proxy:save',
   productPage: 'product:page',
+  productDetail: 'product:detail',
   productSyncDefault: 'product:sync-default',
   productReconcileTracked: 'product:reconcile-tracked',
+  productSyncOne: 'product:sync-one',
+  infringementAnalyze: 'infringement:analyze',
+  infringementHistory: 'infringement:history',
+  infringementCurrent: 'infringement:current',
 } as const;
 
 export type IpcErrorCode =
@@ -88,8 +96,16 @@ export interface ProxyConfigApi {
 
 export interface ProductApi {
   page(query: ProductPageQuery): Promise<ProductPage>;
+  detail(productId: string): Promise<ProductDetail>;
   syncDefault(): Promise<ProductSyncSummary>;
   reconcileTracked(productIds: string[]): Promise<ProductSyncSummary>;
+  syncOne(productId: string): Promise<SyncOneResult>;
+}
+
+export interface InfringementApi {
+  analyze(productId: string): Promise<InfringementRun>;
+  history(productId: string): Promise<InfringementRun[]>;
+  current(productId: string): Promise<InfringementRun | null>;
 }
 
 export interface ConfigApi {
@@ -109,4 +125,5 @@ export interface DesktopApi {
   diagnostics: DiagnosticApi;
   proxy: ProxyConfigApi;
   products: ProductApi;
+  infringement: InfringementApi;
 }

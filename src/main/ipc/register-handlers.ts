@@ -2,7 +2,8 @@ import type {
   CredentialRepository,
   ProviderConfigRepository,
 } from '../../domain/config';
-import type { ProductRepository } from '../../domain/product';
+import type { ProductRepository, ProductSnapshotRepository } from '../../domain/product';
+import type { InfringementRepository } from '../../domain/infringement';
 import {
   IPC_CHANNELS,
   type AppInfo,
@@ -10,11 +11,13 @@ import {
 } from '../../shared/ipc-contract';
 import { registerConfigHandlers } from './config-handlers';
 import { registerDiagnosticHandlers } from './diagnostic-handlers';
+import { registerInfringementHandlers } from './infringement-handlers';
 import { registerProductHandlers } from './product-handlers';
 import { registerProxyConfigHandlers } from './proxy-config-handlers';
 import type { ConnectionTestService } from '../services/connection-test-service';
 import type { ModelProxyService } from '../services/model-proxy-service';
 import type { ProductSyncService } from '../services/product-sync-service';
+import type { InfringementService } from '../services/infringement-service';
 import type { DiagnosticSnapshot } from '../../shared/ipc-contract';
 
 type HandlerDependencies = {
@@ -25,7 +28,10 @@ type HandlerDependencies = {
   connectionTests: ConnectionTestService;
   modelProxy: ModelProxyService;
   products: ProductRepository;
-  productSync: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked'>;
+  productSync: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked' | 'syncOne'>;
+  snapshots: ProductSnapshotRepository;
+  infringementRepository: InfringementRepository;
+  infringementService: InfringementService;
 };
 
 export function registerHandlers(
@@ -40,7 +46,13 @@ export function registerHandlers(
   registerProxyConfigHandlers(registrar, dependencies.modelProxy);
   registerProductHandlers(registrar, {
     products: dependencies.products,
+    snapshots: dependencies.snapshots,
     sync: dependencies.productSync,
+  });
+  registerInfringementHandlers(registrar, {
+    snapshots: dependencies.snapshots,
+    repository: dependencies.infringementRepository,
+    service: dependencies.infringementService,
   });
   registrar.handle(IPC_CHANNELS.appGetInfo, async () => ({
     ok: true,

@@ -15,6 +15,11 @@ export type RemoteProductIdentity = {
   title?: string;
   itemNumber?: string;
   thumbnailUrl?: string;
+  category?: string | null;
+  netProfit?: string | null;
+  stock?: string | null;
+  sites?: string[] | null;
+  sourcePrice?: string | null;
   syncedAt: string;
 };
 
@@ -24,6 +29,11 @@ export type Product = {
   title: string | null;
   itemNumber: string | null;
   thumbnailUrl: string | null;
+  category: string | null;
+  netProfit: string | null;
+  stock: string | null;
+  sites: string[];
+  sourcePrice: string | null;
   lastSyncedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +56,8 @@ export interface ProductRepository {
   upsertRemoteIdentity(product: RemoteProductIdentity): Product;
   transition(id: string, state: MiaoshouProductState, at: string): void;
   page(query: ProductPageQuery): ProductPage;
+  getById(id: string): Product;
+  delete(id: string): void;
 }
 
 export type ProductSnapshotKind =
@@ -81,4 +93,32 @@ export type ProductSyncSummary = {
   failed: number;
   missing: number;
   failures: ProductSyncFailure[];
+};
+
+export type SyncOneResult =
+  | { status: 'synced'; product: Product }
+  | { status: 'deleted' };
+
+export type ProductDetailSku = {
+  skuKey: string;
+  name: string | null;
+  imageUrl: string | null;
+  stock: string | null;
+  sourcePrice: string | null;
+  netProfit: string | null;
+};
+
+export type ProductDetail = {
+  productId: string;
+  title: string | null;
+  description: string | null;
+  itemNumber: string | null;
+  category: string | null;
+  sites: string[];
+  stock: string | null;
+  netProfit: string | null;
+  sourcePrice: string | null;
+  mainImage: string | null;
+  images: string[];
+  skuList: ProductDetailSku[];
 };

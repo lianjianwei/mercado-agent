@@ -18,6 +18,11 @@ import { ConnectionTestService } from './main/services/connection-test-service';
 import { ModelProxyService } from './main/services/model-proxy-service';
 import { HttpMiaoshouGateway } from './main/gateways/miaoshou/http-miaoshou-gateway';
 import { ProductSyncService } from './main/services/product-sync-service';
+import { SqliteInfringementRepository } from './main/repositories/infringement-repository';
+import { InfringementService } from './main/services/infringement-service';
+import { InfringementEngine } from './main/risk/infringement-engine';
+import { ActiveProviderMissingError } from './main/providers/provider-registry';
+import type { TextModelProvider } from './domain/providers';
 
 let appDatabase: DatabaseSync | null = null;
 
@@ -72,6 +77,8 @@ app.whenReady().then(async () => {
       createProductSyncService().syncDefault(signal),
     reconcileTracked: (productIds: string[], signal?: AbortSignal) =>
       createProductSyncService().reconcileTracked(productIds, signal),
+    syncOne: (productId: string, signal?: AbortSignal) =>
+      createProductSyncService().syncOne(productId, signal),
   };
   const getAppInfo = () => ({
     version: app.getVersion(),
@@ -80,6 +87,20 @@ app.whenReady().then(async () => {
   const providerRegistry = new ProviderRegistry(
     providerConfigs,
     createDefaultProviderRegistrations(modelNetwork),
+  );
+  const infringementRepository = new SqliteInfringementRepository(appDatabase);
+  const createInfringementEngine = () => {
+    const provider = providerRegistry.createActive(
+      'text',
+    ) as TextModelProvider;
+    if (typeof provider.generate !== 'function') {
+      throw new ActiveProviderMissingError('text');
+    }
+    return new InfringementEngine(provider);
+  };
+  const infringementService = new InfringementService(
+    infringementRepository,
+    createInfringementEngine,
   );
   registerHandlers(
     {
@@ -92,6 +113,9 @@ app.whenReady().then(async () => {
       credentials,
       products,
       productSync,
+      snapshots,
+      infringementRepository,
+      infringementService,
       modelProxy,
       getAppInfo,
       connectionTests: new ConnectionTestService(

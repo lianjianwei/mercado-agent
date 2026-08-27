@@ -51,8 +51,8 @@ export class ProviderAuthenticationError extends Error {
 }
 
 export class ProviderUnavailableError extends Error {
-  constructor() {
-    super('暂时无法连接模型服务，请检查 Base URL 和网络后重试。');
+  constructor(message?: string) {
+    super(message ?? '暂时无法连接模型服务，请检查 Base URL 和网络后重试。');
     this.name = 'ProviderUnavailableError';
   }
 }

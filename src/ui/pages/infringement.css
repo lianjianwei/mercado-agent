@@ -1,0 +1,288 @@
+.infringement-page {
+  display: grid;
+  gap: 16px;
+}
+
+.infringement-loading {
+  color: var(--muted);
+}
+
+.infringement-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 460px;
+  gap: 16px;
+  align-items: start;
+}
+
+.risk-product-list,
+.risk-detail {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.risk-product-list {
+  overflow: hidden;
+}
+
+.risk-list-header,
+.risk-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.risk-list-header h2,
+.risk-detail-header h2,
+.risk-detail h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.risk-product-table-wrap {
+  overflow-x: auto;
+}
+
+.risk-product-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.risk-product-table th,
+.risk-product-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.risk-product-table th {
+  color: #496784;
+  background: #f8fbff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.risk-product-table tbody tr {
+  cursor: pointer;
+}
+
+.risk-product-table tbody tr:hover,
+.risk-product-table tbody tr.selected {
+  background: #f2f7ff;
+}
+
+.risk-detail {
+  padding: 0 0 18px;
+}
+
+.risk-detail-header {
+  align-items: flex-start;
+}
+
+.risk-detail-header h2 {
+  overflow-wrap: anywhere;
+}
+
+.current-decision,
+.rule-hits,
+.evidence-list,
+.continue-edit,
+.run-history,
+.empty-risk {
+  padding: 0 18px;
+}
+
+.current-decision {
+  margin-top: 16px;
+}
+
+.current-decision-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.current-decision > p {
+  margin: 12px 0 0;
+  color: #1e3a5f;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.risk-pill,
+.kind-pill,
+.version-pill,
+.muted-pill,
+.current-badge,
+.expired-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.risk-none {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.risk-low {
+  color: #7c2d12;
+  background: #ffedd5;
+}
+
+.risk-medium {
+  color: #854d0e;
+  background: #fef9c3;
+}
+
+.risk-high {
+  color: #7f1d1d;
+  background: #fee2e2;
+}
+
+.kind-pill {
+  color: #31577d;
+  background: #eef3f8;
+}
+
+.version-pill {
+  color: #1e3a5f;
+  background: #e9f5ff;
+  font-weight: 800;
+}
+
+.muted-pill {
+  color: #536579;
+  background: #eef3f8;
+}
+
+.current-badge {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.expired-badge {
+  color: #536579;
+  background: #eef3f8;
+}
+
+.rule-hits,
+.evidence-list {
+  margin-top: 18px;
+}
+
+.rule-hits h3,
+.evidence-list h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.rule-hits ul,
+.evidence-list ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.rule-hits li,
+.evidence-list li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1e3a5f;
+}
+
+.rule-hits code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #075985;
+  background: #e0f2fe;
+  font-size: 12px;
+}
+
+.evidence-image,
+.evidence-text {
+  display: inline-flex;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.evidence-image {
+  color: #7c2d12;
+  background: #ffedd5;
+}
+
+.evidence-text {
+  color: #075985;
+  background: #e0f2fe;
+}
+
+.continue-edit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.continue-edit span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.run-history {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.run-history h2 {
+  margin-bottom: 10px;
+}
+
+.run-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.run-history-table th,
+.run-history-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.run-history-table th {
+  color: #496784;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.empty-risk {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+  .infringement-layout {
+    grid-template-columns: 1fr;
+  }
+}

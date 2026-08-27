@@ -7,7 +7,11 @@ import type {
 import type { AppCredentialsInput } from './config-schemas';
 import type { ConnectionResult } from '../domain/providers';
 import type { ModelProxyConfig } from '../domain/proxy';
-import type { ProductSyncSummary } from '../domain/product';
+import type {
+  ProductPage,
+  ProductPageQuery,
+  ProductSyncSummary,
+} from '../domain/product';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -22,6 +26,7 @@ export const IPC_CHANNELS = {
   diagnosticCancelConnection: 'diagnostic:cancel-connection',
   proxyGet: 'proxy:get',
   proxySave: 'proxy:save',
+  productPage: 'product:page',
   productSyncDefault: 'product:sync-default',
   productReconcileTracked: 'product:reconcile-tracked',
 } as const;
@@ -82,6 +87,7 @@ export interface ProxyConfigApi {
 }
 
 export interface ProductApi {
+  page(query: ProductPageQuery): Promise<ProductPage>;
   syncDefault(): Promise<ProductSyncSummary>;
   reconcileTracked(productIds: string[]): Promise<ProductSyncSummary>;
 }

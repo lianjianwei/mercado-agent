@@ -66,6 +66,13 @@ export class ProductSyncService {
           title: detail.siteCollectItemInfo.title ?? undefined,
           itemNumber: detail.siteCollectItemInfo.itemNum ?? undefined,
           thumbnailUrl: this.thumbnailOf(detail),
+          // A detail response has no list-only fields; pass null so the
+          // repository COALESCE keeps whatever a list-driven sync stored.
+          category: null,
+          netProfit: null,
+          stock: null,
+          sites: null,
+          sourcePrice: null,
           syncedAt,
         });
         this.snapshots.append({
@@ -176,6 +183,11 @@ export class ProductSyncService {
           title: item.title,
           itemNumber: item.itemNum,
           thumbnailUrl: item.thumbnail,
+          category: item.breadcrumb ?? null,
+          netProfit: item.globalPrice === undefined ? null : String(item.globalPrice),
+          stock: item.stock === undefined ? null : String(item.stock),
+          sites: item.sites.length > 0 ? item.sites : null,
+          sourcePrice: item.price === undefined ? null : String(item.price),
           syncedAt,
         });
         this.snapshots.append({

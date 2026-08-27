@@ -5,3 +5,6 @@ node_modules/
 src/.vite/
 out/
 coverage/
+
+# Visual brainstorming mockups (local only)
+.superpowers/

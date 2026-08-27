@@ -65,6 +65,7 @@ describe('product synchronization repositories', () => {
       { version: 1, name: 'initial' },
       { version: 2, name: 'products' },
       { version: 3, name: 'infringement' },
+      { version: 4, name: 'products_columns' },
     ]);
     secondConnection.close();
   });
@@ -133,6 +134,66 @@ describe('product synchronization repositories', () => {
       state: 'published',
       title: 'Wireless mouse (published)',
       lastSyncedAt: '2026-08-27T02:00:00.000Z',
+    });
+    database.close();
+  });
+
+  it('persists category, net profit, stock, sites and source price from the list DTO', () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteProductRepository(database);
+
+    repository.upsertRemoteIdentity(
+      remoteProduct({
+        category: '厨房用具 / 咖啡机',
+        netProfit: '52.40',
+        stock: '86',
+        sites: ['BR', 'MX'],
+        sourcePrice: '18.9',
+      }),
+    );
+
+    expect(repository.getById('collect-box-101')).toMatchObject({
+      category: '厨房用具 / 咖啡机',
+      netProfit: '52.40',
+      stock: '86',
+      sites: ['BR', 'MX'],
+      sourcePrice: '18.9',
+    });
+    database.close();
+  });
+
+  it('keeps list columns when a detail-driven sync passes null for them', () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteProductRepository(database);
+
+    repository.upsertRemoteIdentity(
+      remoteProduct({
+        category: '厨房用具',
+        netProfit: '52.40',
+        stock: '86',
+        sites: ['BR'],
+        sourcePrice: '18.9',
+      }),
+    );
+    // syncOne sends null for the list-only fields; COALESCE must keep the old values.
+    repository.upsertRemoteIdentity(
+      remoteProduct({
+        title: 'Updated title',
+        category: null,
+        netProfit: null,
+        stock: null,
+        sites: null,
+        sourcePrice: null,
+      }),
+    );
+
+    expect(repository.getById('collect-box-101')).toMatchObject({
+      title: 'Updated title',
+      category: '厨房用具',
+      netProfit: '52.40',
+      stock: '86',
+      sites: ['BR'],
+      sourcePrice: '18.9',
     });
     database.close();
   });

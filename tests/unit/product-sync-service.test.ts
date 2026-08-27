@@ -17,7 +17,11 @@ const item = (id: string): CollectBoxListItemDto => ({
   title: `Product ${id}`,
   itemNum: `ITEM-${id}`,
   thumbnail: `https://img.test/${id}.jpg`,
-  sites: ['MX'],
+  breadcrumb: '厨房用具 / 咖啡机',
+  globalPrice: 52.4,
+  stock: 86,
+  price: 18.9,
+  sites: ['MX', 'BR'],
 });
 
 const detail = (id: string): CollectBoxDetailDto => ({
@@ -29,7 +33,21 @@ function fakeRepositories() {
   const snapshots: ProductSnapshot[] = [];
   const productRepository: ProductRepository & { transaction<T>(fn: () => T): T } = {
     upsertRemoteIdentity: vi.fn((input) => {
-      const product = { id: input.id, state: input.state, title: input.title ?? null, itemNumber: input.itemNumber ?? null, thumbnailUrl: input.thumbnailUrl ?? null, lastSyncedAt: input.syncedAt, createdAt: input.syncedAt, updatedAt: input.syncedAt };
+      const product = {
+        id: input.id,
+        state: input.state,
+        title: input.title ?? null,
+        itemNumber: input.itemNumber ?? null,
+        thumbnailUrl: input.thumbnailUrl ?? null,
+        category: input.category ?? null,
+        netProfit: input.netProfit ?? null,
+        stock: input.stock ?? null,
+        sites: input.sites ?? [],
+        sourcePrice: input.sourcePrice ?? null,
+        lastSyncedAt: input.syncedAt,
+        createdAt: input.syncedAt,
+        updatedAt: input.syncedAt,
+      };
       products.set(input.id, product);
       return product;
     }),
@@ -79,6 +97,15 @@ describe('ProductSyncService', () => {
     );
     expect(gateway.getCollectBoxDetail).toHaveBeenCalledTimes(3);
     expect(repositories.snapshots).toHaveLength(3);
+    expect(repositories.productRepository.upsertRemoteIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: '厨房用具 / 咖啡机',
+        netProfit: '52.4',
+        stock: '86',
+        sites: ['MX', 'BR'],
+        sourcePrice: '18.9',
+      }),
+    );
   });
 
   it('continues a batch when one detail fails and reports the failed id', async () => {
@@ -156,6 +183,28 @@ describe('ProductSyncService', () => {
     expect(repositories.snapshots).toHaveLength(1);
     expect(repositories.snapshots[0]?.productId).toBe('1');
     expect(gateway.getCollectBoxDetail).toHaveBeenCalledWith('1', undefined);
+  });
+
+  it('passes null for list-only fields during a single-product sync', async () => {
+    const repositories = fakeRepositories();
+    repositories.productRepository.upsertRemoteIdentity({ id: '1', state: 'notPublished', title: 'Old title', itemNumber: 'OLD-1', syncedAt: '2026-08-26T00:00:00.000Z' });
+    const gateway: MiaoshouGateway = {
+      listCollectBox: vi.fn(),
+      getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+    };
+    const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
+
+    await service.syncOne('1');
+
+    expect(repositories.productRepository.upsertRemoteIdentity).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        category: null,
+        netProfit: null,
+        stock: null,
+        sites: null,
+        sourcePrice: null,
+      }),
+    );
   });
 
   it('deletes the local product and its snapshots when Miaoshou confirms it is gone', async () => {

@@ -15,10 +15,27 @@ type ProductRow = {
   title: string | null;
   item_number: string | null;
   thumbnail_url: string | null;
+  breadcrumb: string | null;
+  global_price: string | null;
+  stock: string | null;
+  sites: string | null;
+  price: string | null;
   last_synced_at: string;
   created_at: string;
   updated_at: string;
 };
+
+function parseSites(value: string | null): string[] {
+  if (value === null) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((site): site is string => typeof site === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function mapProduct(row: ProductRow): Product {
   return {
@@ -27,6 +44,11 @@ function mapProduct(row: ProductRow): Product {
     title: row.title,
     itemNumber: row.item_number,
     thumbnailUrl: row.thumbnail_url,
+    category: row.breadcrumb,
+    netProfit: row.global_price,
+    stock: row.stock,
+    sites: parseSites(row.sites),
+    sourcePrice: row.price,
     lastSyncedAt: row.last_synced_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -44,13 +66,19 @@ export class SqliteProductRepository
         `
           INSERT INTO products (
             id, state, title, item_number, thumbnail_url,
+            breadcrumb, global_price, stock, sites, price,
             last_synced_at, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             state = excluded.state,
             title = excluded.title,
             item_number = excluded.item_number,
             thumbnail_url = excluded.thumbnail_url,
+            breadcrumb = COALESCE(excluded.breadcrumb, products.breadcrumb),
+            global_price = COALESCE(excluded.global_price, products.global_price),
+            stock = COALESCE(excluded.stock, products.stock),
+            sites = COALESCE(excluded.sites, products.sites),
+            price = COALESCE(excluded.price, products.price),
             last_synced_at = excluded.last_synced_at,
             updated_at = excluded.updated_at
         `,
@@ -61,6 +89,11 @@ export class SqliteProductRepository
         input.title ?? null,
         input.itemNumber ?? null,
         input.thumbnailUrl ?? null,
+        input.category ?? null,
+        input.netProfit ?? null,
+        input.stock ?? null,
+        input.sites && input.sites.length > 0 ? JSON.stringify(input.sites) : null,
+        input.sourcePrice ?? null,
         input.syncedAt,
         input.syncedAt,
         input.syncedAt,
@@ -99,6 +132,7 @@ export class SqliteProductRepository
       .prepare(
         `
           SELECT id, state, title, item_number, thumbnail_url,
+                 breadcrumb, global_price, stock, sites, price,
                  last_synced_at, created_at, updated_at
           FROM products
           ${where}
@@ -147,6 +181,7 @@ export class SqliteProductRepository
       .prepare(
         `
           SELECT id, state, title, item_number, thumbnail_url,
+                 breadcrumb, global_price, stock, sites, price,
                  last_synced_at, created_at, updated_at
           FROM products
           WHERE id = ?

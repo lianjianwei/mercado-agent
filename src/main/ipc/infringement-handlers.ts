@@ -32,6 +32,8 @@ export function registerInfringementHandlers(
       const run = await dependencies.service.analyzeProduct(
         productId,
         product,
+        undefined,
+        true,
       );
       return { ok: true, data: run };
     } catch (error) {

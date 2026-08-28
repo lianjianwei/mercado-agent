@@ -155,6 +155,40 @@ describe('infringement run history', () => {
     expect(repository.listForProduct('product-1')).toHaveLength(1);
   });
 
+  it('re-analyzes and appends a new run when forced even if the fingerprint is unchanged', async () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteInfringementRepository(database);
+    seedProduct(database, 'product-1');
+    const engine = engineFor('none');
+    const service = new InfringementService(repository, () => engine as never);
+
+    const first = await service.analyzeProduct('product-1', product());
+    const repeated = await service.analyzeProduct('product-1', product(), undefined, true);
+
+    expect(engine.analyze).toHaveBeenCalledTimes(2);
+    expect(repeated.id).not.toBe(first.id);
+    expect(repeated.fingerprint).toBe(first.fingerprint);
+    expect(repository.listForProduct('product-1')).toHaveLength(2);
+    expect(repository.currentForProduct('product-1')?.id).toBe(repeated.id);
+  });
+
+  it('keeps reusing the existing run inside analyzeBatch when the fingerprint is unchanged', async () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteInfringementRepository(database);
+    seedProduct(database, 'product-1');
+    const engine = engineFor('none');
+    const service = new InfringementService(repository, () => engine as never);
+
+    await service.analyzeProduct('product-1', product());
+    expect(engine.analyze).toHaveBeenCalledTimes(1);
+
+    const summary = await service.analyzeBatch([{ productId: 'product-1', product: product() }]);
+
+    expect(summary).toMatchObject({ discovered: 1, succeeded: 1, failed: 0 });
+    expect(engine.analyze).toHaveBeenCalledTimes(1);
+    expect(repository.listForProduct('product-1')).toHaveLength(1);
+  });
+
   it('keeps analyzing the rest of a batch when a single product fails', async () => {
     const database = openAppDatabase(createDatabasePath());
     const repository = new SqliteInfringementRepository(database);

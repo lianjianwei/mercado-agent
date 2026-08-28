@@ -42,18 +42,20 @@ export class InfringementService {
     productId: string,
     product: RiskRelevantProduct,
     signal?: AbortSignal,
+    forceReanalyze = false,
   ): Promise<InfringementRun> {
     const current = this.repository.currentForProduct(productId);
     const fingerprint = riskFingerprint(product);
-    if (current && current.fingerprint === fingerprint) {
-      // 内容未变化：沿用现有结果，不产生新 run。
+    if (!forceReanalyze && current && current.fingerprint === fingerprint) {
+      // 内容未变化：沿用现有结果，不产生新 run（批量检测等静默路径）。
+      // 用户主动点「分析侵权风险」时传 forceReanalyze=true 强制重新检测。
       return current;
     }
     const decision = await this.analyzerFactory().analyze(
       product,
       signal ?? new AbortController().signal,
     );
-    return this.appendRun(productId, decision);
+    return this.appendRun(productId, decision, forceReanalyze);
   }
 
   async analyzeBatch(
@@ -109,6 +111,7 @@ export class InfringementService {
   private appendRun(
     productId: string,
     decision: InfringementDecision,
+    forceReanalyze = false,
   ): InfringementRun {
     return this.repository.append({
       id: randomUUID(),
@@ -118,6 +121,7 @@ export class InfringementService {
       kind: decision.kind,
       decision,
       createdAt: this.now(),
+      forceReanalyze,
     });
   }
 }

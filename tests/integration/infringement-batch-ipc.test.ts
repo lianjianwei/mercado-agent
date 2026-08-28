@@ -15,6 +15,37 @@ function snapshotPayload(productId: string, title = `Product ${productId}`) {
 }
 
 describe('infringement batch IPC', () => {
+  it('analyzes a single product with forceReanalyze so re-checks always re-run AI', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const service = {
+      analyzeProduct: vi.fn().mockResolvedValue({
+        id: 'run-1',
+        productId: 'a',
+        fingerprint: 'a'.repeat(64),
+        version: 2,
+        level: 'none',
+        kind: 'unbranded',
+        decision: {},
+        createdAt: '2026-08-27T00:00:00.000Z',
+      }),
+      analyzeBatch: vi.fn(),
+    };
+    const snapshots = {
+      listForProduct: vi.fn((id: string) => [
+        { id: `s-${id}`, productId: id, kind: 'miaoshou' as const, capturedAt: '2026-08-27T00:00:00.000Z', payload: snapshotPayload(id) },
+      ]),
+    };
+    const products = { page: vi.fn() };
+    registerInfringementHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { products, snapshots, repository: { listForProduct: vi.fn(), currentForProduct: vi.fn() }, service },
+    );
+
+    await handlers.get(IPC_CHANNELS.infringementAnalyze)?.({}, { productId: 'a' });
+
+    expect(service.analyzeProduct).toHaveBeenCalledWith('a', expect.anything(), undefined, true);
+  });
+
   it('analyzes a batch of selected product ids', async () => {
     const handlers = new Map<string, IpcListener>();
     const service = {

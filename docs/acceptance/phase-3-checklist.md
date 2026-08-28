@@ -78,6 +78,14 @@
 - [x] 复测 KOKKO 音箱：非受限品牌、非世界知名，图片自有 Logo 不再判高。
 - [x] `npm test` 全量通过：36 个测试文件、218 项测试；typecheck 与 lint 干净。
 
+## 侵权复检反馈修复 + 强制重新检测（Phase 3.5 追加 5）
+
+- [x] 根因：`analyzeProduct` 指纹未变时直接复用旧 run，IPC 瞬间返回；React 批处理吞掉「分析中…」反馈，点已有记录产品「分析侵权风险」看起来没反应。
+- [x] `analyzeProduct` 新增 `forceReanalyze` 参数：用户主动点分析时强制重新调 AI，不受指纹复用影响；`infringementAnalyze` IPC 传 `forceReanalyze=true`。
+- [x] 强制重测时 `append` 递增版本（同指纹也产生 V2/V3 新 run），新结论覆盖展示，旧版本保留标「已过期」。
+- [x] 批量检测等静默路径保留指纹复用（内容未变化不重复分析、不产生新 run）。
+- [x] `npm test` 全量通过：36 个测试文件、221 项测试；typecheck 与 lint 干净；4 项 e2e 通过。
+
 ## 阶段结论
 
 - [ ] 用户明确确认“阶段 3 通过”。

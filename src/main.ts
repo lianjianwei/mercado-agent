@@ -36,6 +36,23 @@ function createMainWindow(): BrowserWindow {
   mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
+  // Debugging convenience: open DevTools automatically in dev mode, and let
+  // F12 / Cmd+Option+I toggle them at any time (dev or packaged).
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.openDevTools();
+  }
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    const toggleDevTools =
+      input.key === 'F12'
+      || (input.key === 'i'
+        && input.type === 'keyDown'
+        && input.control
+        && input.alt);
+    if (toggleDevTools) {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     void mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {

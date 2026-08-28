@@ -164,6 +164,35 @@ describe('edit draft IPC', () => {
     expect(snapshots.append).not.toHaveBeenCalled();
   });
 
+  it('readLatestDraft normalizes legacy unit fields from drafts saved before units became fixed constants', () => {
+    // Drafts saved before the cm/g change stored the units as
+    // { value, source, confidence } objects. Reading one must coerce the units
+    // to the current string-literal shape so the panel does not crash when it
+    // renders {draft.package.dimensionUnit}.
+    const legacy = makeDraft(1);
+    legacy.package = {
+      ...legacy.package,
+      dimensionUnit: { value: 'cm', source: 'ai', confidence: 0.99 },
+      weightUnit: { value: 'kg', source: 'ai', confidence: 0.99 },
+    } as unknown as EditDraft['package'];
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: '2026-08-28T01:00:00.000Z',
+        payload: legacy,
+      },
+    ]);
+
+    const draft = readLatestDraft(snapshots, '90001');
+    expect(draft).not.toBeNull();
+    expect(draft!.package.dimensionUnit).toBe('cm');
+    expect(draft!.package.weightUnit).toBe('g');
+    // Other fields are untouched.
+    expect(draft!.package.length).toEqual({ value: '20', source: 'ai', confidence: 0.7 });
+  });
+
   it('readLatestDraft ignores miaoshou snapshots and returns the newest aiDraft', () => {
     const snapshots = fakeSnapshots([
       {

@@ -3,7 +3,7 @@ import { z, ZodError } from 'zod';
 
 import { IPC_CHANNELS, type IpcRegistrar } from '../../shared/ipc-contract';
 import type { ProductSnapshotRepository } from '../../domain/product';
-import type { EditDraft } from '../../domain/edit';
+import { DIMENSION_UNIT, WEIGHT_UNIT, type EditDraft } from '../../domain/edit';
 import { editDraftSchema } from '../../shared/edit-output-schema';
 import type { EditGenerationService } from '../services/edit-generation-service';
 
@@ -31,7 +31,25 @@ export function readLatestDraft(
     .listForProduct(productId)
     .filter((snapshot) => snapshot.kind === 'aiDraft');
   const latest = drafts[drafts.length - 1];
-  return latest ? (latest.payload as EditDraft) : null;
+  return latest ? normalizeDraft(latest.payload as EditDraft) : null;
+}
+
+// Drafts saved before the units became fixed constants (cm/g) stored
+// dimensionUnit/weightUnit as { value, source, confidence } objects. Coerce
+// them to the current string-literal shape so the renderer never receives an
+// object where it expects a string (which would crash React with "Objects are
+// not valid as a React child").
+function normalizeDraft(draft: EditDraft): EditDraft {
+  // Units are fixed constants now; any stored shape (legacy object or string)
+  // is coerced to the literal. Old drafts that stored kg are normalized to g.
+  return {
+    ...draft,
+    package: {
+      ...draft.package,
+      dimensionUnit: DIMENSION_UNIT,
+      weightUnit: WEIGHT_UNIT,
+    },
+  };
 }
 
 export function registerEditHandlers(

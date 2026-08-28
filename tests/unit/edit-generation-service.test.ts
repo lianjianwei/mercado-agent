@@ -172,6 +172,48 @@ describe('EditGenerationService', () => {
     expect(prompt).toMatch(/60 个字符/);
   });
 
+  it('teaches the title formula from high-selling samples, with a hard 60-char cap', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    await service.generate('90001');
+
+    const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
+      .calls[0][0].prompt as string;
+    // The title rules should be taught from the buyer's samples: real word
+    // stacking with counts/params, brand+model kept, "para + model" targets,
+    // and a strict 60-char limit that trumps the samples (some samples exceed
+    // 60 chars and must be shortened, not copied verbatim).
+    expect(prompt).toMatch(/Metronomo Mecánico/);
+    expect(prompt).toMatch(/Tenlamp G10|Galaxy Tab|Lawan Ab02/);
+    expect(prompt).toMatch(/实词|堆叠|参数/);
+    expect(prompt).toMatch(/60 个字符/);
+    expect(prompt).toMatch(/照抄|不要.*抄|示例/);
+  });
+
+  it('tells the model to keep numeric specs and brand/model but cut fillers', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    await service.generate('90001');
+
+    const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
+      .calls[0][0].prompt as string;
+    // High-selling titles carry counts/capacity/params and keep the brand and
+    // model; fillers (New/Hot/原装) and verbatim copy of the source must go.
+    expect(prompt).toMatch(/数量|容量|数字|参数/);
+    expect(prompt).toMatch(/品牌.*型号|型号.*品牌/);
+    expect(prompt).toMatch(/New|Hot|原装|包邮/);
+  });
+
   it('demands localized Spanish/Portuguese instead of literal translation', async () => {
     const provider = fakeProvider(validOutput());
     const service = new EditGenerationService(

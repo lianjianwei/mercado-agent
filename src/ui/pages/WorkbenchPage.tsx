@@ -10,7 +10,7 @@ import type {
 import type { InfringementRun } from '../../domain/infringement';
 import type { EditApi, InfringementApi, ProductApi } from '../../shared/ipc-contract';
 import { ProductDetailModal } from '../components/ProductDetailModal';
-import { EditPanel } from '../features/editor/EditPanel';
+import { EditDraftModal } from '../features/editor/EditDraftModal';
 import {
   RiskReviewPanel,
   levelLabels,
@@ -29,7 +29,7 @@ type WorkbenchPageProps = {
 };
 
 type ProductFilter = 'notPublished' | 'localPublished';
-type RightTab = 'quick' | 'risk' | 'edit' | 'publish';
+type RightTab = 'quick' | 'risk' | 'publish';
 
 const PAGE_SIZE = 20;
 
@@ -61,7 +61,6 @@ const tabs: Array<{ id: ProductFilter; label: string }> = [
 const rightTabs: Array<{ id: RightTab; label: string }> = [
   { id: 'quick', label: '快速检查' },
   { id: 'risk', label: '侵权检测' },
-  { id: 'edit', label: 'AI编辑' },
   { id: 'publish', label: '发布' },
 ];
 
@@ -220,6 +219,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [syncOneMessage, setSyncOneMessage] = useState('');
   const [rightTab, setRightTab] = useState<RightTab>('quick');
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
+  const [editDraftId, setEditDraftId] = useState<string | null>(null);
   const [riskByProduct, setRiskByProduct] = useState<
     Record<string, InfringementRun | null>
   >({});
@@ -251,6 +251,11 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const detailProduct = useMemo(
     () => page?.items.find((item) => item.id === detailProductId) ?? null,
     [page, detailProductId],
+  );
+
+  const editDraftProduct = useMemo(
+    () => page?.items.find((item) => item.id === editDraftId) ?? null,
+    [page, editDraftId],
   );
 
   const readCounts = useCallback(async () => {
@@ -781,7 +786,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                               className="row-action-button edit"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                openAction(product.id, 'edit');
+                                setEditDraftId(product.id);
                               }}
                               type="button"
                             >
@@ -897,17 +902,6 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
             <p className="empty-risk">请选择一个商品查看或分析侵权风险。</p>
           )}
 
-          {rightTab === 'edit' && selectedProduct && (
-            <EditPanel
-              api={editApi}
-              loadDetail={productApi.detail}
-              product={selectedProduct}
-            />
-          )}
-          {rightTab === 'edit' && !selectedProduct && (
-            <p className="empty-risk">请选择一个商品进行 AI 编辑。</p>
-          )}
-
           {rightTab === 'publish' && (
             <div className="placeholder-note">
               <h2>发布</h2>
@@ -928,6 +922,15 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           api={productApi}
           onClose={() => setDetailProductId(null)}
           product={detailProduct}
+        />
+      )}
+
+      {editDraftProduct && (
+        <EditDraftModal
+          api={editApi}
+          loadDetail={productApi.detail}
+          onClose={() => setEditDraftId(null)}
+          product={editDraftProduct}
         />
       )}
     </section>

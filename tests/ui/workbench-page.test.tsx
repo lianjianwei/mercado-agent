@@ -330,13 +330,14 @@ describe('WorkbenchPage', () => {
     expect(within(history).getByText('V1')).toBeTruthy();
   });
 
-  it('opens the AI edit panel from the row button and keeps 发布 as a placeholder', async () => {
+  it('opens the AI edit draft modal from the row button and keeps 发布 as a placeholder', async () => {
     const user = userEvent.setup();
     const fake = createApi();
     render(<WorkbenchPage api={fake.api} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('button', { name: 'AI编辑' }));
+    expect(await screen.findByRole('dialog', { name: 'AI 编辑' })).toBeTruthy();
     expect(await screen.findByRole('button', { name: '生成 AI 草稿' })).toBeTruthy();
     expect(fake.draft).toHaveBeenCalledWith('detail-1');
 

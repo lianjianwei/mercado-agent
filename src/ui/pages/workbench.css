@@ -579,6 +579,18 @@
   box-shadow: 0 18px 50px rgb(7 29 51 / 35%);
 }
 
+.edit-draft-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.edit-draft-modal .edit-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .detail-modal-header {
   display: flex;
   align-items: center;

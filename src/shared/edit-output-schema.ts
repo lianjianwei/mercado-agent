@@ -16,9 +16,20 @@ export const generatedTitleSchema = generatedFieldSchema.extend({
   value: z.string().trim().min(1).max(60),
 });
 
+// Package dimensions + weight are estimated per SKU, so the model outputs
+// them inside each sku entry. Units are fixed (cm/g); the model returns bare
+// numbers only.
+const aiSkuPackageSchema = z.strictObject({
+  length: generatedFieldSchema,
+  width: generatedFieldSchema,
+  height: generatedFieldSchema,
+  weight: generatedFieldSchema,
+});
+
 export const aiSkuEditSchema = z.strictObject({
   skuKey: z.string().min(1),
   name: generatedFieldSchema,
+  package: aiSkuPackageSchema,
 });
 
 export const aiEditOutputSchema = z.strictObject({
@@ -27,12 +38,6 @@ export const aiEditOutputSchema = z.strictObject({
   brand: generatedFieldSchema,
   model: generatedFieldSchema,
   skus: z.array(aiSkuEditSchema),
-  package: z.strictObject({
-    length: generatedFieldSchema,
-    width: generatedFieldSchema,
-    height: generatedFieldSchema,
-    weight: generatedFieldSchema,
-  }),
 });
 
 export type AiEditOutput = z.infer<typeof aiEditOutputSchema>;
@@ -57,14 +62,16 @@ export const editDraftSchema = z.strictObject({
     z.strictObject({
       skuKey: z.string().min(1),
       name: draftFieldSchema,
+      stock: draftFieldSchema,
+      sourcePrice: draftFieldSchema,
+      package: z.strictObject({
+        length: draftFieldSchema,
+        width: draftFieldSchema,
+        height: draftFieldSchema,
+        dimensionUnit: z.literal('cm'),
+        weight: draftFieldSchema,
+        weightUnit: z.literal('g'),
+      }),
     }),
   ),
-  package: z.strictObject({
-    length: draftFieldSchema,
-    width: draftFieldSchema,
-    height: draftFieldSchema,
-    dimensionUnit: z.literal('cm'),
-    weight: draftFieldSchema,
-    weightUnit: z.literal('g'),
-  }),
 });

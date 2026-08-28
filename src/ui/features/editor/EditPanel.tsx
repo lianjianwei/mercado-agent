@@ -106,24 +106,41 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     });
   }
 
-  function updateSkuName(skuKey: string, value: string) {
+  function updateSkuField(
+    skuKey: string,
+    path: 'name' | 'stock' | 'sourcePrice',
+    value: string,
+  ) {
     if (!draft) return;
     setDraft({
       ...draft,
       skus: draft.skus.map((sku) =>
-        sku.skuKey === skuKey ? { ...sku, name: updateField(sku.name, value) } : sku,
+        sku.skuKey === skuKey
+          ? { ...sku, [path]: updateField(sku[path], value) }
+          : sku,
       ),
     });
   }
 
-  function updatePackage(
+  function updateSkuPackage(
+    skuKey: string,
     field: 'length' | 'width' | 'height' | 'weight',
     value: string,
   ) {
     if (!draft) return;
     setDraft({
       ...draft,
-      package: { ...draft.package, [field]: updateField(draft.package[field], value) },
+      skus: draft.skus.map((sku) =>
+        sku.skuKey === skuKey
+          ? {
+              ...sku,
+              package: {
+                ...sku.package,
+                [field]: updateField(sku.package[field], value),
+              },
+            }
+          : sku,
+      ),
     });
   }
 
@@ -273,74 +290,100 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                 <FieldMeta field={draft.model} />
               </div>
 
-              {draft.skus.length > 0 && (
-                <section className="edit-sku-section">
-                  <h3>SKU 名称</h3>
-                  {draft.skus.map((sku) => (
-                    <div className="edit-draft-field" key={sku.skuKey}>
-                      <label htmlFor={`edit-sku-${sku.skuKey}`}>
-                        <code>{sku.skuKey}</code>
-                      </label>
+              {draft.skus.map((sku) => (
+                <section className="edit-sku-card" key={sku.skuKey}>
+                  <h3>
+                    SKU <code>{sku.skuKey}</code>
+                  </h3>
+                  <div className="edit-draft-field">
+                    <label htmlFor={`edit-sku-name-${sku.skuKey}`}>SKU 名称</label>
+                    <input
+                      id={`edit-sku-name-${sku.skuKey}`}
+                      onChange={(event) =>
+                        updateSkuField(sku.skuKey, 'name', event.target.value)
+                      }
+                      value={sku.name.value}
+                    />
+                    <FieldMeta field={sku.name} />
+                  </div>
+                  <div className="edit-draft-field">
+                    <label htmlFor={`edit-sku-stock-${sku.skuKey}`}>库存</label>
+                    <input
+                      id={`edit-sku-stock-${sku.skuKey}`}
+                      onChange={(event) =>
+                        updateSkuField(sku.skuKey, 'stock', event.target.value)
+                      }
+                      value={sku.stock.value}
+                    />
+                    <FieldMeta field={sku.stock} />
+                  </div>
+                  <div className="edit-draft-field">
+                    <label htmlFor={`edit-sku-price-${sku.skuKey}`}>货源价</label>
+                    <input
+                      id={`edit-sku-price-${sku.skuKey}`}
+                      onChange={(event) =>
+                        updateSkuField(sku.skuKey, 'sourcePrice', event.target.value)
+                      }
+                      value={sku.sourcePrice.value}
+                    />
+                    <FieldMeta field={sku.sourcePrice} />
+                  </div>
+                  <div className="edit-package-grid">
+                    <div className="edit-draft-field">
+                      <label htmlFor={`edit-sku-length-${sku.skuKey}`}>长度（cm）</label>
                       <input
-                        id={`edit-sku-${sku.skuKey}`}
-                        onChange={(event) => updateSkuName(sku.skuKey, event.target.value)}
-                        value={sku.name.value}
+                        id={`edit-sku-length-${sku.skuKey}`}
+                        onChange={(event) =>
+                          updateSkuPackage(sku.skuKey, 'length', event.target.value)
+                        }
+                        value={sku.package.length.value}
                       />
-                      <FieldMeta field={sku.name} />
+                      <FieldMeta field={sku.package.length} />
                     </div>
-                  ))}
+                    <div className="edit-draft-field">
+                      <label htmlFor={`edit-sku-width-${sku.skuKey}`}>宽度（cm）</label>
+                      <input
+                        id={`edit-sku-width-${sku.skuKey}`}
+                        onChange={(event) =>
+                          updateSkuPackage(sku.skuKey, 'width', event.target.value)
+                        }
+                        value={sku.package.width.value}
+                      />
+                      <FieldMeta field={sku.package.width} />
+                    </div>
+                    <div className="edit-draft-field">
+                      <label htmlFor={`edit-sku-height-${sku.skuKey}`}>高度（cm）</label>
+                      <input
+                        id={`edit-sku-height-${sku.skuKey}`}
+                        onChange={(event) =>
+                          updateSkuPackage(sku.skuKey, 'height', event.target.value)
+                        }
+                        value={sku.package.height.value}
+                      />
+                      <FieldMeta field={sku.package.height} />
+                    </div>
+                    <div className="edit-draft-field">
+                      <label htmlFor={`edit-sku-weight-${sku.skuKey}`}>重量（g）</label>
+                      <input
+                        id={`edit-sku-weight-${sku.skuKey}`}
+                        onChange={(event) =>
+                          updateSkuPackage(sku.skuKey, 'weight', event.target.value)
+                        }
+                        value={sku.package.weight.value}
+                      />
+                      <FieldMeta field={sku.package.weight} />
+                    </div>
+                    <div className="edit-unit-display">
+                      <span>尺寸单位</span>
+                      <strong>{sku.package.dimensionUnit}</strong>
+                    </div>
+                    <div className="edit-unit-display">
+                      <span>重量单位</span>
+                      <strong>{sku.package.weightUnit}</strong>
+                    </div>
+                  </div>
                 </section>
-              )}
-
-              <section className="edit-sku-section">
-                <h3>包裹尺寸与计费重量</h3>
-                <div className="edit-package-grid">
-                  <div className="edit-draft-field">
-                    <label htmlFor="edit-length">长度（cm）</label>
-                    <input
-                      id="edit-length"
-                      onChange={(event) => updatePackage('length', event.target.value)}
-                      value={draft.package.length.value}
-                    />
-                    <FieldMeta field={draft.package.length} />
-                  </div>
-                  <div className="edit-draft-field">
-                    <label htmlFor="edit-width">宽度（cm）</label>
-                    <input
-                      id="edit-width"
-                      onChange={(event) => updatePackage('width', event.target.value)}
-                      value={draft.package.width.value}
-                    />
-                    <FieldMeta field={draft.package.width} />
-                  </div>
-                  <div className="edit-draft-field">
-                    <label htmlFor="edit-height">高度（cm）</label>
-                    <input
-                      id="edit-height"
-                      onChange={(event) => updatePackage('height', event.target.value)}
-                      value={draft.package.height.value}
-                    />
-                    <FieldMeta field={draft.package.height} />
-                  </div>
-                  <div className="edit-draft-field">
-                    <label htmlFor="edit-weight">重量（g）</label>
-                    <input
-                      id="edit-weight"
-                      onChange={(event) => updatePackage('weight', event.target.value)}
-                      value={draft.package.weight.value}
-                    />
-                    <FieldMeta field={draft.package.weight} />
-                  </div>
-                  <div className="edit-unit-display">
-                    <span>尺寸单位</span>
-                    <strong>{draft.package.dimensionUnit}</strong>
-                  </div>
-                  <div className="edit-unit-display">
-                    <span>重量单位</span>
-                    <strong>{draft.package.weightUnit}</strong>
-                  </div>
-                </div>
-              </section>
+              ))}
 
               <div className="edit-actions">
                 <button

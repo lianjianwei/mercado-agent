@@ -33,9 +33,15 @@ export type PackageEditField = {
   weightUnit: typeof WEIGHT_UNIT;
 };
 
+// Each SKU carries its own name, stock, source price, and package dimensions
+// + weight. Products are single- or multi-SKU; in both cases the draft holds
+// one SkuEditField per SKU so the shape is uniform.
 export type SkuEditField = {
   skuKey: string;
   name: EditField;
+  stock: EditField;
+  sourcePrice: EditField;
+  package: PackageEditField;
 };
 
 export type EditDraft = {
@@ -46,7 +52,6 @@ export type EditDraft = {
   brand: EditField;
   model: EditField;
   skus: SkuEditField[];
-  package: PackageEditField;
 };
 
 export interface EditDraftRepository {

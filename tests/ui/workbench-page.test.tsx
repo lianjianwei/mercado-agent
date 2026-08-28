@@ -203,16 +203,21 @@ function editDraft(): EditDraft {
     brand: { value: 'Generic', source: 'ai', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
     skus: [
-      { skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } },
+      {
+        skuKey: ';white;',
+        name: { value: 'Blanco', source: 'ai', confidence: 0.9 },
+        stock: { value: '2', source: 'ai', confidence: 1 },
+        sourcePrice: { value: '66', source: 'remote', confidence: 1 },
+        package: {
+          length: { value: '20', source: 'ai', confidence: 0.7 },
+          width: { value: '10', source: 'ai', confidence: 0.7 },
+          height: { value: '8', source: 'ai', confidence: 0.7 },
+          dimensionUnit: 'cm',
+          weight: { value: '500', source: 'ai', confidence: 0.8 },
+          weightUnit: 'g',
+        },
+      },
     ],
-    package: {
-      length: { value: '20', source: 'ai', confidence: 0.7 },
-      width: { value: '10', source: 'ai', confidence: 0.7 },
-      height: { value: '8', source: 'ai', confidence: 0.7 },
-      dimensionUnit: 'cm',
-      weight: { value: '500', source: 'ai', confidence: 0.8 },
-      weightUnit: 'g',
-    },
   };
 }
 

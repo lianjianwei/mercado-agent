@@ -9,15 +9,27 @@ function validOutput(): AiEditOutput {
     brand: { value: 'Generic', confidence: 1 },
     model: { value: 'CM-100', confidence: 0.6 },
     skus: [
-      { skuKey: ';white;', name: { value: 'Blanco', confidence: 0.9 } },
-      { skuKey: ';black;', name: { value: 'Negro', confidence: 0.9 } },
+      {
+        skuKey: ';white;',
+        name: { value: 'Blanco', confidence: 0.9 },
+        package: {
+          length: { value: '20', confidence: 0.7 },
+          width: { value: '15', confidence: 0.7 },
+          height: { value: '12', confidence: 0.7 },
+          weight: { value: '900', confidence: 0.8 },
+        },
+      },
+      {
+        skuKey: ';black;',
+        name: { value: 'Negro', confidence: 0.9 },
+        package: {
+          length: { value: '20', confidence: 0.7 },
+          width: { value: '15', confidence: 0.7 },
+          height: { value: '12', confidence: 0.7 },
+          weight: { value: '900', confidence: 0.8 },
+        },
+      },
     ],
-    package: {
-      length: { value: '20', confidence: 0.7 },
-      width: { value: '15', confidence: 0.7 },
-      height: { value: '12', confidence: 0.7 },
-      weight: { value: '900', confidence: 0.8 },
-    },
   };
 }
 
@@ -67,13 +79,16 @@ describe('AI edit output schema', () => {
     expect(aiEditOutputSchema.safeParse(output).success).toBe(true);
   });
 
-  it('rejects a non-string package weight', () => {
+  it('rejects a non-string package weight inside a sku', () => {
     const output = validOutput();
-    output.package.weight = { value: '0.9', confidence: 0.8 } as never;
     // Make weight a number instead of a string value to exercise the type guard.
     const malformed = {
       ...output,
-      package: { ...output.package, weight: { value: 0.9, confidence: 0.8 } },
+      skus: output.skus.map((sku, index) =>
+        index === 0
+          ? { ...sku, package: { ...sku.package, weight: { value: 0.9, confidence: 0.8 } } }
+          : sku,
+      ),
     };
     expect(aiEditOutputSchema.safeParse(malformed).success).toBe(false);
   });

@@ -39,16 +39,30 @@ export function readLatestDraft(
 // them to the current string-literal shape so the renderer never receives an
 // object where it expects a string (which would crash React with "Objects are
 // not valid as a React child").
+//
+// Drafts saved before the multi-SKU model kept a single top-level package;
+// those are migrated by dropping the legacy top-level package and normalizing
+// each SKU package's units.
 function normalizeDraft(draft: EditDraft): EditDraft {
-  // Units are fixed constants now; any stored shape (legacy object or string)
-  // is coerced to the literal. Old drafts that stored kg are normalized to g.
+  const legacy = draft as EditDraft & { package?: unknown };
+  const normalizePackage = (
+    pkg?: Partial<EditDraft['skus'][number]['package']>,
+  ): EditDraft['skus'][number]['package'] => ({
+    length: pkg?.length ?? { value: '', source: 'ai', confidence: 0 },
+    width: pkg?.width ?? { value: '', source: 'ai', confidence: 0 },
+    height: pkg?.height ?? { value: '', source: 'ai', confidence: 0 },
+    dimensionUnit: DIMENSION_UNIT,
+    weight: pkg?.weight ?? { value: '', source: 'ai', confidence: 0 },
+    weightUnit: WEIGHT_UNIT,
+  });
   return {
     ...draft,
-    package: {
-      ...draft.package,
-      dimensionUnit: DIMENSION_UNIT,
-      weightUnit: WEIGHT_UNIT,
-    },
+    skus: (legacy.skus ?? []).map((sku) => ({
+      ...sku,
+      // Old drafts stored no per-SKU package; default the package fields to
+      // empty values so the panel renders without crashing.
+      package: normalizePackage(sku.package),
+    })),
   };
 }
 

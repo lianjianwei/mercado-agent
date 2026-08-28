@@ -22,6 +22,8 @@ function detail(): CollectBoxDetailDto {
         ';white;': {
           imgUrls: ['https://img.test/white.jpg'],
           itemNum: 'WHITE-1',
+          stock: 50,
+          originPrice: 66,
           length: '20',
           width: '10',
           height: '8',
@@ -32,6 +34,8 @@ function detail(): CollectBoxDetailDto {
         ';black;': {
           imgUrls: ['https://img.test/black.jpg'],
           itemNum: 'BLACK-1',
+          stock: 40,
+          originPrice: 68,
         },
       },
     },
@@ -60,15 +64,27 @@ function validOutput(): AiEditOutput {
     brand: { value: 'Generic', confidence: 1 },
     model: { value: 'CM-100', confidence: 0.6 },
     skus: [
-      { skuKey: ';white;', name: { value: 'Blanco', confidence: 0.9 } },
-      { skuKey: ';black;', name: { value: 'Negro', confidence: 0.9 } },
+      {
+        skuKey: ';white;',
+        name: { value: 'Blanco', confidence: 0.9 },
+        package: {
+          length: { value: '20', confidence: 0.7 },
+          width: { value: '10', confidence: 0.7 },
+          height: { value: '8', confidence: 0.7 },
+          weight: { value: '500', confidence: 0.8 },
+        },
+      },
+      {
+        skuKey: ';black;',
+        name: { value: 'Negro', confidence: 0.9 },
+        package: {
+          length: { value: '20', confidence: 0.7 },
+          width: { value: '10', confidence: 0.7 },
+          height: { value: '8', confidence: 0.7 },
+          weight: { value: '500', confidence: 0.8 },
+        },
+      },
     ],
-    package: {
-      length: { value: '20', confidence: 0.7 },
-      width: { value: '10', confidence: 0.7 },
-      height: { value: '8', confidence: 0.7 },
-      weight: { value: '500', confidence: 0.8 },
-    },
   };
 }
 
@@ -105,17 +121,35 @@ describe('EditGenerationService', () => {
       brand: { value: 'Generic', source: 'ai', confidence: 1 },
       model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
       skus: [
-        { skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } },
-        { skuKey: ';black;', name: { value: 'Negro', source: 'ai', confidence: 0.9 } },
+        {
+          skuKey: ';white;',
+          name: { value: 'Blanco', source: 'ai', confidence: 0.9 },
+          stock: { value: '2', source: 'ai', confidence: 1 },
+          sourcePrice: { value: '66', source: 'remote', confidence: 1 },
+          package: {
+            length: { value: '20', source: 'ai', confidence: 0.7 },
+            width: { value: '10', source: 'ai', confidence: 0.7 },
+            height: { value: '8', source: 'ai', confidence: 0.7 },
+            dimensionUnit: 'cm',
+            weight: { value: '500', source: 'ai', confidence: 0.8 },
+            weightUnit: 'g',
+          },
+        },
+        {
+          skuKey: ';black;',
+          name: { value: 'Negro', source: 'ai', confidence: 0.9 },
+          stock: { value: '2', source: 'ai', confidence: 1 },
+          sourcePrice: { value: '68', source: 'remote', confidence: 1 },
+          package: {
+            length: { value: '20', source: 'ai', confidence: 0.7 },
+            width: { value: '10', source: 'ai', confidence: 0.7 },
+            height: { value: '8', source: 'ai', confidence: 0.7 },
+            dimensionUnit: 'cm',
+            weight: { value: '500', source: 'ai', confidence: 0.8 },
+            weightUnit: 'g',
+          },
+        },
       ],
-      package: {
-        length: { value: '20', source: 'ai', confidence: 0.7 },
-        width: { value: '10', source: 'ai', confidence: 0.7 },
-        height: { value: '8', source: 'ai', confidence: 0.7 },
-        dimensionUnit: 'cm',
-        weight: { value: '500', source: 'ai', confidence: 0.8 },
-        weightUnit: 'g',
-      },
     });
   });
 
@@ -149,8 +183,8 @@ describe('EditGenerationService', () => {
 
     const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
       .calls[0][0].prompt as string;
-    expect(prompt).toContain('长20 宽10 高8 cm');
-    expect(prompt).toContain('0.5 kg');
+    expect(prompt).toContain('长20 宽10 高8');
+    expect(prompt).toContain('原重量：0.5');
   });
 
   it('instructs the model on a title formula with local-market phrasing', async () => {
@@ -251,6 +285,59 @@ describe('EditGenerationService', () => {
     expect(prompt).toMatch(/规格|SKU|颜色/);
     expect(prompt).toMatch(/适用场景|使用场景/);
     expect(prompt).toMatch(/型号|兼容/);
+  });
+
+  it('drops SKUs whose original stock is missing or ≤1 and sets survivors to 2', async () => {
+    const lowStockDetail: CollectBoxDetailDto = {
+      siteCollectItemInfo: {
+        collectBoxDetailId: '90001',
+        title: 'Grinder with variants',
+        notes: 'Three color options.',
+        skuMap: {
+          ';good;': { itemNum: 'GOOD', stock: 100, originPrice: 66 },
+          ';one;': { itemNum: 'ONE', stock: 1, originPrice: 66 },
+          ';zero;': { itemNum: 'ZERO', stock: 0, originPrice: 66 },
+          ';none;': { itemNum: 'NONE', originPrice: 66 },
+        },
+      },
+    } as CollectBoxDetailDto;
+    const provider = fakeProvider({
+      ...validOutput(),
+      skus: [
+        {
+          skuKey: ';good;',
+          name: { value: 'Gris', confidence: 0.9 },
+          package: {
+            length: { value: '20', confidence: 0.7 },
+            width: { value: '10', confidence: 0.7 },
+            height: { value: '8', confidence: 0.7 },
+            weight: { value: '500', confidence: 0.8 },
+          },
+        },
+        // The model echoes dropped SKUs too; the service must drop them.
+        {
+          skuKey: ';one;',
+          name: { value: 'Uno', confidence: 0.9 },
+          package: {
+            length: { value: '20', confidence: 0.7 },
+            width: { value: '10', confidence: 0.7 },
+            height: { value: '8', confidence: 0.7 },
+            weight: { value: '500', confidence: 0.8 },
+          },
+        },
+      ],
+    });
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(lowStockDetail),
+      () => provider,
+    );
+
+    const draft = await service.generate('90001');
+
+    // Only the stock-100 SKU survives; every survivor gets stock '2'.
+    expect(draft.skus.map((sku) => sku.skuKey)).toEqual([';good;']);
+    expect(draft.skus[0].stock).toEqual({ value: '2', source: 'ai', confidence: 1 });
   });
 
   it('throws when the model response does not match the schema', async () => {

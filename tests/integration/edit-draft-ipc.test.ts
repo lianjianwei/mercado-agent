@@ -16,16 +16,21 @@ function makeDraft(version: number): EditDraft {
     brand: { value: 'Generic', source: 'ai', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
     skus: [
-      { skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } },
+      {
+        skuKey: ';white;',
+        name: { value: 'Blanco', source: 'ai', confidence: 0.9 },
+        stock: { value: '2', source: 'ai', confidence: 1 },
+        sourcePrice: { value: '66', source: 'remote', confidence: 1 },
+        package: {
+          length: { value: '20', source: 'ai', confidence: 0.7 },
+          width: { value: '10', source: 'ai', confidence: 0.7 },
+          height: { value: '8', source: 'ai', confidence: 0.7 },
+          dimensionUnit: 'cm',
+          weight: { value: '500', source: 'ai', confidence: 0.8 },
+          weightUnit: 'g',
+        },
+      },
     ],
-    package: {
-      length: { value: '20', source: 'ai', confidence: 0.7 },
-      width: { value: '10', source: 'ai', confidence: 0.7 },
-      height: { value: '8', source: 'ai', confidence: 0.7 },
-      dimensionUnit: 'cm',
-      weight: { value: '500', source: 'ai', confidence: 0.8 },
-      weightUnit: 'g',
-    },
   };
 }
 
@@ -168,13 +173,13 @@ describe('edit draft IPC', () => {
     // Drafts saved before the cm/g change stored the units as
     // { value, source, confidence } objects. Reading one must coerce the units
     // to the current string-literal shape so the panel does not crash when it
-    // renders {draft.package.dimensionUnit}.
+    // renders a SKU package unit.
     const legacy = makeDraft(1);
-    legacy.package = {
-      ...legacy.package,
+    legacy.skus[0].package = {
+      ...legacy.skus[0].package,
       dimensionUnit: { value: 'cm', source: 'ai', confidence: 0.99 },
       weightUnit: { value: 'kg', source: 'ai', confidence: 0.99 },
-    } as unknown as EditDraft['package'];
+    } as unknown as EditDraft['skus'][number]['package'];
     const snapshots = fakeSnapshots([
       {
         id: 'a1',
@@ -187,10 +192,10 @@ describe('edit draft IPC', () => {
 
     const draft = readLatestDraft(snapshots, '90001');
     expect(draft).not.toBeNull();
-    expect(draft!.package.dimensionUnit).toBe('cm');
-    expect(draft!.package.weightUnit).toBe('g');
+    expect(draft!.skus[0].package.dimensionUnit).toBe('cm');
+    expect(draft!.skus[0].package.weightUnit).toBe('g');
     // Other fields are untouched.
-    expect(draft!.package.length).toEqual({ value: '20', source: 'ai', confidence: 0.7 });
+    expect(draft!.skus[0].package.length).toEqual({ value: '20', source: 'ai', confidence: 0.7 });
   });
 
   it('readLatestDraft ignores miaoshou snapshots and returns the newest aiDraft', () => {

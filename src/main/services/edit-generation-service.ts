@@ -22,13 +22,32 @@ import { selectModelImages } from '../risk/risk-relevant-mapper';
 // AI edit draft generation.
 //
 // Reads the latest Miaoshou detail snapshot for a product, asks the model to
-// produce edited title/description/brand/model/SKU names and package
+// produce edited title/description/brand/model and per-SKU name + package
 // dimensions + billing weight, validates the structured response, and returns
 // an EditDraft. The draft is NOT written to Miaoshou; persisting it as an
 // aiDraft snapshot is the caller's job.
+//
+// SKU selection: SKUs whose original stock is missing or ≤1 are dropped from
+// the draft entirely. Remaining SKUs get stock set to '2'. Each SKU's package
+// dimensions/weight are estimated by the model from the SKU's own images, the
+// description, and the original (possibly wrong) dimensions/weight. Source
+// price is kept as-is from the original data.
 
 export type EditGenerationServiceOptions = {
   now?: () => string;
+};
+
+// A SKU that survived the stock filter, with its original data ready for the
+// prompt and its image urls selected for the model.
+type DraftSku = {
+  skuKey: string;
+  originalName: string | null;
+  sourcePrice: string | null;
+  originalLength: string | null;
+  originalWidth: string | null;
+  originalHeight: string | null;
+  originalWeight: string | null;
+  imageUrls: string[];
 };
 
 export class EditGenerationService {
@@ -48,17 +67,18 @@ export class EditGenerationService {
     signal?: AbortSignal,
   ): Promise<EditDraft> {
     const detail = this.latestDetail(productId);
+    const skus = this.selectSkus(detail);
     const provider = this.providerFactory();
-    const prompt = this.buildPrompt(detail);
+    const prompt = this.buildPrompt(detail, skus);
     const raw = await provider.generate(
-      { prompt, imageUrls: this.modelImages(detail) },
+      { prompt, imageUrls: skus.flatMap((sku) => sku.imageUrls) },
       signal ?? new AbortController().signal,
     );
     const parsed = aiEditOutputSchema.safeParse(raw);
     if (!parsed.success) {
       throw new ModelStructuredOutputError('模型结构化输出不符合编辑草稿 schema。');
     }
-    return this.toDraft(detail, parsed.data);
+    return this.toDraft(detail, parsed.data, skus);
   }
 
   private latestDetail(productId: string): CollectBoxDetailDto {
@@ -70,31 +90,62 @@ export class EditGenerationService {
     return latest.payload as CollectBoxDetailDto;
   }
 
-  private modelImages(detail: CollectBoxDetailDto): string[] {
+  // Drop SKUs whose original stock is missing or ≤1, and keep the rest for the
+  // prompt. Stock handling for survivors is applied in toDraft ('2').
+  private selectSkus(detail: CollectBoxDetailDto): DraftSku[] {
     const info = detail.siteCollectItemInfo;
+    const result: DraftSku[] = [];
+    for (const [skuKey, sku] of Object.entries(info.skuMap ?? {})) {
+      const stock = Number(sku?.stock);
+      // Missing/NaN stock or ≤1 → drop the SKU.
+      if (!Number.isFinite(stock) || stock <= 1) continue;
+      result.push({
+        skuKey,
+        originalName: this.skuName(sku),
+        sourcePrice: this.stringValue(sku?.originPrice),
+        originalLength: this.stringValue(sku?.length),
+        originalWidth: this.stringValue(sku?.width),
+        originalHeight: this.stringValue(sku?.height),
+        originalWeight: this.stringValue(sku?.weight),
+        imageUrls: this.skuImages(sku),
+      });
+    }
+    return result;
+  }
+
+  private skuImages(sku: Record<string, unknown>): string[] {
     const urls: string[] = [];
-    for (const sku of Object.values(info.skuMap ?? {})) {
-      if (!Array.isArray(sku?.imgUrls)) continue;
-      for (const url of sku.imgUrls) {
-        if (typeof url === 'string') urls.push(url);
-      }
+    if (!Array.isArray(sku?.imgUrls)) return urls;
+    for (const url of sku.imgUrls) {
+      if (typeof url === 'string') urls.push(url);
     }
     return selectModelImages(urls);
   }
 
-  private buildPrompt(detail: CollectBoxDetailDto): string {
+  private buildPrompt(
+    detail: CollectBoxDetailDto,
+    skus: DraftSku[],
+  ): string {
     const info = detail.siteCollectItemInfo;
-    const skuLines = Object.entries(info.skuMap ?? {}).map(([skuKey, sku]) => {
-      const name = this.skuName(sku);
+    // Each SKU lists which image indexes belong to it so the model can match
+    // a SKU's pictures to its dimensions/weight estimate.
+    let imageCursor = 0;
+    const skuLines = skus.map((sku) => {
+      const indexes = sku.imageUrls.map((_, index) => imageCursor + index);
+      imageCursor += sku.imageUrls.length;
       return [
-        `- skuKey ${skuKey}`,
-        name ? `  原名称：${name}` : '  原名称：未提供',
+        `- skuKey ${sku.skuKey}`,
+        sku.originalName ? `  原规格名：${sku.originalName}` : '  原规格名：未提供',
+        sku.sourcePrice !== null ? `  货源价：${sku.sourcePrice}` : '  货源价：未提供',
         `  原尺寸：${[
-          sku?.length ? `长${sku.length}` : null,
-          sku?.width ? `宽${sku.width}` : null,
-          sku?.height ? `高${sku.height}` : null,
-        ].filter(Boolean).join(' ') || '未提供'}${sku?.lengthWidthHeightUnit ? ` ${sku.lengthWidthHeightUnit}` : ''}`,
-        `  原重量：${sku?.weight ? `${sku.weight} ${sku.weightUnit ?? ''}`.trim() : '未提供'}`,
+          sku.originalLength ? `长${sku.originalLength}` : null,
+          sku.originalWidth ? `宽${sku.originalWidth}` : null,
+          sku.originalHeight ? `高${sku.originalHeight}` : null,
+        ].filter(Boolean).join(' ') || '未提供'}`,
+        `  原重量：${sku.originalWeight ?? '未提供'}`,
+        indexes.length > 0
+          ? `  对应图片序号：${indexes.join(', ')}（请看这些图评估该 SKU 的尺寸和重量）`
+          : '  对应图片：无',
       ].join('\n');
     });
 
@@ -129,10 +180,16 @@ export class EditGenerationService {
       '- 尽量覆盖：①商品内容（总共卖哪些东西）；②可选规格（SKU/颜色等有哪些选项）；③尺寸（如有，用 cm）；④适用场景；⑤如果是配件，说明适用于什么产品的哪些型号。',
       '- 信息不全时不编造，有就写、没有就跳过对应点。',
       '',
-      '其他字段：',
-      '- 品牌固定为 Generic。',
-      '- 每个 SKU 的 name 翻译成西语（如原为颜色，用拉美常用的颜色词）。',
-      '- 包裹尺寸和计费重量：参考原尺寸/重量（可能为空或错误），并结合商品图片里的信息校验/预估。每个字段给 0-1 置信度；明显从图片可确认的高置信度，否则低。',
+      'SKU 名称规则：',
+      '- 每个 SKU 的原规格名翻译成西语（如原为颜色，用拉美常用的颜色词）。',
+      '- 保留型号前缀（如 MT-32、JM-90），只翻译后面的规格部分。',
+      '',
+      '每个 SKU 的包裹尺寸和计费重量规则（必须逐 SKU 独立评估）：',
+      '- 每个 SKU 参考：该 SKU 的图片（见「对应图片序号」）+ 商品描述 + 原尺寸/重量。',
+      '- 原尺寸/重量可能为空或错误（商家随便填的），不要盲信；结合该 SKU 图片和描述里提到的尺寸/重量来校验、修正或预估。',
+      '- 不同 SKU 的尺寸/重量可能不同，逐个独立判断。',
+      '- 图片里若标了尺寸/重量，以图片为准；描述里提到也参考。',
+      '- 每个字段给 0-1 置信度：能从图片/描述确认的高置信度，纯猜测的低置信度。',
       '- 单位固定：尺寸用 cm，重量用 g。你只输出数值，不要输出单位。',
       '',
       '商品信息：',
@@ -140,7 +197,7 @@ export class EditGenerationService {
       `描述：${info.notes ?? info.notesFull ?? '未提供'}`,
       `品牌属性：${this.brandValue(info) ?? '未提供'}`,
       `型号属性：${this.modelValue(info) ?? '未提供'}`,
-      `SKU 列表：\n${skuLines.join('\n') || '无 SKU'}`,
+      `SKU 列表（图片序号从 0 开始，全局编号）：\n${skuLines.join('\n') || '无 SKU'}`,
       '',
       '输出 JSON 结构：',
       JSON.stringify({
@@ -148,13 +205,16 @@ export class EditGenerationService {
         description: { value: '西语描述', confidence: 0.9 },
         brand: { value: 'Generic', confidence: 1 },
         model: { value: '型号', confidence: 0.6 },
-        skus: [{ skuKey: 'SKU原始key', name: { value: '西语SKU名', confidence: 0.9 } }],
-        package: {
-          length: { value: '20', confidence: 0.7 },
-          width: { value: '15', confidence: 0.7 },
-          height: { value: '12', confidence: 0.7 },
-          weight: { value: '900', confidence: 0.8 },
-        },
+        skus: [{
+          skuKey: 'SKU原始key',
+          name: { value: '西语SKU名', confidence: 0.9 },
+          package: {
+            length: { value: '20', confidence: 0.7 },
+            width: { value: '15', confidence: 0.7 },
+            height: { value: '12', confidence: 0.7 },
+            weight: { value: '900', confidence: 0.8 },
+          },
+        }],
       }, null, 2),
       'skus 数组必须与上面列出的 SKU 一一对应，skuKey 必须原样返回。',
       '未提供或无法确认的字段，confidence 给低值，value 给合理默认或原值。',
@@ -164,25 +224,29 @@ export class EditGenerationService {
   private toDraft(
     detail: CollectBoxDetailDto,
     output: AiEditOutput,
+    skus: DraftSku[],
   ): EditDraft {
-    const skus: SkuEditField[] = output.skus.map((sku) => ({
-      skuKey: sku.skuKey,
-      name: {
-        value: sku.name.value,
-        source: 'ai',
-        confidence: sku.name.confidence,
-      },
-    }));
-
-    const packageField: PackageEditField = {
-      length: this.aiField(output.package.length),
-      width: this.aiField(output.package.width),
-      height: this.aiField(output.package.height),
-      // Units are fixed constants, not model-output fields.
-      dimensionUnit: DIMENSION_UNIT,
-      weight: this.aiField(output.package.weight),
-      weightUnit: WEIGHT_UNIT,
-    };
+    const byKey = new Map(skus.map((sku) => [sku.skuKey, sku]));
+    // The stock filter in selectSkus decides which SKUs survive; only keep the
+    // model output for those surviving SKUs (the model echoes all SKUs given).
+    const skuFields: SkuEditField[] = output.skus
+      .filter((sku) => byKey.has(sku.skuKey))
+      .map((sku) => {
+        const original = byKey.get(sku.skuKey)!;
+        return {
+          skuKey: sku.skuKey,
+          name: this.aiField(sku.name),
+          // Stock rule: every surviving SKU gets '2'.
+          stock: { value: '2', source: 'ai', confidence: 1 },
+          // Source price is kept as-is from the original data.
+          sourcePrice: {
+            value: original.sourcePrice ?? '',
+            source: original.sourcePrice ? 'remote' : 'ai',
+            confidence: original.sourcePrice ? 1 : 0,
+          },
+          package: this.skuPackage(sku.package),
+        };
+      });
 
     return {
       version: 1,
@@ -191,12 +255,25 @@ export class EditGenerationService {
       description: this.aiField(output.description),
       brand: this.aiField(output.brand),
       model: this.aiField(output.model),
-      skus,
-      package: packageField,
+      skus: skuFields,
     };
   }
 
-  private aiField(field: AiEditOutput['title']): EditField {
+  private skuPackage(
+    packageOutput: AiEditOutput['skus'][number]['package'],
+  ): PackageEditField {
+    return {
+      length: this.aiField(packageOutput.length),
+      width: this.aiField(packageOutput.width),
+      height: this.aiField(packageOutput.height),
+      // Units are fixed constants, not model-output fields.
+      dimensionUnit: DIMENSION_UNIT,
+      weight: this.aiField(packageOutput.weight),
+      weightUnit: WEIGHT_UNIT,
+    };
+  }
+
+  private aiField(field: { value: string; confidence: number }): EditField {
     return {
       value: field.value,
       source: 'ai',
@@ -209,6 +286,11 @@ export class EditGenerationService {
       return sku.itemNum;
     }
     return null;
+  }
+
+  private stringValue(value: unknown): string | null {
+    if (value === undefined || value === null || value === '') return null;
+    return String(value);
   }
 
   private brandValue(info: CollectBoxDetailDto['siteCollectItemInfo']): string | null {

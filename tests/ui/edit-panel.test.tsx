@@ -70,16 +70,21 @@ function draft(): EditDraft {
     brand: { value: 'Generic', source: 'ai', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
     skus: [
-      { skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } },
+      {
+        skuKey: ';white;',
+        name: { value: 'Blanco', source: 'ai', confidence: 0.9 },
+        stock: { value: '2', source: 'ai', confidence: 1 },
+        sourcePrice: { value: '66', source: 'remote', confidence: 1 },
+        package: {
+          length: { value: '20', source: 'ai', confidence: 0.7 },
+          width: { value: '10', source: 'ai', confidence: 0.7 },
+          height: { value: '8', source: 'ai', confidence: 0.7 },
+          dimensionUnit: 'cm',
+          weight: { value: '500', source: 'ai', confidence: 0.8 },
+          weightUnit: 'g',
+        },
+      },
     ],
-    package: {
-      length: { value: '20', source: 'ai', confidence: 0.7 },
-      width: { value: '10', source: 'ai', confidence: 0.7 },
-      height: { value: '8', source: 'ai', confidence: 0.7 },
-      dimensionUnit: 'cm',
-      weight: { value: '500', source: 'ai', confidence: 0.8 },
-      weightUnit: 'g',
-    },
   };
 }
 
@@ -114,7 +119,8 @@ describe('EditPanel', () => {
     const titleInput = await screen.findByLabelText('标题（≤60 字符）');
     expect((titleInput as HTMLInputElement).value).toBe('Molinillo de café');
     expect(screen.getByText('AI 生成 · 95%')).toBeTruthy();
-    expect(screen.getByText('AI 生成 · 100%')).toBeTruthy();
+    // Some fields (brand, stock, units) are fixed at 100%.
+    expect(screen.getAllByText('AI 生成 · 100%').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText('品牌')).toBeTruthy();
   });
 
@@ -167,12 +173,13 @@ describe('EditPanel', () => {
     );
   });
 
-  it('shows SKU translations and package fields in the draft view', async () => {
+  it('shows SKU translations, stock, source price, and package fields in the draft view', async () => {
     renderPanel({ existing: draft() });
 
-    expect(await screen.findByText('SKU 名称')).toBeTruthy();
-    const whiteSku = screen.getByLabelText(';white;') as HTMLInputElement;
+    const whiteSku = (await screen.findByLabelText('SKU 名称')) as HTMLInputElement;
     expect(whiteSku.value).toBe('Blanco');
+    expect((screen.getByLabelText('库存') as HTMLInputElement).value).toBe('2');
+    expect((screen.getByLabelText('货源价') as HTMLInputElement).value).toBe('66');
     expect((screen.getByLabelText('长度（cm）') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('重量（g）') as HTMLInputElement).value).toBe('500');
     // Units are fixed read-only displays, not editable inputs.

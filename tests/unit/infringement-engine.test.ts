@@ -134,7 +134,7 @@ describe('InfringementEngine', () => {
     expect(decision.level).toBe('low');
   });
 
-  it('tells the AI the restricted-brand flag and the high-risk basis for a niche brand', async () => {
+  it('tells the AI the restricted-brand flag and to judge an obvious own logo as low, not none', async () => {
     const aiDecision = {
       level: 'low',
       kind: 'unbranded',
@@ -156,7 +156,30 @@ describe('InfringementEngine', () => {
     const request = provider.generate.mock.calls[0][0];
     expect(request.prompt).toContain('受限品牌列表命中：否');
     expect(request.prompt).toContain('世界知名品牌');
-    expect(request.prompt).toContain('图片带自有 Logo');
+    expect(request.prompt).toContain('判 low');
+    expect(request.prompt).toContain('不得判 none');
+  });
+
+  it('returns low risk for a niche brand with an obvious own logo when AI judges it low', async () => {
+    const aiDecision = {
+      level: 'low',
+      kind: 'unknown',
+      summary: '非世界知名品牌，图片带自有 Logo，判定低风险。',
+      evidence: [{ source: 'image', quote: 'KOKKO KG-10', explanation: '机身明显自有商标，非受限品牌' }],
+      imageEvidence: ['机身印有 KOKKO 自有 Logo'],
+    };
+    const provider = fakeProvider(aiDecision);
+    const engine = new InfringementEngine(provider as never);
+    const product: RiskRelevantProduct = {
+      ...sampleProduct(),
+      title: '电吉他音箱 蓝牙便携户外迷你小型音响 可充电',
+      description: 'KOKKO KG-10 便携音箱',
+      brand: 'Generic',
+    };
+
+    const decision = await engine.analyze(product, new AbortController().signal);
+
+    expect(decision.level).toBe('low');
   });
 
   it('throws a structured error when AI output does not validate', async () => {

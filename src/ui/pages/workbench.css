@@ -972,6 +972,66 @@
   background: var(--surface);
 }
 
+/* One card per SKU so distinct SKUs are visually separated. Shared by the
+   Miaoshou detail view and the AI draft view. */
+.edit-sku-card {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.edit-sku-card > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.edit-sku-card > h3 code {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef3f8;
+  font-size: 12px;
+  color: #536579;
+}
+
+/* Fixed-width labels inside a SKU card keep every row aligned regardless of
+   label text length (SKU 名称 / 库存 / 货源价 / 长度（cm）...). */
+.edit-sku-card .edit-draft-field {
+  grid-template-columns: 88px 1fr;
+  margin-bottom: 10px;
+}
+
+.edit-sku-card .edit-readonly-value {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+}
+
+/* Dimensions + weight as a compact 2x2 grid inside a card. */
+.edit-sku-card .edit-package-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-top: 2px;
+}
+
+.edit-sku-card .edit-package-grid .edit-draft-field {
+  grid-template-columns: 88px 1fr;
+  margin-bottom: 0;
+}
+
+.edit-sku-card .edit-package-grid .edit-draft-field label {
+  padding-top: 0;
+  display: flex;
+  align-items: center;
+}
+
 .edit-draft-field {
   display: grid;
   grid-template-columns: max-content 1fr;

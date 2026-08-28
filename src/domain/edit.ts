@@ -39,12 +39,19 @@ export type PackageEditField = {
 // Each SKU carries its own name, stock, source price, and package dimensions
 // + weight. Products are single- or multi-SKU; in both cases the draft holds
 // one SkuEditField per SKU so the shape is uniform.
+export type SkuSiteAndPriceMap = Record<string, string>;
+export type SkuSiteAndListingTypeInfoMap = Record<string, { listingType: string }>;
+
 export type SkuEditField = {
   skuKey: string;
   name: EditField;
   stock: EditField;
   sourcePrice: EditField;
   package: PackageEditField;
+  // 新增(对齐妙手 skuMap[key].siteAndPriceMap / siteAndListingTypeInfoMap)。
+  // Task 8 会把它们变成必填并在生成/保存时写入。
+  siteAndPriceMap?: SkuSiteAndPriceMap;
+  siteAndListingTypeInfoMap?: SkuSiteAndListingTypeInfoMap;
 };
 
 export type EditDraft = {
@@ -54,6 +61,10 @@ export type EditDraft = {
   description: EditField;
   brand: EditField;
   model: EditField;
+  // 新增:发布站点(原始键,如 'MX(Up)')与产品级全球净收益(对齐
+  // siteCollectItemInfo.siteAndPriceMap)。
+  sites?: string[];
+  siteAndPriceMap?: Record<string, string>;
   skus: SkuEditField[];
 };
 

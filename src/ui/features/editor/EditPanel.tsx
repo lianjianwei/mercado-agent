@@ -184,54 +184,46 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
 
           {view === 'miaoshou' ? (
             <div className="edit-miaoshou" aria-label="妙手详情">
-              <div className="edit-detail-summary">
-                {mainImage && <img alt="" className="edit-main-image" src={mainImage} />}
-                <dl>
-                  <div><dt>标题</dt><dd>{fieldLine(detail?.title)}</dd></div>
-                  <div><dt>描述</dt><dd>{fieldLine(detail?.description)}</dd></div>
-                  <div><dt>品牌</dt><dd>{fieldLine(detail?.brand)}</dd></div>
-                  <div><dt>型号</dt><dd>{fieldLine(detail?.model)}</dd></div>
-                  <div><dt>货号</dt><dd>{fieldLine(detail?.itemNumber)}</dd></div>
-                  <div><dt>类目</dt><dd>{fieldLine(detail?.category)}</dd></div>
-                  <div><dt>站点</dt><dd>{detail?.sites?.length ? detail.sites.join('、') : '—'}</dd></div>
-                  <div><dt>库存</dt><dd>{fieldLine(detail?.stock)}</dd></div>
-                  <div><dt>货源价</dt><dd>{fieldLine(detail?.sourcePrice)}</dd></div>
-                </dl>
+              {mainImage && <img alt="" className="edit-main-image" src={mainImage} />}
+
+              <div className="edit-draft-field">
+                <label>标题</label>
+                <span className="edit-readonly-value">{fieldLine(detail?.title)}</span>
               </div>
 
-              {detail?.skuList && detail.skuList.length > 0 && (
-                <section className="edit-sku-section">
-                  <h3>SKU（妙手）</h3>
-                  <table className="edit-sku-table">
-                    <thead>
-                      <tr>
-                        <th>SKU</th>
-                        <th>名称</th>
-                        <th>尺寸</th>
-                        <th>重量</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.skuList.map((sku) => (
-                        <tr key={sku.skuKey}>
-                          <td><code>{sku.skuKey}</code></td>
-                          <td>{fieldLine(sku.name)}</td>
-                          <td>
-                            {[sku.length, sku.width, sku.height].every((value) => value !== null)
-                              ? `${sku.length}×${sku.width}×${sku.height} ${sku.dimensionUnit ?? ''}`.trim()
-                              : '—'}
-                          </td>
-                          <td>
-                            {sku.weight
-                              ? `${sku.weight} ${sku.weightUnit ?? ''}`.trim()
-                              : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </section>
-              )}
+              <div className="edit-draft-field">
+                <label>描述</label>
+                <span className="edit-readonly-value">{fieldLine(detail?.description)}</span>
+              </div>
+
+              <div className="edit-draft-field">
+                <label>品牌</label>
+                <span className="edit-readonly-value">{fieldLine(detail?.brand)}</span>
+              </div>
+
+              <div className="edit-draft-field">
+                <label>型号</label>
+                <span className="edit-readonly-value">{fieldLine(detail?.model)}</span>
+              </div>
+
+              <section className="edit-sku-section">
+                <h3>SKU 名称</h3>
+                {detail?.skuList && detail.skuList.length > 0 ? (
+                  detail.skuList.map((sku) => (
+                    <div className="edit-draft-field" key={sku.skuKey}>
+                      <label><code>{sku.skuKey}</code></label>
+                      <span className="edit-readonly-value">{fieldLine(sku.name)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="edit-readonly-value">—</span>
+                )}
+              </section>
+
+              <section className="edit-sku-section">
+                <h3>包裹尺寸与计费重量</h3>
+                <PackageMiaoshouFields skuList={detail?.skuList ?? []} />
+              </section>
 
               <p className="edit-note">
                 妙手详情与 AI 编辑草稿一致时，表示草稿已落库为当前内容；不一致时，AI 编辑详情反映待保存的草稿。
@@ -385,5 +377,46 @@ function FieldMeta({ field }: { field: EditField }) {
     <span className={sourcePillClass(field.source)}>
       {sourceLabels[field.source]} · {formatConfidence(field.confidence)}
     </span>
+  );
+}
+
+// Miaoshou stores package dimensions/weight per SKU; the AI draft has a single
+// package field. Show the first SKU that carries dimensions/weight so the
+// Miaoshou view lines up field-for-field with the AI draft view.
+function PackageMiaoshouFields({ skuList }: { skuList: ProductDetail['skuList'] }) {
+  const sku = skuList.find(
+    (candidate) =>
+      candidate.length !== null
+      || candidate.width !== null
+      || candidate.height !== null
+      || candidate.weight !== null,
+  );
+  return (
+    <>
+      <div className="edit-draft-field">
+        <label>长度</label>
+        <span className="edit-readonly-value">
+          {sku?.length ?? '—'}{sku?.dimensionUnit ? ` ${sku.dimensionUnit}` : ''}
+        </span>
+      </div>
+      <div className="edit-draft-field">
+        <label>宽度</label>
+        <span className="edit-readonly-value">
+          {sku?.width ?? '—'}{sku?.dimensionUnit ? ` ${sku.dimensionUnit}` : ''}
+        </span>
+      </div>
+      <div className="edit-draft-field">
+        <label>高度</label>
+        <span className="edit-readonly-value">
+          {sku?.height ?? '—'}{sku?.dimensionUnit ? ` ${sku.dimensionUnit}` : ''}
+        </span>
+      </div>
+      <div className="edit-draft-field">
+        <label>重量</label>
+        <span className="edit-readonly-value">
+          {sku?.weight ?? '—'}{sku?.weightUnit ? ` ${sku.weightUnit}` : ''}
+        </span>
+      </div>
+    </>
   );
 }

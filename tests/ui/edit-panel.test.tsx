@@ -128,7 +128,10 @@ describe('EditPanel', () => {
     await user.click(screen.getByRole('tab', { name: '妙手详情' }));
     expect(await screen.findByText('Hario')).toBeTruthy();
     expect(screen.getByText('CM-100')).toBeTruthy();
-    expect(screen.getByText('20×10×8 cm')).toBeTruthy();
+    // Package fields line up field-for-field with the AI draft view.
+    expect(screen.getByText('20 cm')).toBeTruthy();
+    expect(screen.getByText('10 cm')).toBeTruthy();
+    expect(screen.getByText('8 cm')).toBeTruthy();
 
     await user.click(screen.getByRole('tab', { name: 'AI 编辑详情' }));
     expect(await screen.findByLabelText('标题（≤60 字符）')).toBeTruthy();

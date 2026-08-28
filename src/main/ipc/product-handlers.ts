@@ -62,10 +62,16 @@ export function registerProductHandlers(
       const product = dependencies.products.getById(input.productId);
       const snapshots =
         dependencies.snapshots?.listForProduct(input.productId) ?? [];
-      const latest = snapshots[snapshots.length - 1]?.payload as
+      // A product carries both a miaoshou snapshot (from sync) and aiDraft
+      // snapshots (from AI editing). The Miaoshou detail view must read the
+      // latest miaoshou snapshot, not whichever snapshot was appended last —
+      // an aiDraft snapshot is an EditDraft, not a CollectBoxDetailDto.
+      const latestMiaoshou = [...snapshots]
+        .reverse()
+        .find((snapshot) => snapshot.kind === 'miaoshou')?.payload as
         | CollectBoxDetailDto
         | undefined;
-      return { ok: true, data: productDetailFromSources(product, latest) };
+      return { ok: true, data: productDetailFromSources(product, latestMiaoshou) };
     } catch (error) {
       if (error instanceof ZodError) {
         return {

@@ -184,6 +184,78 @@ describe('product synchronization IPC', () => {
     expect(snapshots.listForProduct).toHaveBeenCalledWith('detail-1');
   });
 
+  it('reads the latest miaoshou snapshot for the detail view, not a newer aiDraft snapshot', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const product = {
+      id: 'detail-1',
+      state: 'notPublished' as const,
+      title: 'Coffee grinder',
+      itemNumber: 'MLB-1',
+      thumbnailUrl: 'https://img.test/main.jpg',
+      category: '厨房用具',
+      netProfit: '52.4',
+      stock: '86',
+      sites: ['BR'],
+      sourcePrice: '18.9',
+      localPublishState: 'notPublished' as const,
+      localPublishedAt: null,
+      lastSyncedAt: '2026-08-27T01:00:00.000Z',
+      createdAt: '2026-08-27T01:00:00.000Z',
+      updatedAt: '2026-08-27T01:00:00.000Z',
+    };
+    const products = { page: vi.fn(), getById: vi.fn().mockReturnValue(product), clearAll: vi.fn() };
+    const snapshots = {
+      listForProduct: vi.fn().mockReturnValue([
+        {
+          id: 's1',
+          productId: 'detail-1',
+          kind: 'miaoshou' as const,
+          capturedAt: '2026-08-27T01:00:00.000Z',
+          payload: {
+            siteCollectItemInfo: {
+              collectBoxDetailId: 'detail-1',
+              title: 'Coffee grinder (from miaoshou)',
+              notes: 'Original description',
+              attributes: [{ name: '品牌', values: [{ name: 'Hario' }] }],
+            },
+          },
+        },
+        {
+          id: 's2',
+          productId: 'detail-1',
+          kind: 'aiDraft' as const,
+          capturedAt: '2026-08-28T01:00:00.000Z',
+          payload: {
+            version: 1,
+            createdAt: '2026-08-28T01:00:00.000Z',
+            title: { value: 'Titulo AI', source: 'ai', confidence: 0.9 },
+            description: { value: 'Descripción', source: 'ai', confidence: 0.8 },
+            brand: { value: 'Generic', source: 'ai', confidence: 1 },
+            model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+            skus: [],
+            package: {},
+          },
+        },
+      ]),
+    };
+    registerProductHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { products, snapshots, sync: { syncDefault: vi.fn(), syncOne: vi.fn() } },
+    );
+
+    const result = await handlers.get(IPC_CHANNELS.productDetail)?.({}, { productId: 'detail-1' });
+    // The aiDraft snapshot is appended last, but the detail view must show the
+    // miaoshou data, not the EditDraft payload.
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        title: 'Coffee grinder (from miaoshou)',
+        description: 'Original description',
+        brand: 'Hario',
+      },
+    });
+  });
+
   it('returns NOT_FOUND when the product does not exist', async () => {
     const handlers = new Map<string, IpcListener>();
     const products = {

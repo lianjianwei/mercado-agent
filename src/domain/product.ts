@@ -124,6 +124,15 @@ export type ProductDetailSku = {
   stock: string | null;
   sourcePrice: string | null;
   netProfit: string | null;
+  // Package dimensions and weight come from the Miaoshou skuMap. They may be
+  // empty or wrong on the source, so the AI edit flow treats them as hints
+  // rather than ground truth when estimating package size and billing weight.
+  length: string | null;
+  width: string | null;
+  height: string | null;
+  dimensionUnit: string | null;
+  weight: string | null;
+  weightUnit: string | null;
 };
 
 export type ProductDetail = {

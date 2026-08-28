@@ -140,7 +140,7 @@ describe('product synchronization IPC', () => {
               notesFull: 'Longer description',
               sites: ['BR(Up)', 'MX(Up)'],
               skuMap: {
-                ';0a310071;': { itemNum: 'SKU-A', stock: 12, imgUrls: ['https://img.test/a.jpg'] },
+                ';0a310071;': { itemNum: 'SKU-A', stock: 12, imgUrls: ['https://img.test/a.jpg'], length: '15', width: '12', height: '4', lengthWidthHeightUnit: 'cm', weight: '0.2', weightUnit: 'kg' },
                 ';502c632b;': { itemNum: 'SKU-B', stock: 3, imgUrls: ['https://img.test/b.jpg', 'https://img.test/a.jpg'] },
               },
             },
@@ -170,8 +170,8 @@ describe('product synchronization IPC', () => {
         mainImage: 'https://img.test/main.jpg',
         images: ['https://img.test/a.jpg', 'https://img.test/b.jpg'],
         skuList: [
-          { skuKey: ';0a310071;', name: 'SKU-A', imageUrl: 'https://img.test/a.jpg', stock: '12', sourcePrice: null, netProfit: null },
-          { skuKey: ';502c632b;', name: 'SKU-B', imageUrl: 'https://img.test/b.jpg', stock: '3', sourcePrice: null, netProfit: null },
+          { skuKey: ';0a310071;', name: 'SKU-A', imageUrl: 'https://img.test/a.jpg', stock: '12', sourcePrice: null, netProfit: null, length: '15', width: '12', height: '4', dimensionUnit: 'cm', weight: '0.2', weightUnit: 'kg' },
+          { skuKey: ';502c632b;', name: 'SKU-B', imageUrl: 'https://img.test/b.jpg', stock: '3', sourcePrice: null, netProfit: null, length: null, width: null, height: null, dimensionUnit: null, weight: null, weightUnit: null },
         ],
       },
     });

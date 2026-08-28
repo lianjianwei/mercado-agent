@@ -162,8 +162,8 @@ function createApi(allProducts: Product[] = products) {
     mainImage: 'https://images.example.com/grinder.jpg',
     images: ['https://images.example.com/grinder.jpg', 'https://images.example.com/grinder-2.jpg'],
     skuList: [
-      { skuKey: ';white;', name: '白色', imageUrl: 'https://images.example.com/grinder.jpg', stock: '50', sourcePrice: '16.9', netProfit: '48.6' },
-      { skuKey: ';black;', name: '黑色', imageUrl: null, stock: '36', sourcePrice: null, netProfit: null },
+      { skuKey: ';white;', name: '白色', imageUrl: 'https://images.example.com/grinder.jpg', stock: '50', sourcePrice: '16.9', netProfit: '48.6', length: '20', width: '10', height: '8', dimensionUnit: 'cm', weight: '0.5', weightUnit: 'kg' },
+      { skuKey: ';black;', name: '黑色', imageUrl: null, stock: '36', sourcePrice: null, netProfit: null, length: null, width: null, height: null, dimensionUnit: null, weight: null, weightUnit: null },
     ],
   }));
 

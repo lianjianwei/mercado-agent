@@ -75,6 +75,12 @@ export function productDetailFromSources(
         stock: stringValue(sku?.stock),
         sourcePrice: null,
         netProfit: null,
+        length: stringValue(sku?.length),
+        width: stringValue(sku?.width),
+        height: stringValue(sku?.height),
+        dimensionUnit: stringValue(sku?.lengthWidthHeightUnit),
+        weight: stringValue(sku?.weight),
+        weightUnit: stringValue(sku?.weightUnit),
       }))
     : [];
 

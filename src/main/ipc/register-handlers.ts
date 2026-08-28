@@ -4,6 +4,11 @@ import type {
 } from '../../domain/config';
 import type { ProductRepository, ProductSnapshotRepository } from '../../domain/product';
 import type { InfringementRepository } from '../../domain/infringement';
+import type {
+  FxRateRepository,
+  FxRates,
+  NetProfitSettingsRepository,
+} from '../../domain/net-profit';
 import {
   IPC_CHANNELS,
   type AppInfo,
@@ -13,6 +18,7 @@ import { registerConfigHandlers } from './config-handlers';
 import { registerDiagnosticHandlers } from './diagnostic-handlers';
 import { registerInfringementHandlers } from './infringement-handlers';
 import { registerEditHandlers } from './edit-handlers';
+import { registerNetProfitHandlers } from './net-profit-handlers';
 import { registerProductHandlers } from './product-handlers';
 import { registerProxyConfigHandlers } from './proxy-config-handlers';
 import type { ConnectionTestService } from '../services/connection-test-service';
@@ -35,6 +41,9 @@ type HandlerDependencies = {
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;
   editService: EditGenerationService;
+  netProfitSettings: NetProfitSettingsRepository;
+  fxRates: FxRateRepository;
+  refreshRates: () => Promise<FxRates>;
   sendProgress: (channel: string, line: string) => void;
 };
 
@@ -64,6 +73,11 @@ export function registerHandlers(
   registerEditHandlers(registrar, {
     snapshots: dependencies.snapshots,
     service: dependencies.editService,
+  });
+  registerNetProfitHandlers(registrar, {
+    settings: dependencies.netProfitSettings,
+    fxRates: dependencies.fxRates,
+    refreshRates: dependencies.refreshRates,
   });
   registrar.handle(IPC_CHANNELS.appGetInfo, async () => ({
     ok: true,

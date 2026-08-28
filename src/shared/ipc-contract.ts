@@ -16,6 +16,7 @@ import type {
 } from '../domain/product';
 import type { InfringementRun } from '../domain/infringement';
 import type { EditDraft } from '../domain/edit';
+import type { FxRates, NetProfitConfig } from '../domain/net-profit';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -44,6 +45,9 @@ export const IPC_CHANNELS = {
   infringementBatchLog: 'infringement:batch-log',
   infringementHistory: 'infringement:history',
   infringementCurrent: 'infringement:current',
+  netProfitGetConfig: 'netProfit:get-config',
+  netProfitSaveConfig: 'netProfit:save-config',
+  netProfitRefreshRates: 'netProfit:refresh-rates',
 } as const;
 
 export type IpcErrorCode =
@@ -55,6 +59,11 @@ export type IpcError = {
   code: IpcErrorCode;
   message: string;
   issues?: Array<{ path: string; message: string }>;
+};
+
+export type NetProfitSnapshot = {
+  config: NetProfitConfig;
+  fxRates: FxRates;
 };
 
 export type IpcResult<T> =
@@ -116,6 +125,12 @@ export interface EditApi {
   saveDraft(productId: string, draft: EditDraft): Promise<EditDraft>;
 }
 
+export interface NetProfitApi {
+  getConfig(): Promise<NetProfitSnapshot>;
+  saveConfig(config: NetProfitConfig): Promise<NetProfitConfig>;
+  refreshRates(): Promise<FxRates>;
+}
+
 export type InfringementBatchFailure = { productId: string; message: string };
 
 export type InfringementBatchSummary = {
@@ -151,5 +166,6 @@ export interface DesktopApi {
   proxy: ProxyConfigApi;
   products: ProductApi;
   edit: EditApi;
+  netProfit: NetProfitApi;
   infringement: InfringementApi;
 }

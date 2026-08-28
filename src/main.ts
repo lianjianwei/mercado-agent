@@ -9,6 +9,7 @@ import { ProviderRegistry } from './main/providers/provider-registry';
 import { SqliteCredentialRepository } from './main/repositories/credential-repository';
 import { SqliteAppSettingsRepository } from './main/repositories/app-settings-repository';
 import { SqliteProviderConfigRepository } from './main/repositories/provider-config-repository';
+import { SqliteFxRateRepository } from './main/repositories/fx-rate-repository';
 import { SqliteProductRepository } from './main/repositories/product-repository';
 import { SqliteSnapshotRepository } from './main/repositories/snapshot-repository';
 import { createElectronModelSession } from './main/network/electron-model-session';
@@ -22,6 +23,7 @@ import { SqliteInfringementRepository } from './main/repositories/infringement-r
 import { InfringementService } from './main/services/infringement-service';
 import { InfringementEngine } from './main/risk/infringement-engine';
 import { EditGenerationService } from './main/services/edit-generation-service';
+import { FxRateService } from './main/services/fx-rate-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
 import type { TextModelProvider } from './domain/providers';
 
@@ -71,6 +73,9 @@ app.whenReady().then(async () => {
   const databasePath = resolveDatabasePath(app.getPath('userData'));
   appDatabase = openAppDatabase(databasePath);
   const appSettings = new SqliteAppSettingsRepository(appDatabase);
+  const fxRateRepository = new SqliteFxRateRepository(appDatabase);
+  const fxRateService = new FxRateService(fxRateRepository);
+  void fxRateService.refresh().catch(() => {});
   const modelSession = createElectronModelSession();
   const modelProxy = new ModelProxyService(appSettings, modelSession);
   await modelProxy.initialize();
@@ -148,6 +153,9 @@ app.whenReady().then(async () => {
       infringementRepository,
       infringementService,
       editService,
+      netProfitSettings: appSettings,
+      fxRates: fxRateRepository,
+      refreshRates: () => fxRateService.refresh(),
       modelProxy,
       getAppInfo,
       sendProgress: (channel, line) => {

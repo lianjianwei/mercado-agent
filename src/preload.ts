@@ -83,6 +83,11 @@ const desktopApi: DesktopApi = {
     saveDraft: (productId, draft) =>
       invoke(IPC_CHANNELS.editSaveDraft, { productId, draft }),
   },
+  netProfit: {
+    getConfig: () => invoke(IPC_CHANNELS.netProfitGetConfig),
+    saveConfig: (config) => invoke(IPC_CHANNELS.netProfitSaveConfig, { config }),
+    refreshRates: () => invoke(IPC_CHANNELS.netProfitRefreshRates),
+  },
   infringement: {
     analyze: (productId) =>
       invoke(IPC_CHANNELS.infringementAnalyze, { productId }),

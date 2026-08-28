@@ -138,6 +138,10 @@ describe('product synchronization IPC', () => {
               itemNum: 'MLB-1',
               notes: 'Latest description',
               notesFull: 'Longer description',
+              attributes: [
+                { name: '品牌', values: [{ name: 'Hario' }] },
+                { name: '型号', values: [{ name: 'CM-100' }] },
+              ],
               sites: ['BR(Up)', 'MX(Up)'],
               skuMap: {
                 ';0a310071;': { itemNum: 'SKU-A', stock: 12, imgUrls: ['https://img.test/a.jpg'], length: '15', width: '12', height: '4', lengthWidthHeightUnit: 'cm', weight: '0.2', weightUnit: 'kg' },
@@ -169,6 +173,8 @@ describe('product synchronization IPC', () => {
         sourcePrice: '18.9',
         mainImage: 'https://img.test/main.jpg',
         images: ['https://img.test/a.jpg', 'https://img.test/b.jpg'],
+        brand: 'Hario',
+        model: 'CM-100',
         skuList: [
           { skuKey: ';0a310071;', name: 'SKU-A', imageUrl: 'https://img.test/a.jpg', stock: '12', sourcePrice: null, netProfit: null, length: '15', width: '12', height: '4', dimensionUnit: 'cm', weight: '0.2', weightUnit: 'kg' },
           { skuKey: ';502c632b;', name: 'SKU-B', imageUrl: 'https://img.test/b.jpg', stock: '3', sourcePrice: null, netProfit: null, length: null, width: null, height: null, dimensionUnit: null, weight: null, weightUnit: null },

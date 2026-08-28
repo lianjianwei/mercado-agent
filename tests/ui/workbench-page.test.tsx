@@ -16,7 +16,8 @@ import type {
   ProductSyncSummary,
 } from '../../src/domain/product';
 import type { InfringementRun } from '../../src/domain/infringement';
-import type { InfringementApi, ProductApi } from '../../src/shared/ipc-contract';
+import type { EditDraft } from '../../src/domain/edit';
+import type { EditApi, InfringementApi, ProductApi } from '../../src/shared/ipc-contract';
 import { WorkbenchPage } from '../../src/ui/pages/WorkbenchPage';
 
 afterEach(cleanup);
@@ -161,27 +162,64 @@ function createApi(allProducts: Product[] = products) {
     sourcePrice: '18.9',
     mainImage: 'https://images.example.com/grinder.jpg',
     images: ['https://images.example.com/grinder.jpg', 'https://images.example.com/grinder-2.jpg'],
+    brand: 'Hario',
+    model: 'CM-100',
     skuList: [
       { skuKey: ';white;', name: '白色', imageUrl: 'https://images.example.com/grinder.jpg', stock: '50', sourcePrice: '16.9', netProfit: '48.6', length: '20', width: '10', height: '8', dimensionUnit: 'cm', weight: '0.5', weightUnit: 'kg' },
       { skuKey: ';black;', name: '黑色', imageUrl: null, stock: '36', sourcePrice: null, netProfit: null, length: null, width: null, height: null, dimensionUnit: null, weight: null, weightUnit: null },
     ],
   }));
 
+  const generate = vi.fn<EditApi['generate']>(async () => editDraft());
+  const draft = vi.fn<EditApi['draft']>(async () => null);
+  const saveDraft = vi.fn<EditApi['saveDraft']>(async (_id, incoming) => incoming);
+
   return {
-    api: { page, detail, syncDefault, onSyncLog, syncOne, clear },
+    api: {
+      products: { page, detail, syncDefault, onSyncLog, syncOne, clear },
+      infringement: createInfringementApi().api,
+      edit: { generate, draft, saveDraft },
+    },
+    products: { page, detail, syncDefault, onSyncLog, syncOne, clear },
+    edit: { generate, draft, saveDraft },
     page,
     detail,
     syncDefault,
     syncOne,
     clear,
+    generate,
+    draft,
+    saveDraft,
     emitSyncLog: (line: string) => syncLogListeners.forEach((listener) => listener(line)),
+  };
+}
+
+function editDraft(): EditDraft {
+  return {
+    version: 1,
+    createdAt: '2026-08-28T01:00:00.000Z',
+    title: { value: 'Titulo', source: 'ai', confidence: 0.9 },
+    description: { value: 'Descripción', source: 'ai', confidence: 0.8 },
+    brand: { value: 'Generic', source: 'ai', confidence: 1 },
+    model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+    skus: [
+      { skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } },
+    ],
+    package: {
+      length: { value: '20', source: 'ai', confidence: 0.7 },
+      width: { value: '10', source: 'ai', confidence: 0.7 },
+      height: { value: '8', source: 'ai', confidence: 0.7 },
+      dimensionUnit: { value: 'cm', source: 'ai', confidence: 0.99 },
+      weight: { value: '0.5', source: 'ai', confidence: 0.8 },
+      weightUnit: { value: 'kg', source: 'ai', confidence: 0.99 },
+    },
   };
 }
 
 describe('WorkbenchPage', () => {
   it('loads unpublished products by default and renders the workflow columns', async () => {
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     expect(await screen.findByRole('button', { name: '未发布 2' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '本地已发布 1' })).toBeTruthy();
@@ -204,7 +242,7 @@ describe('WorkbenchPage', () => {
   it('switches to the locally-published tab and filters by local state', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     await user.click(await screen.findByRole('button', { name: '本地已发布 1' }));
     expect(await screen.findByRole('row', { name: /Locally Published Mug/ })).toBeTruthy();
@@ -227,7 +265,7 @@ describe('WorkbenchPage', () => {
       }),
     );
     const fake = createApi(manyProducts);
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     expect(
       await screen.findByRole('row', { name: /Draft Product 1\s/ }),
@@ -246,7 +284,7 @@ describe('WorkbenchPage', () => {
   it('shows quick inspection with the selected product on the quick tab', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(row);
@@ -260,7 +298,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const risk = createInfringementApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('button', { name: '侵权' }));
@@ -274,7 +312,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const risk = createInfringementApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('button', { name: '侵权' }));
@@ -287,14 +325,15 @@ describe('WorkbenchPage', () => {
     expect(within(history).getByText('V1')).toBeTruthy();
   });
 
-  it('shows AI 编辑 and 发布 placeholders via the row buttons', async () => {
+  it('opens the AI edit panel from the row button and keeps 发布 as a placeholder', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('button', { name: 'AI编辑' }));
-    expect(await screen.findByText(/AI 编辑功能将在后续阶段实现/)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: '生成 AI 草稿' })).toBeTruthy();
+    expect(fake.draft).toHaveBeenCalledWith('detail-1');
 
     await user.click(within(row).getByRole('button', { name: '发布' }));
     expect(await screen.findByText(/发布功能将在后续阶段实现/)).toBeTruthy();
@@ -303,7 +342,7 @@ describe('WorkbenchPage', () => {
   it('opens the detail modal and shows title, description and SKUs', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('button', { name: '详情' }));
@@ -332,7 +371,7 @@ describe('WorkbenchPage', () => {
     };
     const fake = createApi();
     fake.syncDefault.mockResolvedValueOnce(summary);
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     await user.click(await screen.findByRole('button', { name: '同步全部' }));
 
@@ -344,7 +383,7 @@ describe('WorkbenchPage', () => {
   it('streams progress log lines into the sync log panel', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     await user.click(await screen.findByRole('button', { name: '同步全部' }));
     fake.emitSyncLog('正在请求未发布商品第 1 页…');
@@ -359,7 +398,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     await user.click(await screen.findByRole('button', { name: '清理数据' }));
 
@@ -372,7 +411,7 @@ describe('WorkbenchPage', () => {
   it('runs a per-row sync and removes the row when the product was deleted remotely', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     const syncButton = within(row).getByRole('button', { name: /^同步/ });
@@ -388,7 +427,7 @@ describe('WorkbenchPage', () => {
   it('keeps the row and shows success when a per-row sync succeeds', async () => {
     const user = userEvent.setup();
     const fake = createApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: createInfringementApi().api }} />);
+    render(<WorkbenchPage api={fake.api} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     const syncButton = within(row).getByRole('button', { name: /^同步/ });
@@ -423,7 +462,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const risk = createInfringementApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
 
     await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     const button = screen.getByRole('button', { name: '全部检测' });
@@ -437,7 +476,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const risk = createInfringementApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('checkbox'));
@@ -450,7 +489,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const risk = createInfringementApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
 
     await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(screen.getByRole('checkbox', { name: '选择全部' }));
@@ -463,7 +502,7 @@ describe('WorkbenchPage', () => {
     const user = userEvent.setup();
     const fake = createApi();
     const risk = createInfringementApi();
-    render(<WorkbenchPage api={{ products: fake.api, infringement: risk.api }} />);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
 
     const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
     await user.click(within(row).getByRole('checkbox'));

@@ -148,4 +148,8 @@ export type ProductDetail = {
   mainImage: string | null;
   images: string[];
   skuList: ProductDetailSku[];
+  // Brand and model come from the detail attributes; they are the counterpart
+  // the AI edit draft generates (brand fixed to Generic, model inferred).
+  brand: string | null;
+  model: string | null;
 };

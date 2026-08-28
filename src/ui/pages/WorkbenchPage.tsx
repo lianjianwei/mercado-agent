@@ -8,8 +8,9 @@ import type {
   ProductSyncSummary,
 } from '../../domain/product';
 import type { InfringementRun } from '../../domain/infringement';
-import type { InfringementApi, ProductApi } from '../../shared/ipc-contract';
+import type { EditApi, InfringementApi, ProductApi } from '../../shared/ipc-contract';
 import { ProductDetailModal } from '../components/ProductDetailModal';
+import { EditPanel } from '../features/editor/EditPanel';
 import {
   RiskReviewPanel,
   levelLabels,
@@ -23,6 +24,7 @@ type WorkbenchPageProps = {
   api?: {
     products: ProductApi;
     infringement: InfringementApi;
+    edit: EditApi;
   };
 };
 
@@ -138,6 +140,8 @@ const ssrProductApi: ProductApi = {
       mainImage: null,
       images: [],
       skuList: [],
+      brand: null,
+      model: null,
     };
   },
   async syncDefault() {
@@ -158,6 +162,18 @@ const ssrProductApi: ProductApi = {
   },
   async clear() {
     return undefined;
+  },
+};
+
+const ssrEditApi: EditApi = {
+  async generate() {
+    throw new Error('AI 编辑服务未配置');
+  },
+  async draft() {
+    return null;
+  },
+  async saveDraft() {
+    throw new Error('AI 编辑服务未配置');
   },
 };
 
@@ -187,6 +203,9 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     (typeof window === 'undefined'
       ? ssrInfringementApi
       : window.mercado.infringement);
+  const editApi =
+    api?.edit ??
+    (typeof window === 'undefined' ? ssrEditApi : window.mercado.edit);
 
   const [filter, setFilter] = useState<ProductFilter>('notPublished');
   const [offset, setOffset] = useState(0);
@@ -203,6 +222,9 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
   const [riskByProduct, setRiskByProduct] = useState<
     Record<string, InfringementRun | null>
+  >({});
+  const [hasDraftByProduct, setHasDraftByProduct] = useState<
+    Record<string, boolean>
   >({});
   const [runsFor, setRunsFor] = useState<{
     productId: string;
@@ -306,6 +328,30 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
       cancelled = true;
     };
   }, [page, infringementApi]);
+
+  // Load which products on the page already have an AI edit draft so the
+  // workbench can show 已编辑 instead of 未编辑 in the edit column.
+  useEffect(() => {
+    let cancelled = false;
+    if (!page || page.items.length === 0) return;
+    void Promise.all(
+      page.items.map(async (item) => {
+        const draft = await editApi.draft(item.id);
+        return [item.id, draft !== null] as const;
+      }),
+    )
+      .then((entries) => {
+        if (!cancelled) setHasDraftByProduct(Object.fromEntries(entries));
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : '编辑状态读取失败。');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, editApi]);
 
   // Load history + current for the selected product into the risk tab.
   useEffect(() => {
@@ -683,7 +729,13 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                             <span className="muted-pill">未检测</span>
                           )}
                         </td>
-                        <td><span className="muted-pill">未编辑</span></td>
+                        <td>
+                          {hasDraftByProduct[product.id] ? (
+                            <span className="edited-pill">已编辑</span>
+                          ) : (
+                            <span className="muted-pill">未编辑</span>
+                          )}
+                        </td>
                         <td>
                           <div className="row-actions">
                             <button
@@ -795,7 +847,13 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                         <span className="muted-pill">未检测</span>
                       )}
                     </dd></div>
-                    <div><dt>编辑草稿</dt><dd><span className="muted-pill">未编辑</span></dd></div>
+                    <div><dt>编辑草稿</dt><dd>
+                      {hasDraftByProduct[selectedProduct.id] ? (
+                        <span className="edited-pill">已编辑</span>
+                      ) : (
+                        <span className="muted-pill">未编辑</span>
+                      )}
+                    </dd></div>
                     <div><dt>最后同步</dt><dd>{formatDate(selectedProduct.lastSyncedAt)}</dd></div>
                   </dl>
 
@@ -831,11 +889,15 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
             <p className="empty-risk">请选择一个商品查看或分析侵权风险。</p>
           )}
 
-          {rightTab === 'edit' && (
-            <div className="placeholder-note">
-              <h2>AI 编辑</h2>
-              <p>AI 编辑功能将在后续阶段实现。届时可在本面板生成标题、描述、属性、SKU 草稿。</p>
-            </div>
+          {rightTab === 'edit' && selectedProduct && (
+            <EditPanel
+              api={editApi}
+              loadDetail={productApi.detail}
+              product={selectedProduct}
+            />
+          )}
+          {rightTab === 'edit' && !selectedProduct && (
+            <p className="empty-risk">请选择一个商品进行 AI 编辑。</p>
           )}
 
           {rightTab === 'publish' && (

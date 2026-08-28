@@ -101,5 +101,32 @@ export function productDetailFromSources(
     mainImage: product.thumbnailUrl ?? images[0] ?? null,
     images,
     skuList,
+    brand: brandOf(info),
+    model: modelOf(info),
   };
+}
+
+// Brand and model are optional product attributes in the detail response;
+// extract them so the workbench can show them alongside the AI edit draft.
+function brandOf(
+  info: CollectBoxDetailDto['siteCollectItemInfo'] | undefined,
+): string | null {
+  return attributeOf(info, ['brand', 'marca', '品牌']);
+}
+
+function modelOf(
+  info: CollectBoxDetailDto['siteCollectItemInfo'] | undefined,
+): string | null {
+  return attributeOf(info, ['model', 'modelo', '型号']);
+}
+
+function attributeOf(
+  info: CollectBoxDetailDto['siteCollectItemInfo'] | undefined,
+  names: string[],
+): string | null {
+  const attribute = info?.attributes?.find((candidate) => {
+    const name = candidate.name?.toLowerCase() ?? '';
+    return names.some((wanted) => name.includes(wanted));
+  });
+  return attribute?.values?.[0]?.name ?? null;
 }

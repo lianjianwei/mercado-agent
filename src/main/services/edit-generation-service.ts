@@ -190,11 +190,11 @@ export class EditGenerationService {
   }
 
   private brandValue(info: CollectBoxDetailDto['siteCollectItemInfo']): string | null {
-    return this.attributeValue(info, ['brand', 'marca']);
+    return this.attributeValue(info, ['brand', 'marca', '品牌']);
   }
 
   private modelValue(info: CollectBoxDetailDto['siteCollectItemInfo']): string | null {
-    return this.attributeValue(info, ['model', 'modelo']);
+    return this.attributeValue(info, ['model', 'modelo', '型号']);
   }
 
   private attributeValue(

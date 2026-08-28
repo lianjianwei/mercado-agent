@@ -24,13 +24,17 @@ function product(): Product {
   };
 }
 
-function detail(skuMap: Record<string, unknown>): CollectBoxDetailDto {
+function detail(
+  skuMap: Record<string, unknown>,
+  attributes?: CollectBoxDetailDto['siteCollectItemInfo']['attributes'],
+): CollectBoxDetailDto {
   return {
     siteCollectItemInfo: {
       collectBoxDetailId: '90001',
       title: 'Detail title',
       sites: ['BR', 'MX'],
       skuMap,
+      attributes,
     },
   } as CollectBoxDetailDto;
 }
@@ -112,5 +116,23 @@ describe('product detail mapper', () => {
   it('returns an empty sku list when there is no detail snapshot', () => {
     const result = productDetailFromSources(product(), undefined);
     expect(result.skuList).toEqual([]);
+  });
+
+  it('surfaces brand and model from detail attributes (Chinese names)', () => {
+    const result = productDetailFromSources(
+      product(),
+      detail({}, [
+        { name: '品牌', values: [{ name: 'Hario' }] },
+        { name: '型号', values: [{ name: 'CM-100' }] },
+      ]),
+    );
+    expect(result.brand).toBe('Hario');
+    expect(result.model).toBe('CM-100');
+  });
+
+  it('leaves brand and model null when attributes are absent', () => {
+    const result = productDetailFromSources(product(), detail({}));
+    expect(result.brand).toBeNull();
+    expect(result.model).toBeNull();
   });
 });

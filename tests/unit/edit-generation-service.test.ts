@@ -153,6 +153,64 @@ describe('EditGenerationService', () => {
     expect(prompt).toContain('0.5 kg');
   });
 
+  it('instructs the model on a title formula with local-market phrasing', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    await service.generate('90001');
+
+    const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
+      .calls[0][0].prompt as string;
+    // The title must follow a formula (category keyword + selling point +
+    // model) and stay within 60 characters.
+    expect(prompt).toMatch(/品类词/);
+    expect(prompt).toMatch(/卖点/);
+    expect(prompt).toMatch(/60 个字符/);
+  });
+
+  it('demands localized Spanish/Portuguese instead of literal translation', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    await service.generate('90001');
+
+    const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
+      .calls[0][0].prompt as string;
+    // 本土化: use the terms Latin American buyers actually search, never a
+    // word-for-word translation of the source title/description.
+    expect(prompt).toMatch(/本土化/);
+    expect(prompt).toMatch(/直译/);
+  });
+
+  it('asks the description to cover contents, options, dimensions, use cases, and compat models', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    await service.generate('90001');
+
+    const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
+      .calls[0][0].prompt as string;
+    // Description should state what is included, the selectable options
+    // (SKU/colors), dimensions, use cases, and for accessories which models
+    // they fit.
+    expect(prompt).toMatch(/商品内容|包括|包含/);
+    expect(prompt).toMatch(/规格|SKU|颜色/);
+    expect(prompt).toMatch(/适用场景|使用场景/);
+    expect(prompt).toMatch(/型号|兼容/);
+  });
+
   it('throws when the model response does not match the schema', async () => {
     const provider = fakeProvider({ title: { value: 'x'.repeat(61) } });
     const service = new EditGenerationService(

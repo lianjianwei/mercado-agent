@@ -1,0 +1,196 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  readLatestDraft,
+  registerEditHandlers,
+} from '../../src/main/ipc/edit-handlers';
+import { IPC_CHANNELS, type IpcListener } from '../../src/shared/ipc-contract';
+import type { EditDraft } from '../../src/domain/edit';
+
+function makeDraft(version: number): EditDraft {
+  return {
+    version,
+    createdAt: '2026-08-28T01:00:00.000Z',
+    title: { value: 'Titulo', source: 'ai', confidence: 0.9 },
+    description: { value: 'Descripción', source: 'ai', confidence: 0.8 },
+    brand: { value: 'Generic', source: 'ai', confidence: 1 },
+    model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+    skus: [
+      { skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } },
+    ],
+    package: {
+      length: { value: '20', source: 'ai', confidence: 0.7 },
+      width: { value: '10', source: 'ai', confidence: 0.7 },
+      height: { value: '8', source: 'ai', confidence: 0.7 },
+      dimensionUnit: { value: 'cm', source: 'ai', confidence: 0.99 },
+      weight: { value: '0.5', source: 'ai', confidence: 0.8 },
+      weightUnit: { value: 'kg', source: 'ai', confidence: 0.99 },
+    },
+  };
+}
+
+type Snapshot = {
+  id: string;
+  productId: string;
+  kind: 'miaoshou' | 'aiDraft';
+  capturedAt: string;
+  payload: unknown;
+};
+
+function fakeSnapshots(initial: Snapshot[] = []) {
+  const store: Snapshot[] = [...initial];
+  return {
+    listForProduct: vi.fn((productId: string) =>
+      store.filter((snapshot) => snapshot.productId === productId),
+    ),
+    append: vi.fn((snapshot: Snapshot) => {
+      store.push(snapshot);
+    }),
+    store,
+  };
+}
+
+describe('edit draft IPC', () => {
+  it('generates a draft, persists it as an aiDraft snapshot, and returns it', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const snapshots = fakeSnapshots();
+    const service = {
+      generate: vi.fn().mockResolvedValue(makeDraft(1)),
+    };
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service },
+    );
+
+    await expect(
+      handlers.get(IPC_CHANNELS.editGenerate)?.({}, { productId: '90001' }),
+    ).resolves.toEqual({ ok: true, data: makeDraft(1) });
+
+    expect(service.generate).toHaveBeenCalledWith('90001');
+    expect(snapshots.append).toHaveBeenCalledTimes(1);
+    expect(snapshots.append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: '90001',
+        kind: 'aiDraft',
+        payload: makeDraft(1),
+      }),
+    );
+  });
+
+  it('returns null when no draft exists', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const snapshots = fakeSnapshots();
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() } },
+    );
+
+    await expect(
+      handlers.get(IPC_CHANNELS.editDraft)?.({}, { productId: '90001' }),
+    ).resolves.toEqual({ ok: true, data: null });
+  });
+
+  it('returns the latest aiDraft snapshot when present', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const draft = makeDraft(1);
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: draft.createdAt,
+        payload: draft,
+      },
+      {
+        id: 'm1',
+        productId: '90001',
+        kind: 'miaoshou',
+        capturedAt: '2026-08-28T00:00:00.000Z',
+        payload: { siteCollectItemInfo: { collectBoxDetailId: '90001' } },
+      },
+    ]);
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() } },
+    );
+
+    await expect(
+      handlers.get(IPC_CHANNELS.editDraft)?.({}, { productId: '90001' }),
+    ).resolves.toEqual({ ok: true, data: draft });
+  });
+
+  it('saves a draft, bumping the version above any previous draft', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const existing = makeDraft(3);
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: existing.createdAt,
+        payload: existing,
+      },
+    ]);
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() } },
+    );
+
+    const edited = makeDraft(3);
+    edited.title = { value: 'Titulo editado', source: 'user', confidence: 1 };
+    const result = await handlers.get(IPC_CHANNELS.editSaveDraft)?.(
+      {},
+      { productId: '90001', draft: edited },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ version: 4, title: edited.title }),
+    });
+    expect(snapshots.append).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates a malformed save payload', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const snapshots = fakeSnapshots();
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() } },
+    );
+
+    await expect(
+      handlers.get(IPC_CHANNELS.editSaveDraft)?.({}, { productId: '90001', draft: { bad: true } }),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+    expect(snapshots.append).not.toHaveBeenCalled();
+  });
+
+  it('readLatestDraft ignores miaoshou snapshots and returns the newest aiDraft', () => {
+    const snapshots = fakeSnapshots([
+      {
+        id: 'm1',
+        productId: '90001',
+        kind: 'miaoshou',
+        capturedAt: '2026-08-28T00:00:00.000Z',
+        payload: { siteCollectItemInfo: { collectBoxDetailId: '90001' } },
+      },
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: '2026-08-28T01:00:00.000Z',
+        payload: makeDraft(1),
+      },
+      {
+        id: 'a2',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: '2026-08-28T02:00:00.000Z',
+        payload: makeDraft(2),
+      },
+    ]);
+
+    const draft = readLatestDraft(snapshots, '90001');
+    expect(draft).not.toBeNull();
+    expect(draft!.version).toBe(2);
+  });
+});

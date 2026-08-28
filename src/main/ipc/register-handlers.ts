@@ -12,12 +12,14 @@ import {
 import { registerConfigHandlers } from './config-handlers';
 import { registerDiagnosticHandlers } from './diagnostic-handlers';
 import { registerInfringementHandlers } from './infringement-handlers';
+import { registerEditHandlers } from './edit-handlers';
 import { registerProductHandlers } from './product-handlers';
 import { registerProxyConfigHandlers } from './proxy-config-handlers';
 import type { ConnectionTestService } from '../services/connection-test-service';
 import type { ModelProxyService } from '../services/model-proxy-service';
 import type { ProductSyncService } from '../services/product-sync-service';
 import type { InfringementService } from '../services/infringement-service';
+import type { EditGenerationService } from '../services/edit-generation-service';
 import type { DiagnosticSnapshot } from '../../shared/ipc-contract';
 
 type HandlerDependencies = {
@@ -32,6 +34,7 @@ type HandlerDependencies = {
   snapshots: ProductSnapshotRepository;
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;
+  editService: EditGenerationService;
   sendProgress: (channel: string, line: string) => void;
 };
 
@@ -57,6 +60,10 @@ export function registerHandlers(
     repository: dependencies.infringementRepository,
     service: dependencies.infringementService,
     sendProgress: dependencies.sendProgress,
+  });
+  registerEditHandlers(registrar, {
+    snapshots: dependencies.snapshots,
+    service: dependencies.editService,
   });
   registrar.handle(IPC_CHANNELS.appGetInfo, async () => ({
     ok: true,

@@ -75,6 +75,14 @@ const desktopApi: DesktopApi = {
       invoke(IPC_CHANNELS.productSyncOne, { productId }),
     clear: () => invoke(IPC_CHANNELS.productClear),
   },
+  edit: {
+    generate: (productId) =>
+      invoke(IPC_CHANNELS.editGenerate, { productId }),
+    draft: (productId) =>
+      invoke(IPC_CHANNELS.editDraft, { productId }),
+    saveDraft: (productId, draft) =>
+      invoke(IPC_CHANNELS.editSaveDraft, { productId, draft }),
+  },
   infringement: {
     analyze: (productId) =>
       invoke(IPC_CHANNELS.infringementAnalyze, { productId }),

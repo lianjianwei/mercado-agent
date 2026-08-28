@@ -15,6 +15,7 @@ import type {
   SyncOneResult,
 } from '../domain/product';
 import type { InfringementRun } from '../domain/infringement';
+import type { EditDraft } from '../domain/edit';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -35,6 +36,9 @@ export const IPC_CHANNELS = {
   productSyncLog: 'product:sync-log',
   productSyncOne: 'product:sync-one',
   productClear: 'product:clear',
+  editGenerate: 'edit:generate',
+  editDraft: 'edit:draft',
+  editSaveDraft: 'edit:save-draft',
   infringementAnalyze: 'infringement:analyze',
   infringementAnalyzeBatch: 'infringement:analyze-batch',
   infringementBatchLog: 'infringement:batch-log',
@@ -106,6 +110,12 @@ export interface ProductApi {
   clear(): Promise<void>;
 }
 
+export interface EditApi {
+  generate(productId: string): Promise<EditDraft>;
+  draft(productId: string): Promise<EditDraft | null>;
+  saveDraft(productId: string, draft: EditDraft): Promise<EditDraft>;
+}
+
 export type InfringementBatchFailure = { productId: string; message: string };
 
 export type InfringementBatchSummary = {
@@ -140,5 +150,6 @@ export interface DesktopApi {
   diagnostics: DiagnosticApi;
   proxy: ProxyConfigApi;
   products: ProductApi;
+  edit: EditApi;
   infringement: InfringementApi;
 }

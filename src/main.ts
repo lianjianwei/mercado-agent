@@ -21,6 +21,7 @@ import { ProductSyncService } from './main/services/product-sync-service';
 import { SqliteInfringementRepository } from './main/repositories/infringement-repository';
 import { InfringementService } from './main/services/infringement-service';
 import { InfringementEngine } from './main/risk/infringement-engine';
+import { EditGenerationService } from './main/services/edit-generation-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
 import type { TextModelProvider } from './domain/providers';
 
@@ -102,6 +103,19 @@ app.whenReady().then(async () => {
     infringementRepository,
     createInfringementEngine,
   );
+  const editService = new EditGenerationService(
+    products,
+    snapshots,
+    () => {
+      const provider = providerRegistry.createActive(
+        'text',
+      ) as TextModelProvider;
+      if (typeof provider.generate !== 'function') {
+        throw new ActiveProviderMissingError('text');
+      }
+      return provider;
+    },
+  );
   registerHandlers(
     {
       handle: (channel, listener) => {
@@ -116,6 +130,7 @@ app.whenReady().then(async () => {
       snapshots,
       infringementRepository,
       infringementService,
+      editService,
       modelProxy,
       getAppInfo,
       sendProgress: (channel, line) => {

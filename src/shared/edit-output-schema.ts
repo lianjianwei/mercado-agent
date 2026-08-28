@@ -38,3 +38,35 @@ export const aiEditOutputSchema = z.strictObject({
 });
 
 export type AiEditOutput = z.infer<typeof aiEditOutputSchema>;
+
+// Runtime validation for a full EditDraft as exchanged over IPC. The AI
+// output schema above covers the model response only; a draft also carries a
+// per-field source ('remote' | 'ai' | 'user') and an overall version.
+const draftFieldSchema = z.strictObject({
+  value: z.string(),
+  source: z.enum(['remote', 'ai', 'user']),
+  confidence: z.number().min(0).max(1),
+});
+
+export const editDraftSchema = z.strictObject({
+  version: z.number().int().positive(),
+  createdAt: z.string(),
+  title: draftFieldSchema,
+  description: draftFieldSchema,
+  brand: draftFieldSchema,
+  model: draftFieldSchema,
+  skus: z.array(
+    z.strictObject({
+      skuKey: z.string().min(1),
+      name: draftFieldSchema,
+    }),
+  ),
+  package: z.strictObject({
+    length: draftFieldSchema,
+    width: draftFieldSchema,
+    height: draftFieldSchema,
+    dimensionUnit: draftFieldSchema,
+    weight: draftFieldSchema,
+    weightUnit: draftFieldSchema,
+  }),
+});

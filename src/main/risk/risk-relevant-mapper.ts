@@ -18,7 +18,7 @@ function isTrackingImage(url: string): boolean {
   return /\/code\?|sCode/i.test(url);
 }
 
-function selectModelImages(urls: string[] | undefined): string[] {
+export function selectModelImages(urls: string[] | undefined): string[] {
   if (!urls) return [];
   return urls
     .filter((url) => isDownloadableImage(url) && !isTrackingImage(url))

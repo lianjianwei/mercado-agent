@@ -498,6 +498,29 @@ describe('WorkbenchPage', () => {
     expect(risk.analyzeBatch).toHaveBeenCalledWith(['detail-1', 'detail-2']);
   });
 
+  it('shows 检测中... and disables the batch button while analysis is running', async () => {
+    const user = userEvent.setup();
+    const fake = createApi();
+    let resolveBatch: ((value: { discovered: number; succeeded: number; failed: number; failures: never[] }) => void) | undefined;
+    const pending = new Promise<{ discovered: number; succeeded: number; failed: number; failures: never[] }>((resolve) => {
+      resolveBatch = resolve;
+    });
+    const risk = createInfringementApi();
+    risk.analyzeBatch.mockReturnValue(pending);
+    render(<WorkbenchPage api={{ ...fake.api, infringement: risk.api }} />);
+
+    await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
+    const button = screen.getByRole('button', { name: '全部检测' });
+    await user.click(button);
+
+    // While the batch is in flight the button reflects the running state.
+    expect(screen.getByRole('button', { name: '检测中...' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '检测中...' }).hasAttribute('disabled')).toBe(true);
+
+    resolveBatch?.({ discovered: 2, succeeded: 2, failed: 0, failures: [] });
+    await screen.findByRole('button', { name: '全部检测' });
+  });
+
   it('shows batch infringement progress in the 侵权检测日志 tab', async () => {
     const user = userEvent.setup();
     const fake = createApi();

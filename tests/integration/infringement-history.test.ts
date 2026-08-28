@@ -286,4 +286,33 @@ describe('infringement run history', () => {
     expect(lines.some((line) => line.includes('product-1') && line.includes('失败'))).toBe(true);
     expect(lines.some((line) => line.includes('product-2') && line.includes('成功'))).toBe(true);
   });
+
+  it('is idempotent when the same fingerprint is appended again without force, instead of hitting the UNIQUE constraint', async () => {
+    // A double-click on 批量检测 can run analyzeBatch twice. Both calls pass
+    // the fingerprint pre-check in analyzeProduct before either has appended,
+    // so append must tolerate a second identical write: return the existing run
+    // rather than INSERTing the same (product_id, version) and throwing.
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteInfringementRepository(database);
+    seedProduct(database, 'product-1');
+    const input = {
+      id: 'run-1',
+      productId: 'product-1',
+      fingerprint: 'a'.repeat(64),
+      level: 'none' as const,
+      kind: 'unbranded' as const,
+      decision: decision(product()),
+      createdAt: '2026-08-28T00:00:00.000Z',
+      forceReanalyze: false,
+    };
+
+    const first = repository.append(input);
+    // Second identical append (same fingerprint, not forced) must not throw and
+    // must not insert a duplicate (product_id, version) row.
+    const second = repository.append({ ...input, id: 'run-2' });
+
+    expect(second.version).toBe(first.version);
+    expect(second.id).toBe(first.id);
+    expect(repository.listForProduct('product-1')).toHaveLength(1);
+  });
 });

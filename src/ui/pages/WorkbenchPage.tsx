@@ -232,6 +232,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
     current: InfringementRun | null;
   } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzingBatch, setAnalyzingBatch] = useState(false);
   const [riskError, setRiskError] = useState('');
   const [continueEditId, setContinueEditId] = useState<string | null>(null);
   const [logLines, setLogLines] = useState<Record<LogKind, string[]>>({
@@ -464,6 +465,8 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   }
 
   async function runBatchAnalysis() {
+    if (analyzingBatch) return;
+    setAnalyzingBatch(true);
     setError('');
     clearLog('infringement');
     const ids = [...selectedIds];
@@ -480,6 +483,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
       setError(reason instanceof Error ? reason.message : '批量侵权检测未完成。');
     } finally {
       setSelectedIds(new Set());
+      setAnalyzingBatch(false);
     }
   }
 
@@ -577,11 +581,15 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
         <div className="toolbar-actions">
           <button
             className="risk-button"
-            disabled={syncing}
+            disabled={syncing || analyzingBatch}
             onClick={() => void runBatchAnalysis()}
             type="button"
           >
-            {selectedIds.size > 0 ? '批量侵权检测' : '全部检测'}
+            {analyzingBatch
+              ? '检测中...'
+              : selectedIds.size > 0
+                ? '批量侵权检测'
+                : '全部检测'}
           </button>
           <button
             className="secondary-button"

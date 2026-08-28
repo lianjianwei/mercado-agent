@@ -38,8 +38,17 @@ export class SqliteInfringementRepository implements InfringementRepository {
     const last = this.lastRunForProduct(input.productId);
     const reuseVersion =
       last && last.fingerprint === input.fingerprint && !input.forceReanalyze;
+
+    // Same fingerprint, not a forced re-analysis: the run already exists. Two
+    // concurrent calls (e.g. a double-click on 批量检测 running analyzeBatch
+    // twice) can both pass the service's fingerprint pre-check before either
+    // appends, so this append must be idempotent — return the existing run
+    // instead of INSERTing a duplicate (product_id, version) row and throwing
+    // a UNIQUE constraint error.
+    if (reuseVersion) return last!;
+
     const version =
-      input.version ?? (reuseVersion ? last.version : (last?.version ?? 0) + 1);
+      input.version ?? (last?.version ?? 0) + 1;
 
     const run: InfringementRun = {
       id: input.id,

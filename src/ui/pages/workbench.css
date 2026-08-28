@@ -1073,6 +1073,28 @@
   color: var(--text);
 }
 
+.edit-generate-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.edit-generate-prompt p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.edit-generate-prompt .primary-button {
+  align-self: flex-start;
+}
+
 .edit-actions {
   display: flex;
   gap: 10px;

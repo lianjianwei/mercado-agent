@@ -73,7 +73,7 @@ export function productDetailFromSources(
           ? String(sku.imgUrls[0])
           : null,
         stock: stringValue(sku?.stock),
-        sourcePrice: null,
+        sourcePrice: stringValue(sku?.originPrice),
         netProfit: null,
         length: stringValue(sku?.length),
         width: stringValue(sku?.width),

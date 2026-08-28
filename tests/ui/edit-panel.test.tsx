@@ -49,7 +49,7 @@ const detail: ProductDetail = {
       name: '白色',
       imageUrl: 'https://images.example.com/grinder.jpg',
       stock: '50',
-      sourcePrice: null,
+      sourcePrice: '16.9',
       netProfit: null,
       length: '20',
       width: '10',
@@ -104,10 +104,27 @@ function renderPanel(overrides: {
 }
 
 describe('EditPanel', () => {
-  it('shows an empty state with a generate button when there is no draft', async () => {
+  it('shows the Miaoshou detail with a generate button when there is no draft', async () => {
     const { api } = renderPanel();
-    expect(await screen.findByText(/该商品尚无 AI 编辑草稿/)).toBeTruthy();
+    // Miaoshou detail is available immediately, even without an AI draft.
+    expect(await screen.findByText('Hario')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '生成 AI 草稿' })).toBeTruthy();
     expect(api.generate).not.toHaveBeenCalled();
+    // No AI draft tab when there is no draft.
+    expect(screen.queryByRole('tab', { name: 'AI 编辑详情' })).toBeNull();
+  });
+
+  it('shows every SKU with name, stock, source price, dimensions and weight in the Miaoshou view', async () => {
+    renderPanel();
+
+    expect(await screen.findByText('SKU（妙手原数据）')).toBeTruthy();
+    expect(screen.getByText('白色')).toBeTruthy(); // original SKU name
+    expect(screen.getByText('50')).toBeTruthy(); // stock
+    expect(screen.getByText('16.9')).toBeTruthy(); // source price
+    expect(screen.getByText('20 cm')).toBeTruthy();
+    expect(screen.getByText('10 cm')).toBeTruthy();
+    expect(screen.getByText('8 cm')).toBeTruthy();
+    expect(screen.getByText('0.5 kg')).toBeTruthy();
   });
 
   it('generates a draft and shows editable fields with source badges', async () => {
@@ -116,6 +133,7 @@ describe('EditPanel', () => {
     await user.click(await screen.findByRole('button', { name: '生成 AI 草稿' }));
 
     expect(api.generate).toHaveBeenCalledWith('product-1');
+    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
     const titleInput = await screen.findByLabelText('标题（≤60 字符）');
     expect((titleInput as HTMLInputElement).value).toBe('Molinillo de café');
     expect(screen.getByText('AI 生成 · 95%')).toBeTruthy();
@@ -128,25 +146,22 @@ describe('EditPanel', () => {
     const user = userEvent.setup();
     renderPanel({ existing: draft() });
 
-    // The AI draft view is the default.
+    // The Miaoshou detail is the default view.
+    expect(await screen.findByText('Hario')).toBeTruthy();
+    expect(screen.getByText('CM-100')).toBeTruthy();
+
+    await user.click(screen.getByRole('tab', { name: 'AI 编辑详情' }));
     expect(await screen.findByLabelText('标题（≤60 字符）')).toBeTruthy();
 
     await user.click(screen.getByRole('tab', { name: '妙手详情' }));
     expect(await screen.findByText('Hario')).toBeTruthy();
-    expect(screen.getByText('CM-100')).toBeTruthy();
-    // Package fields line up field-for-field with the AI draft view.
-    expect(screen.getByText('20 cm')).toBeTruthy();
-    expect(screen.getByText('10 cm')).toBeTruthy();
-    expect(screen.getByText('8 cm')).toBeTruthy();
-
-    await user.click(screen.getByRole('tab', { name: 'AI 编辑详情' }));
-    expect(await screen.findByLabelText('标题（≤60 字符）')).toBeTruthy();
   });
 
   it('marks a manually edited field as 人工修改', async () => {
     const user = userEvent.setup();
     renderPanel({ existing: draft() });
 
+    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
     const titleInput = await screen.findByLabelText('标题（≤60 字符）');
     await user.clear(titleInput);
     await user.type(titleInput, 'Molinillo editado');
@@ -159,6 +174,7 @@ describe('EditPanel', () => {
     const user = userEvent.setup();
     const { api } = renderPanel({ existing: draft() });
 
+    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
     const titleInput = await screen.findByLabelText('标题（≤60 字符）');
     await user.clear(titleInput);
     await user.type(titleInput, 'Nuevo título');
@@ -174,8 +190,10 @@ describe('EditPanel', () => {
   });
 
   it('shows SKU translations, stock, source price, and package fields in the draft view', async () => {
+    const user = userEvent.setup();
     renderPanel({ existing: draft() });
 
+    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
     const whiteSku = (await screen.findByLabelText('SKU 名称')) as HTMLInputElement;
     expect(whiteSku.value).toBe('Blanco');
     expect((screen.getByLabelText('库存') as HTMLInputElement).value).toBe('2');

@@ -118,6 +118,27 @@ describe('product detail mapper', () => {
     expect(result.skuList).toEqual([]);
   });
 
+  it('surfaces the stock and source price from the skuMap', () => {
+    const result = productDetailFromSources(
+      product(),
+      detail({
+        ';white;': { stock: 50, originPrice: 66 },
+        ';black;': {},
+      }),
+    );
+    expect(result.skuList[0]).toMatchObject({
+      skuKey: ';white;',
+      stock: '50',
+      sourcePrice: '66',
+    });
+    // Missing values stay null.
+    expect(result.skuList[1]).toMatchObject({
+      skuKey: ';black;',
+      stock: null,
+      sourcePrice: null,
+    });
+  });
+
   it('surfaces brand and model from detail attributes (Chinese names)', () => {
     const result = productDetailFromSources(
       product(),

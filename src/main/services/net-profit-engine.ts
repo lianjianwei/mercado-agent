@@ -78,7 +78,10 @@ export function computeSiteNetProfit(input: SiteNetProfitInput): SiteNetProfitRe
   }
   const baseCny = input.sourcePriceCny + input.config.packingCost;
   const rCny = input.fx.cny;
-  const rLocal = input.fx[meta.currency.toLowerCase()];
+  const rLocal =
+    meta.currency === 'MXN' ? input.fx.mxn
+    : meta.currency === 'BRL' ? input.fx.brl
+    : input.fx.ars;
   const target = input.config.targetMargin / 100;
   const listingType = listingTypeFor(input.siteCode, input.sourcePriceCny, input.weightG);
   const commissionPct =

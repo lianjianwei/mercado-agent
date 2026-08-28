@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_FX_RATES,
-  DEFAULT_NET_PROFIT_CONFIG,
-  type NetProfitConfig,
-  type FxRates,
-} from '../../src/domain/net-profit';
+import { DEFAULT_NET_PROFIT_CONFIG, type FxRates } from '../../src/domain/net-profit';
 import {
   billableWeightKg,
   computeSkuNetProfit,
@@ -12,7 +7,6 @@ import {
   findTier,
   formatNetProfit,
   listingTypeFor,
-  siteMetaFor,
 } from '../../src/main/services/net-profit-engine';
 import { SITE_META_BY_CODE } from '../../src/domain/net-profit';
 

@@ -68,6 +68,7 @@ describe('product synchronization repositories', () => {
       { version: 3, name: 'infringement' },
       { version: 4, name: 'products_columns' },
       { version: 5, name: 'local_publish_state' },
+      { version: 6, name: 'fx_rates' },
     ]);
     secondConnection.close();
   });

@@ -59,7 +59,7 @@ describe('database migrations', () => {
       secondConnection
         .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
         .get(),
-    ).toEqual({ count: 5 });
+    ).toEqual({ count: 6 });
     expect(
       secondConnection
         .prepare('SELECT value_json FROM app_settings WHERE key = ?')

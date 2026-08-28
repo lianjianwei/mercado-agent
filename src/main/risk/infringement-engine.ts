@@ -9,6 +9,7 @@ import {
   evaluateLocalRules,
   type LocalRuleHit,
 } from './local-rules';
+import { isRestrictedBrand } from './restricted-brands';
 import type { RiskLevel } from './risk-types';
 
 const RULE_TO_KIND: Record<string, InfringementDecision['kind']> = {
@@ -92,14 +93,17 @@ export class InfringementEngine {
       '',
       '风险等级：none（无）/ low（低）/ medium（中）/ high（高）。',
       '先判断商品是品牌本体（brand_owner）、第三方兼容配件（compatible_accessory）、无品牌（unbranded）还是不确定（unknown）。',
+      '高风险仅当满足其一：①品牌为受限品牌列表中的世界知名品牌（如 Disney、Xiaomi、Boss、Fender、大疆 DJI 等）本体或仿冒品；②仿冒/复刻知名品牌商品；③仿冒受保护设计或误导包装。',
+      '品牌不在受限列表且非世界知名品牌时，即使图片带自有 Logo 或包装有商标，也不应判 high（应判 none/low/medium）。',
+      'listing 品牌为 Generic/通用 但商品是普通小众品牌并带自有 Logo，属正常销售，不单独构成侵权信号；型号与图片品牌一致也不构成侵权证据。',
       '兼容配件若仅用品牌名说明适用对象、品牌为真实制造商或 Generic、图片无伪造 Logo，不因品牌词判高风险。',
       '描述中的固定字段（如"有可授权的自有品牌"）与授权无关，不得据此提高风险。',
-      '图片中出现受保护 Logo、仿冒外观、误导包装或受保护设计时提高风险。',
       '',
       '商品信息：',
       `标题：${product.title ?? ''}`,
       `描述：${product.description ?? ''}`,
       `品牌：${product.brand ?? ''}`,
+      `受限品牌列表命中：${isRestrictedBrand(product.brand ?? '') ? '是' : '否'}`,
       `类目：${product.category ?? ''}`,
       `SKU 名称：${product.skuName ?? ''}`,
       product.attributes && Object.keys(product.attributes).length > 0

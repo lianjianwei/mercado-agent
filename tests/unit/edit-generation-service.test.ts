@@ -61,7 +61,6 @@ function validOutput(): AiEditOutput {
   return {
     title: { value: 'Molinillo de café con muela de cerámica', confidence: 0.95 },
     description: { value: 'Muele café en grano con muela de cerámica ajustable.', confidence: 0.88 },
-    brand: { value: 'Generic', confidence: 1 },
     model: { value: 'CM-100', confidence: 0.6 },
     skus: [
       {
@@ -118,7 +117,7 @@ describe('EditGenerationService', () => {
       createdAt: '2026-08-28T01:00:00.000Z',
       title: { value: 'Molinillo de café con muela de cerámica', source: 'ai', confidence: 0.95 },
       description: { value: 'Muele café en grano con muela de cerámica ajustable.', source: 'ai', confidence: 0.88 },
-      brand: { value: 'Generic', source: 'ai', confidence: 1 },
+      brand: { value: 'Generic', source: 'fixed', confidence: 1 },
       model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
       skus: [
         {
@@ -338,6 +337,150 @@ describe('EditGenerationService', () => {
     // Only the stock-100 SKU survives; every survivor gets stock '2'.
     expect(draft.skus.map((sku) => sku.skuKey)).toEqual([';good;']);
     expect(draft.skus[0].stock).toEqual({ value: '2', source: 'ai', confidence: 1 });
+  });
+
+  it('keeps every surviving SKU when the model garbles or omits the opaque keys', async () => {
+    // Real skuMap keys are opaque hashes like ;633b93b4;. The model usually
+    // can't echo them back verbatim (it may rewrite them or drop the array),
+    // so the draft must not drop the SKU just because the key didn't match.
+    const opaqueDetail: CollectBoxDetailDto = {
+      siteCollectItemInfo: {
+        collectBoxDetailId: '90001',
+        title: 'Metrónomo MT-32',
+        notes: 'Tres colores.',
+        skuMap: {
+          ';633b93b4;': { itemNum: 'MT-32 Blanco', stock: 668, originPrice: 66, length: '10', weight: '300' },
+          ';071c2366;': { itemNum: 'MT-32 Azul', stock: 634, originPrice: 66, length: '10', weight: '300' },
+          ';b649bd41;': { itemNum: 'MT-32 Rosa', stock: 660, originPrice: 66, length: '10', weight: '300' },
+        },
+      },
+    } as CollectBoxDetailDto;
+    // Model returns NO skus at all.
+    const provider = fakeProvider({
+      title: { value: 'Metrónomo Digital MT-32', confidence: 0.9 },
+      description: { value: 'Afinador digital.', confidence: 0.9 },
+      model: { value: 'MT-32', confidence: 0.9 },
+      skus: [],
+    });
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(opaqueDetail),
+      () => provider,
+    );
+
+    const draft = await service.generate('90001');
+
+    // All three surviving SKUs must still be present, with the original
+    // dimensions/weight carried over and stock set to '2'.
+    expect(draft.skus.map((sku) => sku.skuKey)).toEqual([
+      ';633b93b4;',
+      ';071c2366;',
+      ';b649bd41;',
+    ]);
+    expect(draft.skus.every((sku) => sku.stock.value === '2')).toBe(true);
+    expect(draft.skus[0].package).toMatchObject({
+      length: { value: '10', source: 'remote', confidence: 1 },
+      weight: { value: '300', source: 'remote', confidence: 1 },
+    });
+    expect(draft.skus[0].name).toEqual({ value: 'MT-32 Blanco', source: 'remote', confidence: 1 });
+  });
+
+  it('matches model SKU output by order when the key is rewritten', async () => {
+    // Model reorders nothing but rewrites each opaque key (e.g. to a label).
+    const opaqueDetail: CollectBoxDetailDto = {
+      siteCollectItemInfo: {
+        collectBoxDetailId: '90001',
+        title: 'Metrónomo MT-32',
+        notes: 'Tres colores.',
+        skuMap: {
+          ';633b93b4;': { itemNum: 'MT-32 Blanco', stock: 668 },
+          ';071c2366;': { itemNum: 'MT-32 Azul', stock: 634 },
+          ';b649bd41;': { itemNum: 'MT-32 Rosa', stock: 660 },
+        },
+      },
+    } as CollectBoxDetailDto;
+    const provider = fakeProvider({
+      title: { value: 'Metrónomo Digital MT-32', confidence: 0.9 },
+      description: { value: 'Afinador digital.', confidence: 0.9 },
+      model: { value: 'MT-32', confidence: 0.9 },
+      skus: [
+        {
+          skuKey: 'SKU1',
+          name: { value: 'Blanco', confidence: 0.9 },
+          package: {
+            length: { value: '11', confidence: 0.7 },
+            width: { value: '6', confidence: 0.7 },
+            height: { value: '2', confidence: 0.7 },
+            weight: { value: '320', confidence: 0.8 },
+          },
+        },
+        {
+          skuKey: 'SKU2',
+          name: { value: 'Azul', confidence: 0.9 },
+          package: {
+            length: { value: '11', confidence: 0.7 },
+            width: { value: '6', confidence: 0.7 },
+            height: { value: '2', confidence: 0.7 },
+            weight: { value: '320', confidence: 0.8 },
+          },
+        },
+        {
+          skuKey: 'SKU3',
+          name: { value: 'Rosa Claro', confidence: 0.9 },
+          package: {
+            length: { value: '11', confidence: 0.7 },
+            width: { value: '6', confidence: 0.7 },
+            height: { value: '2', confidence: 0.7 },
+            weight: { value: '320', confidence: 0.8 },
+          },
+        },
+      ],
+    });
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(opaqueDetail),
+      () => provider,
+    );
+
+    const draft = await service.generate('90001');
+
+    // Order-based fallback assigns the model output in prompt order, so the
+    // translated names and AI-estimated packages land on the right SKUs.
+    expect(draft.skus.map((sku) => [sku.skuKey, sku.name.value])).toEqual([
+      [';633b93b4;', 'Blanco'],
+      [';071c2366;', 'Azul'],
+      [';b649bd41;', 'Rosa Claro'],
+    ]);
+    expect(draft.skus[2].package.length).toEqual({ value: '11', source: 'ai', confidence: 0.7 });
+  });
+
+  it('keeps the brand fixed to Generic regardless of the model', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    const draft = await service.generate('90001');
+
+    expect(draft.brand).toEqual({ value: 'Generic', source: 'fixed', confidence: 1 });
+  });
+
+  it('defaults an empty model to Generic', async () => {
+    const provider = fakeProvider({
+      ...validOutput(),
+      model: { value: '', confidence: 0 },
+    });
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+
+    const draft = await service.generate('90001');
+
+    expect(draft.model).toEqual({ value: 'Generic', source: 'fixed', confidence: 1 });
   });
 
   it('throws when the model response does not match the schema', async () => {

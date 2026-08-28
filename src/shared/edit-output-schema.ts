@@ -35,7 +35,6 @@ export const aiSkuEditSchema = z.strictObject({
 export const aiEditOutputSchema = z.strictObject({
   title: generatedTitleSchema,
   description: generatedFieldSchema,
-  brand: generatedFieldSchema,
   model: generatedFieldSchema,
   skus: z.array(aiSkuEditSchema),
 });
@@ -47,7 +46,7 @@ export type AiEditOutput = z.infer<typeof aiEditOutputSchema>;
 // per-field source ('remote' | 'ai' | 'user') and an overall version.
 const draftFieldSchema = z.strictObject({
   value: z.string(),
-  source: z.enum(['remote', 'ai', 'user']),
+  source: z.enum(['remote', 'ai', 'user', 'fixed']),
   confidence: z.number().min(0).max(1),
 });
 

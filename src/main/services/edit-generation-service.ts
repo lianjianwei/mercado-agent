@@ -37,6 +37,10 @@ export type EditGenerationServiceOptions = {
   now?: () => string;
 };
 
+// Brand is always Generic — it is never AI-generated. A missing/empty model
+// falls back to the same fixed value instead of staying blank.
+const GENERIC_FIELD: EditField = { value: 'Generic', source: 'fixed', confidence: 1 };
+
 // A SKU that survived the stock filter, with its original data ready for the
 // prompt and its image urls selected for the model.
 type DraftSku = {
@@ -130,11 +134,15 @@ export class EditGenerationService {
     // Each SKU lists which image indexes belong to it so the model can match
     // a SKU's pictures to its dimensions/weight estimate.
     let imageCursor = 0;
-    const skuLines = skus.map((sku) => {
-      const indexes = sku.imageUrls.map((_, index) => imageCursor + index);
+    // Each SKU is numbered (SKU 1, SKU 2…) so the model can reference it by a
+    // stable label; the raw skuKey may be an opaque hash like ;633b93b4; that
+    // the model would otherwise garble when echoing it back.
+    const skuLines = skus.map((sku, index) => {
+      const skuNo = index + 1;
+      const indexes = sku.imageUrls.map((_, imageIndex) => imageCursor + imageIndex);
       imageCursor += sku.imageUrls.length;
       return [
-        `- skuKey ${sku.skuKey}`,
+        `- SKU ${skuNo}：skuKey ${sku.skuKey}`,
         sku.originalName ? `  原规格名：${sku.originalName}` : '  原规格名：未提供',
         sku.sourcePrice !== null ? `  货源价：${sku.sourcePrice}` : '  货源价：未提供',
         `  原尺寸：${[
@@ -183,6 +191,7 @@ export class EditGenerationService {
       'SKU 名称规则：',
       '- 每个 SKU 的原规格名翻译成西语（如原为颜色，用拉美常用的颜色词）。',
       '- 保留型号前缀（如 MT-32、JM-90），只翻译后面的规格部分。',
+      '- skus 数组必须与上面 SKU 1、SKU 2… 列表顺序一致、数量相同；skuKey 必须原样复制（即使是 ;633b93b4; 这样的原始 key 也不能改写成其他内容）。',
       '',
       '每个 SKU 的包裹尺寸和计费重量规则（必须逐 SKU 独立评估）：',
       '- 每个 SKU 参考：该 SKU 的图片（见「对应图片序号」）+ 商品描述 + 原尺寸/重量。',
@@ -203,7 +212,6 @@ export class EditGenerationService {
       JSON.stringify({
         title: { value: '西语主标题（≤60字符）', confidence: 0.9 },
         description: { value: '西语描述', confidence: 0.9 },
-        brand: { value: 'Generic', confidence: 1 },
         model: { value: '型号', confidence: 0.6 },
         skus: [{
           skuKey: 'SKU原始key',
@@ -216,7 +224,8 @@ export class EditGenerationService {
           },
         }],
       }, null, 2),
-      'skus 数组必须与上面列出的 SKU 一一对应，skuKey 必须原样返回。',
+      '品牌固定为 Generic，不要输出品牌字段。',
+      '型号属性缺失或无法确认时，model 的 value 输出空字符串。',
       '未提供或无法确认的字段，confidence 给低值，value 给合理默认或原值。',
     ].join('\n');
   }
@@ -226,37 +235,69 @@ export class EditGenerationService {
     output: AiEditOutput,
     skus: DraftSku[],
   ): EditDraft {
-    const byKey = new Map(skus.map((sku) => [sku.skuKey, sku]));
-    // The stock filter in selectSkus decides which SKUs survive; only keep the
-    // model output for those surviving SKUs (the model echoes all SKUs given).
-    const skuFields: SkuEditField[] = output.skus
-      .filter((sku) => byKey.has(sku.skuKey))
-      .map((sku) => {
-        const original = byKey.get(sku.skuKey)!;
-        return {
-          skuKey: sku.skuKey,
-          name: this.aiField(sku.name),
-          // Stock rule: every surviving SKU gets '2'.
-          stock: { value: '2', source: 'ai', confidence: 1 },
-          // Source price is kept as-is from the original data.
-          sourcePrice: {
-            value: original.sourcePrice ?? '',
-            source: original.sourcePrice ? 'remote' : 'ai',
-            confidence: original.sourcePrice ? 1 : 0,
-          },
-          package: this.skuPackage(sku.package),
-        };
-      });
+    // The surviving SKUs are the source of truth: every one of them gets a
+    // draft entry, and the model output is matched back to them (exact key,
+    // then order) instead of the other way around. Opaque skuKeys like
+    // ;633b93b4; are often garbled by the model; matching by order keeps the
+    // SKU from being dropped, and a missing match falls back to the original
+    // data rather than disappearing.
+    const matched = this.matchSkus(output.skus, skus);
+    const skuFields: SkuEditField[] = skus.map((original, index) => {
+      const modelSku = matched[index];
+      return {
+        skuKey: original.skuKey,
+        name: modelSku
+          ? this.aiField(modelSku.name)
+          : this.originalField(original.originalName),
+        // Stock rule: every surviving SKU gets '2'.
+        stock: { value: '2', source: 'ai', confidence: 1 },
+        // Source price is kept as-is from the original data.
+        sourcePrice: original.sourcePrice
+          ? { value: original.sourcePrice, source: 'remote', confidence: 1 }
+          : { value: '', source: 'ai', confidence: 0 },
+        package: modelSku
+          ? this.skuPackage(modelSku.package)
+          : this.originalPackage(original),
+      };
+    });
 
     return {
       version: 1,
       createdAt: this.now(),
       title: this.aiField(output.title),
       description: this.aiField(output.description),
-      brand: this.aiField(output.brand),
-      model: this.aiField(output.model),
+      // Brand is fixed to Generic regardless of what the model might have
+      // said; it is never AI-generated.
+      brand: GENERIC_FIELD,
+      // A missing/empty model falls back to Generic instead of staying blank.
+      model: output.model.value.trim() ? this.aiField(output.model) : GENERIC_FIELD,
       skus: skuFields,
     };
+  }
+
+  // Align the model's SKU output with the surviving SKUs 1:1. Exact skuKey
+  // matches win; remaining entries fall back to the model output in order
+  // (the model usually keeps the prompt's SKU order even when it rewrites an
+  // opaque key). Returns undefined for a SKU the model produced no entry for.
+  private matchSkus(
+    modelSkus: AiEditOutput['skus'],
+    skus: DraftSku[],
+  ): (AiEditOutput['skus'][number] | undefined)[] {
+    const used = new Set<number>();
+    const byKey = new Map(modelSkus.map((sku, index) => [sku.skuKey, index]));
+    return skus.map((original, index) => {
+      const exact = byKey.get(original.skuKey);
+      if (exact !== undefined && !used.has(exact)) {
+        used.add(exact);
+        return modelSkus[exact];
+      }
+      const candidates = [...modelSkus.keys()];
+      const next = candidates.find((candidate) => !used.has(candidate) && candidate >= index)
+        ?? candidates.find((candidate) => !used.has(candidate));
+      if (next === undefined) return undefined;
+      used.add(next);
+      return modelSkus[next];
+    });
   }
 
   private skuPackage(
@@ -278,6 +319,31 @@ export class EditGenerationService {
       value: field.value,
       source: 'ai',
       confidence: field.confidence,
+    };
+  }
+
+  // The original value carried over unchanged when the model produced no entry
+  // for a SKU. Missing originals become an empty field rather than a crash.
+  private originalField(value: string | null): EditField {
+    if (value === null || value === '') {
+      return { value: '', source: 'ai', confidence: 0 };
+    }
+    return { value, source: 'remote', confidence: 1 };
+  }
+
+  private originalPackage(original: DraftSku): PackageEditField {
+    const dimension = (value: string | null): EditField =>
+      value === null || value === ''
+        ? { value: '', source: 'ai', confidence: 0 }
+        : { value, source: 'remote', confidence: 1 };
+    return {
+      length: dimension(original.originalLength),
+      width: dimension(original.originalWidth),
+      height: dimension(original.originalHeight),
+      // Units are fixed constants, not model-output fields.
+      dimensionUnit: DIMENSION_UNIT,
+      weight: dimension(original.originalWeight),
+      weightUnit: WEIGHT_UNIT,
     };
   }
 

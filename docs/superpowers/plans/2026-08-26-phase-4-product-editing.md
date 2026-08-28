@@ -20,7 +20,7 @@
 ## Global Constraints
 
 - AI 只生成本地草稿；本次不写妙手，任何 AI 编辑保存都不得自动发布。
-- 品牌固定为 `Generic`，型号必填，标题最长 60 字符。
+- 品牌固定为 `Generic`（领域常量，source `fixed`，不交给 AI 生成）；型号 AI 明确给出则用，否则回退 `Generic`。标题最长 60 字符。
 - 包裹尺寸/计费重量由 AI 结合标题/描述/图片 + 妙手 skuMap 原尺寸/重量校验预估；所有估算字段带来源和置信度。
 - 尺寸单位固定 `cm`、重量单位固定 `g`：AI 只输出数值不输出单位，单位是领域常量，非模型输出字段。
 - 妙手详情视图读取最新 `kind='miaoshou'` 快照（生成草稿后 aiDraft 快照更新，不能误读）。
@@ -49,12 +49,11 @@ export type EditDraft = {
   createdAt: string;
   title: EditField;            // ≤60 字符
   description: EditField;
-  brand: EditField;            // 固定 Generic
-  model: EditField;            // 明确型号直接用；否则从标题/描述挑选
-  skus: SkuEditField[];        // 每个 SKU 名称翻译
-  package: PackageEditField;   // 长×宽×高 + 单位 + 计费重量 + 重量单位
+  brand: EditField;            // 固定 Generic，source 'fixed'
+  model: EditField;            // AI 明确给出则用；否则回退 Generic
+  skus: SkuEditField[];        // 每个 SKU：名称翻译 / 库存 / 货源价 / 包裹尺寸 / 计费重量
 };
-export interface EditField { value: string; source: 'remote' | 'ai' | 'user'; confidence: number }
+export interface EditField { value: string; source: 'remote' | 'ai' | 'user' | 'fixed'; confidence: number }
 ```
 
 - [x] 写 Zod schema 校验测试：标题≤60、字段必填、坏响应拒绝。
@@ -74,6 +73,7 @@ export interface EditGenerationService {
 - [x] 写测试：prompt 组装（含原尺寸/重量 + 图片 URL）、schema 校验、无 provider 时抛错、坏响应不覆盖已有草稿。
 - [x] 实现服务：读商品详情快照 → 组装 prompt → `provider.generate({prompt, imageUrls}, signal)` → Zod 校验 → 组装 `EditDraft`。
 - [x] 包裹尺寸/重量提示词规则：参考妙手原 skuMap 尺寸/重量 + 图片，校验/预估，标注来源与置信度。
+- [x] 多 SKU 稳定性：skuMap key 多为不透明哈希（如 `;633b93b4;`），模型难以原样回显；存活 SKU 是草稿来源，模型输出按「精确 key → 顺序」匹配回补，缺省回退原值，保证多 SKU 不整段丢失。
 - [x] 运行测试，提交 `feat: generate AI edit drafts`。
 
 ### Task 4: 编辑 IPC 与草稿保存

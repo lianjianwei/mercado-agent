@@ -13,7 +13,7 @@ function makeDraft(version: number): EditDraft {
     createdAt: '2026-08-28T01:00:00.000Z',
     title: { value: 'Titulo', source: 'ai', confidence: 0.9 },
     description: { value: 'Descripción', source: 'ai', confidence: 0.8 },
-    brand: { value: 'Generic', source: 'ai', confidence: 1 },
+    brand: { value: 'Generic', source: 'fixed', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
     skus: [
       {
@@ -222,6 +222,27 @@ describe('edit draft IPC', () => {
     expect(draft!.skus[0].package.length).toEqual({ value: '', source: 'ai', confidence: 0 });
     expect(draft!.skus[0].package.dimensionUnit).toBe('cm');
     expect(draft!.skus[0].package.weightUnit).toBe('g');
+  });
+
+  it('readLatestDraft forces the brand to the fixed Generic value', () => {
+    // Drafts saved before the brand became a fixed constant carried
+    // source 'ai'; reading one must relabel it as 'fixed' so the panel shows
+    // 固定值 instead of an AI-generated badge.
+    const legacy = makeDraft(1);
+    legacy.brand = { value: 'Generic', source: 'ai', confidence: 1 };
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: '2026-08-28T01:00:00.000Z',
+        payload: legacy,
+      },
+    ]);
+
+    const draft = readLatestDraft(snapshots, '90001');
+    expect(draft).not.toBeNull();
+    expect(draft!.brand).toEqual({ value: 'Generic', source: 'fixed', confidence: 1 });
   });
 
   it('readLatestDraft ignores miaoshou snapshots and returns the newest aiDraft', () => {

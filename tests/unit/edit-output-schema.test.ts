@@ -6,7 +6,6 @@ function validOutput(): AiEditOutput {
   return {
     title: { value: 'Cafetera de goteo automática 0.6L', confidence: 0.95 },
     description: { value: 'Muele café en grano con una cuchilla de acero inoxidable.', confidence: 0.88 },
-    brand: { value: 'Generic', confidence: 1 },
     model: { value: 'CM-100', confidence: 0.6 },
     skus: [
       {
@@ -58,6 +57,12 @@ describe('AI edit output schema', () => {
   it('rejects confidence outside 0..1', () => {
     const output = validOutput();
     output.title.confidence = 1.5;
+    expect(aiEditOutputSchema.safeParse(output).success).toBe(false);
+  });
+
+  it('rejects a stray brand field (brand is fixed, not model output)', () => {
+    const output = validOutput() as Record<string, unknown> & { brand?: unknown };
+    output.brand = { value: 'Generic', confidence: 1 };
     expect(aiEditOutputSchema.safeParse(output).success).toBe(false);
   });
 

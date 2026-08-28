@@ -1112,6 +1112,10 @@
   color: #075985;
 }
 
+.edit-source-fixed {
+  color: #6b7280;
+}
+
 .edit-unit-display {
   display: flex;
   align-items: center;

@@ -58,6 +58,9 @@ function normalizeDraft(draft: EditDraft): EditDraft {
   });
   return {
     ...draft,
+    // Brand is a fixed constant (Generic); drafts saved before it became
+    // fixed carry source 'ai' and would mislabel it as AI-generated.
+    brand: { value: 'Generic', source: 'fixed', confidence: 1 },
     skus: (legacy.skus ?? []).map((sku) => ({
       ...sku,
       // Old drafts stored only skuKey + name (no per-SKU stock/sourcePrice/

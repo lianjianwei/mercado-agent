@@ -67,7 +67,7 @@ function draft(): EditDraft {
     createdAt: '2026-08-28T01:00:00.000Z',
     title: { value: 'Molinillo de café', source: 'ai', confidence: 0.95 },
     description: { value: 'Muele café en grano.', source: 'ai', confidence: 0.88 },
-    brand: { value: 'Generic', source: 'ai', confidence: 1 },
+    brand: { value: 'Generic', source: 'fixed', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
     skus: [
       {
@@ -137,9 +137,11 @@ describe('EditPanel', () => {
     const titleInput = await screen.findByLabelText('标题（≤60 字符）');
     expect((titleInput as HTMLInputElement).value).toBe('Molinillo de café');
     expect(screen.getByText('AI 生成 · 95%')).toBeTruthy();
-    // Some fields (brand, stock, units) are fixed at 100%.
+    // Some fields (stock) are fixed at 100%.
     expect(screen.getAllByText('AI 生成 · 100%').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByLabelText('品牌')).toBeTruthy();
+    // Brand is a fixed value, not an editable input, and shows its own badge.
+    expect(screen.getByText('固定值 · 100%')).toBeTruthy();
+    expect(screen.getByText('Generic')).toBeTruthy();
   });
 
   it('switches between the Miaoshou detail and the AI draft views', async () => {
@@ -196,13 +198,11 @@ describe('EditPanel', () => {
     await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
     const whiteSku = (await screen.findByLabelText('SKU 名称')) as HTMLInputElement;
     expect(whiteSku.value).toBe('Blanco');
-    expect((screen.getByLabelText('库存') as HTMLInputElement).value).toBe('2');
     expect((screen.getByLabelText('货源价') as HTMLInputElement).value).toBe('66');
+    expect((screen.getByLabelText('库存') as HTMLInputElement).value).toBe('2');
     expect((screen.getByLabelText('长度（cm）') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('重量（g）') as HTMLInputElement).value).toBe('500');
-    // Units are fixed read-only displays, not editable inputs.
-    expect(screen.getByText('cm')).toBeTruthy();
-    expect(screen.getByText('g')).toBeTruthy();
+    // Units are fixed constants, shown inside the field labels (cm/g).
   });
 
   it('shows an error when the api rejects', async () => {

@@ -6,7 +6,10 @@
 // once the draft is saved back to Miaoshou (a later sub-phase). The draft is
 // stored in the shared product_snapshots table under kind `aiDraft`.
 
-export type EditFieldSource = 'remote' | 'ai' | 'user';
+// Where a field's current value came from. `fixed` marks values the app sets
+// deterministically (e.g. the brand is always Generic, and a missing model
+// falls back to Generic) — not remote, not AI.
+export type EditFieldSource = 'remote' | 'ai' | 'user' | 'fixed';
 
 // A single draft field. `source` records where the current value came from:
 // remote (unchanged from the original), ai (generated), or user (edited after

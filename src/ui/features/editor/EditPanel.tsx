@@ -16,6 +16,7 @@ const sourceLabels: Record<EditField['source'], string> = {
   remote: '原值',
   ai: 'AI 生成',
   user: '人工修改',
+  fixed: '固定值',
 };
 
 function sourcePillClass(source: EditField['source']): string {
@@ -306,12 +307,10 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
           </div>
 
           <div className="edit-draft-field">
-            <label htmlFor="edit-brand">品牌</label>
-            <input
-              id="edit-brand"
-              onChange={(event) => updateDraftField('brand', event.target.value)}
-              value={draft.brand.value}
-            />
+            <label>品牌</label>
+            {/* Brand is a fixed value (Generic), consistent with the Miaoshou
+                view showing it as read-only. */}
+            <span className="edit-readonly-value">{fieldLine(draft.brand.value)}</span>
             <FieldMeta field={draft.brand} />
           </div>
 
@@ -330,6 +329,9 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
               <h3>
                 SKU <code>{sku.skuKey}</code>
               </h3>
+              {/* Same field order as the Miaoshou view: name, stock, source
+                  price, then a 2x2 package grid. Units are fixed constants
+                  shown via the field labels (cm/g). */}
               <div className="edit-draft-field">
                 <label htmlFor={`edit-sku-name-${sku.skuKey}`}>SKU 名称</label>
                 <input
@@ -342,17 +344,6 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                 <FieldMeta field={sku.name} />
               </div>
               <div className="edit-draft-field">
-                <label htmlFor={`edit-sku-stock-${sku.skuKey}`}>库存</label>
-                <input
-                  id={`edit-sku-stock-${sku.skuKey}`}
-                  onChange={(event) =>
-                    updateSkuField(sku.skuKey, 'stock', event.target.value)
-                  }
-                  value={sku.stock.value}
-                />
-                <FieldMeta field={sku.stock} />
-              </div>
-              <div className="edit-draft-field">
                 <label htmlFor={`edit-sku-price-${sku.skuKey}`}>货源价</label>
                 <input
                   id={`edit-sku-price-${sku.skuKey}`}
@@ -362,6 +353,17 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                   value={sku.sourcePrice.value}
                 />
                 <FieldMeta field={sku.sourcePrice} />
+              </div>
+              <div className="edit-draft-field">
+                <label htmlFor={`edit-sku-stock-${sku.skuKey}`}>库存</label>
+                <input
+                  id={`edit-sku-stock-${sku.skuKey}`}
+                  onChange={(event) =>
+                    updateSkuField(sku.skuKey, 'stock', event.target.value)
+                  }
+                  value={sku.stock.value}
+                />
+                <FieldMeta field={sku.stock} />
               </div>
               <div className="edit-package-grid">
                 <div className="edit-draft-field">
@@ -407,14 +409,6 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                     value={sku.package.weight.value}
                   />
                   <FieldMeta field={sku.package.weight} />
-                </div>
-                <div className="edit-unit-display">
-                  <span>尺寸单位</span>
-                  <strong>{sku.package.dimensionUnit}</strong>
-                </div>
-                <div className="edit-unit-display">
-                  <span>重量单位</span>
-                  <strong>{sku.package.weightUnit}</strong>
                 </div>
               </div>
             </section>

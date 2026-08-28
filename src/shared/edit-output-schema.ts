@@ -31,9 +31,7 @@ export const aiEditOutputSchema = z.strictObject({
     length: generatedFieldSchema,
     width: generatedFieldSchema,
     height: generatedFieldSchema,
-    dimensionUnit: generatedFieldSchema,
     weight: generatedFieldSchema,
-    weightUnit: generatedFieldSchema,
   }),
 });
 
@@ -65,8 +63,8 @@ export const editDraftSchema = z.strictObject({
     length: draftFieldSchema,
     width: draftFieldSchema,
     height: draftFieldSchema,
-    dimensionUnit: draftFieldSchema,
+    dimensionUnit: z.literal('cm'),
     weight: draftFieldSchema,
-    weightUnit: draftFieldSchema,
+    weightUnit: z.literal('g'),
   }),
 });

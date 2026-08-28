@@ -2,11 +2,13 @@ import type {
   ProductRepository,
   ProductSnapshotRepository,
 } from '../../domain/product';
-import type {
-  EditDraft,
-  EditField,
-  PackageEditField,
-  SkuEditField,
+import {
+  DIMENSION_UNIT,
+  WEIGHT_UNIT,
+  type EditDraft,
+  type EditField,
+  type PackageEditField,
+  type SkuEditField,
 } from '../../domain/edit';
 import {
   aiEditOutputSchema,
@@ -107,7 +109,7 @@ export class EditGenerationService {
       '- 型号：如果原信息已有明确型号则沿用；否则从标题或描述中挑选最合适的简短型号填入。',
       '- 每个 SKU 的 name 翻译成西班牙语。',
       '- 包裹尺寸和计费重量：参考原尺寸/重量（可能为空或错误），并结合商品图片里的信息校验/预估。每个字段给 0-1 置信度；明显从图片可确认的高置信度，否则低。',
-      '- 单位：尺寸用 cm，重量用 kg。',
+      '- 单位固定：尺寸用 cm，重量用 g。你只输出数值，不要输出单位。',
       '',
       '商品信息：',
       `标题：${info.title ?? '未提供'}`,
@@ -127,9 +129,7 @@ export class EditGenerationService {
           length: { value: '20', confidence: 0.7 },
           width: { value: '15', confidence: 0.7 },
           height: { value: '12', confidence: 0.7 },
-          dimensionUnit: { value: 'cm', confidence: 0.99 },
-          weight: { value: '0.9', confidence: 0.8 },
-          weightUnit: { value: 'kg', confidence: 0.99 },
+          weight: { value: '900', confidence: 0.8 },
         },
       }, null, 2),
       'skus 数组必须与上面列出的 SKU 一一对应，skuKey 必须原样返回。',
@@ -154,9 +154,10 @@ export class EditGenerationService {
       length: this.aiField(output.package.length),
       width: this.aiField(output.package.width),
       height: this.aiField(output.package.height),
-      dimensionUnit: this.aiField(output.package.dimensionUnit),
+      // Units are fixed constants, not model-output fields.
+      dimensionUnit: DIMENSION_UNIT,
       weight: this.aiField(output.package.weight),
-      weightUnit: this.aiField(output.package.weightUnit),
+      weightUnit: WEIGHT_UNIT,
     };
 
     return {

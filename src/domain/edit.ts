@@ -17,16 +17,20 @@ export type EditField = {
   confidence: number;
 };
 
-// SKU-level package dimensions (length × width × height) and billing weight,
-// each unit-annotated. Values may come from the AI reading the original
-// Miaoshou data and the product images, so they are hints, not ground truth.
+// Package dimensions (length × width × height, fixed cm) and billing weight
+// (fixed g). Values may come from the AI reading the original Miaoshou data
+// and the product images, so they are hints, not ground truth. Units are
+// fixed constants, not model-output fields.
+export const DIMENSION_UNIT = 'cm';
+export const WEIGHT_UNIT = 'g';
+
 export type PackageEditField = {
   length: EditField;
   width: EditField;
   height: EditField;
-  dimensionUnit: EditField;
+  dimensionUnit: typeof DIMENSION_UNIT;
   weight: EditField;
-  weightUnit: EditField;
+  weightUnit: typeof WEIGHT_UNIT;
 };
 
 export type SkuEditField = {

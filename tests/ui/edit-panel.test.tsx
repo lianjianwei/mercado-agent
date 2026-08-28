@@ -76,9 +76,9 @@ function draft(): EditDraft {
       length: { value: '20', source: 'ai', confidence: 0.7 },
       width: { value: '10', source: 'ai', confidence: 0.7 },
       height: { value: '8', source: 'ai', confidence: 0.7 },
-      dimensionUnit: { value: 'cm', source: 'ai', confidence: 0.99 },
-      weight: { value: '0.5', source: 'ai', confidence: 0.8 },
-      weightUnit: { value: 'kg', source: 'ai', confidence: 0.99 },
+      dimensionUnit: 'cm',
+      weight: { value: '500', source: 'ai', confidence: 0.8 },
+      weightUnit: 'g',
     },
   };
 }
@@ -170,9 +170,11 @@ describe('EditPanel', () => {
     expect(await screen.findByText('SKU 名称')).toBeTruthy();
     const whiteSku = screen.getByLabelText(';white;') as HTMLInputElement;
     expect(whiteSku.value).toBe('Blanco');
-    expect((screen.getByLabelText('长度') as HTMLInputElement).value).toBe('20');
-    expect((screen.getByLabelText('重量') as HTMLInputElement).value).toBe('0.5');
-    expect((screen.getByLabelText('重量单位') as HTMLInputElement).value).toBe('kg');
+    expect((screen.getByLabelText('长度（cm）') as HTMLInputElement).value).toBe('20');
+    expect((screen.getByLabelText('重量（g）') as HTMLInputElement).value).toBe('500');
+    // Units are fixed read-only displays, not editable inputs.
+    expect(screen.getByText('cm')).toBeTruthy();
+    expect(screen.getByText('g')).toBeTruthy();
   });
 
   it('shows an error when the api rejects', async () => {

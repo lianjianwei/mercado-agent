@@ -22,9 +22,9 @@ function makeDraft(version: number): EditDraft {
       length: { value: '20', source: 'ai', confidence: 0.7 },
       width: { value: '10', source: 'ai', confidence: 0.7 },
       height: { value: '8', source: 'ai', confidence: 0.7 },
-      dimensionUnit: { value: 'cm', source: 'ai', confidence: 0.99 },
-      weight: { value: '0.5', source: 'ai', confidence: 0.8 },
-      weightUnit: { value: 'kg', source: 'ai', confidence: 0.99 },
+      dimensionUnit: 'cm',
+      weight: { value: '500', source: 'ai', confidence: 0.8 },
+      weightUnit: 'g',
     },
   };
 }

@@ -116,7 +116,10 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     });
   }
 
-  function updatePackage(field: 'length' | 'width' | 'height' | 'dimensionUnit' | 'weight' | 'weightUnit', value: string) {
+  function updatePackage(
+    field: 'length' | 'width' | 'height' | 'weight',
+    value: string,
+  ) {
     if (!draft) return;
     setDraft({
       ...draft,
@@ -301,7 +304,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                 <h3>包裹尺寸与计费重量</h3>
                 <div className="edit-package-grid">
                   <div className="edit-draft-field">
-                    <label htmlFor="edit-length">长度</label>
+                    <label htmlFor="edit-length">长度（cm）</label>
                     <input
                       id="edit-length"
                       onChange={(event) => updatePackage('length', event.target.value)}
@@ -310,7 +313,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                     <FieldMeta field={draft.package.length} />
                   </div>
                   <div className="edit-draft-field">
-                    <label htmlFor="edit-width">宽度</label>
+                    <label htmlFor="edit-width">宽度（cm）</label>
                     <input
                       id="edit-width"
                       onChange={(event) => updatePackage('width', event.target.value)}
@@ -319,7 +322,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                     <FieldMeta field={draft.package.width} />
                   </div>
                   <div className="edit-draft-field">
-                    <label htmlFor="edit-height">高度</label>
+                    <label htmlFor="edit-height">高度（cm）</label>
                     <input
                       id="edit-height"
                       onChange={(event) => updatePackage('height', event.target.value)}
@@ -328,16 +331,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                     <FieldMeta field={draft.package.height} />
                   </div>
                   <div className="edit-draft-field">
-                    <label htmlFor="edit-dimension-unit">尺寸单位</label>
-                    <input
-                      id="edit-dimension-unit"
-                      onChange={(event) => updatePackage('dimensionUnit', event.target.value)}
-                      value={draft.package.dimensionUnit.value}
-                    />
-                    <FieldMeta field={draft.package.dimensionUnit} />
-                  </div>
-                  <div className="edit-draft-field">
-                    <label htmlFor="edit-weight">重量</label>
+                    <label htmlFor="edit-weight">重量（g）</label>
                     <input
                       id="edit-weight"
                       onChange={(event) => updatePackage('weight', event.target.value)}
@@ -345,14 +339,13 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                     />
                     <FieldMeta field={draft.package.weight} />
                   </div>
-                  <div className="edit-draft-field">
-                    <label htmlFor="edit-weight-unit">重量单位</label>
-                    <input
-                      id="edit-weight-unit"
-                      onChange={(event) => updatePackage('weightUnit', event.target.value)}
-                      value={draft.package.weightUnit.value}
-                    />
-                    <FieldMeta field={draft.package.weightUnit} />
+                  <div className="edit-unit-display">
+                    <span>尺寸单位</span>
+                    <strong>{draft.package.dimensionUnit}</strong>
+                  </div>
+                  <div className="edit-unit-display">
+                    <span>重量单位</span>
+                    <strong>{draft.package.weightUnit}</strong>
                   </div>
                 </div>
               </section>

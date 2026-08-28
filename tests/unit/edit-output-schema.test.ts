@@ -16,9 +16,7 @@ function validOutput(): AiEditOutput {
       length: { value: '20', confidence: 0.7 },
       width: { value: '15', confidence: 0.7 },
       height: { value: '12', confidence: 0.7 },
-      dimensionUnit: { value: 'cm', confidence: 0.99 },
-      weight: { value: '0.9', confidence: 0.8 },
-      weightUnit: { value: 'kg', confidence: 0.99 },
+      weight: { value: '900', confidence: 0.8 },
     },
   };
 }

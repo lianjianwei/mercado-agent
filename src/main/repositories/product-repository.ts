@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import type {
+  LocalPublishState,
   Product,
   ProductPage,
   ProductPageQuery,
@@ -20,6 +21,8 @@ type ProductRow = {
   stock: string | null;
   sites: string | null;
   price: string | null;
+  local_publish_state: LocalPublishState;
+  local_published_at: string | null;
   last_synced_at: string;
   created_at: string;
   updated_at: string;
@@ -49,6 +52,8 @@ function mapProduct(row: ProductRow): Product {
     stock: row.stock,
     sites: parseSites(row.sites),
     sourcePrice: row.price,
+    localPublishState: row.local_publish_state,
+    localPublishedAt: row.local_published_at,
     lastSyncedAt: row.last_synced_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -118,13 +123,39 @@ export class SqliteProductRepository
     }
   }
 
+  setLocalPublishState(
+    id: string,
+    state: LocalPublishState,
+    at: string | null,
+  ): void {
+    const result = this.database
+      .prepare(
+        `
+          UPDATE products
+          SET local_publish_state = ?, local_published_at = ?, updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(state, at, at ?? new Date().toISOString(), id);
+
+    if (result.changes === 0) {
+      throw new ProductNotFoundError(id);
+    }
+  }
+
   page(query: ProductPageQuery): ProductPage {
-    const where = query.state === undefined ? '' : 'WHERE state = ?';
-    const parameters =
-      query.state === undefined
-        ? [query.limit, query.offset]
-        : [query.state, query.limit, query.offset];
-    const countParameters = query.state === undefined ? [] : [query.state];
+    const clauses: string[] = [];
+    const parameters: Array<string | number> = [];
+    if (query.state !== undefined) {
+      clauses.push('state = ?');
+      parameters.push(query.state);
+    }
+    if (query.localPublishState !== undefined) {
+      clauses.push('local_publish_state = ?');
+      parameters.push(query.localPublishState);
+    }
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const countParameters = [...parameters];
     const countRow = this.database
       .prepare(`SELECT COUNT(*) AS count FROM products ${where}`)
       .get(...countParameters) as { count: number };
@@ -133,6 +164,7 @@ export class SqliteProductRepository
         `
           SELECT id, state, title, item_number, thumbnail_url,
                  breadcrumb, global_price, stock, sites, price,
+                 local_publish_state, local_published_at,
                  last_synced_at, created_at, updated_at
           FROM products
           ${where}
@@ -140,7 +172,7 @@ export class SqliteProductRepository
           LIMIT ? OFFSET ?
         `,
       )
-      .all(...parameters)
+      .all(...parameters, query.limit, query.offset)
       .map((row) => mapProduct(row as ProductRow));
 
     return {
@@ -176,12 +208,23 @@ export class SqliteProductRepository
     this.database.prepare('DELETE FROM products WHERE id = ?').run(id);
   }
 
+  clearAll(): void {
+    // Delete child rows first so foreign keys are satisfied. Infringement runs
+    // and snapshots reference products(id); product snapshots may also be
+    // referenced by infringement decision evidence. Configuration tables
+    // (credentials, provider configs, app settings) are intentionally kept.
+    this.database.prepare('DELETE FROM infringement_runs').run();
+    this.database.prepare('DELETE FROM product_snapshots').run();
+    this.database.prepare('DELETE FROM products').run();
+  }
+
   private requireById(id: string): Product {
     const row = this.database
       .prepare(
         `
           SELECT id, state, title, item_number, thumbnail_url,
                  breadcrumb, global_price, stock, sites, price,
+                 local_publish_state, local_published_at,
                  last_synced_at, created_at, updated_at
           FROM products
           WHERE id = ?

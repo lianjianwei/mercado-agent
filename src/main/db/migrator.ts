@@ -4,6 +4,7 @@ import initialMigration from './migrations/001_initial.sql?raw';
 import productsMigration from './migrations/002_products.sql?raw';
 import infringementMigration from './migrations/003_infringement.sql?raw';
 import productsColumnsMigration from './migrations/004_products_columns.sql?raw';
+import localPublishStateMigration from './migrations/005_local_publish_state.sql?raw';
 
 type Migration = {
   version: number;
@@ -31,6 +32,11 @@ const migrations: Migration[] = [
     version: 4,
     name: 'products_columns',
     sql: productsColumnsMigration,
+  },
+  {
+    version: 5,
+    name: 'local_publish_state',
+    sql: localPublishStateMigration,
   },
 ];
 

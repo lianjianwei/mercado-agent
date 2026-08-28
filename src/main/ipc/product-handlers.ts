@@ -10,10 +10,6 @@ import { ProductNotFoundError } from '../repositories/product-repository';
 import { productDetailFromSources } from './product-detail-mapper';
 import type { CollectBoxDetailDto } from '../../shared/miaoshou-schemas';
 
-const reconcileInputSchema = z.strictObject({
-  productIds: z.array(z.string().min(1)).min(1),
-});
-
 const syncOneInputSchema = z.strictObject({
   productId: z.string().min(1),
 });
@@ -25,16 +21,24 @@ const productStateSchema = z.enum([
   'missing',
 ]);
 
+const localPublishStateSchema = z.enum([
+  'notPublished',
+  'localPublished',
+  'localFailed',
+]);
+
 const pageInputSchema = z.strictObject({
   state: productStateSchema.optional(),
+  localPublishState: localPublishStateSchema.optional(),
   offset: z.number().int().nonnegative(),
   limit: z.number().int().positive().max(100),
 });
 
 type ProductHandlerDependencies = {
-  products: Pick<ProductRepository, 'page' | 'getById'>;
+  products: Pick<ProductRepository, 'page' | 'getById' | 'clearAll'>;
   snapshots?: Pick<ProductSnapshotRepository, 'listForProduct'>;
-  sync?: Pick<ProductSyncService, 'syncDefault' | 'reconcileTracked' | 'syncOne'>;
+  sync?: Pick<ProductSyncService, 'syncDefault' | 'syncOne'>;
+  sendProgress?: (channel: string, line: string) => void;
 };
 
 export function registerProductHandlers(
@@ -88,21 +92,15 @@ export function registerProductHandlers(
   registrar.handle(IPC_CHANNELS.productSyncDefault, async () => {
     try {
       if (!dependencies.sync) throw new Error('Product sync service is not configured');
-      return { ok: true, data: await dependencies.sync.syncDefault() };
+      const data = await dependencies.sync.syncDefault(
+        undefined,
+        dependencies.sendProgress
+          ? (line) => dependencies.sendProgress!(IPC_CHANNELS.productSyncLog, line)
+          : undefined,
+      );
+      return { ok: true, data };
     } catch {
       return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品同步未完成' } };
-    }
-  });
-  registrar.handle(IPC_CHANNELS.productReconcileTracked, async (_event, payload) => {
-    try {
-      const input = reconcileInputSchema.parse(payload);
-      if (!dependencies.sync) throw new Error('Product sync service is not configured');
-      return { ok: true, data: await dependencies.sync.reconcileTracked(input.productIds) };
-    } catch (error) {
-      if (error instanceof ZodError) {
-        return { ok: false, error: { code: 'VALIDATION_ERROR' as const, message: '商品 ID 列表无效' } };
-      }
-      return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品对账未完成' } };
     }
   });
   registrar.handle(IPC_CHANNELS.productSyncOne, async (_event, payload) => {
@@ -115,6 +113,14 @@ export function registerProductHandlers(
         return { ok: false, error: { code: 'VALIDATION_ERROR' as const, message: '商品 ID 无效' } };
       }
       return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品同步未完成' } };
+    }
+  });
+  registrar.handle(IPC_CHANNELS.productClear, async () => {
+    try {
+      dependencies.products.clearAll();
+      return { ok: true, data: undefined };
+    } catch {
+      return { ok: false, error: { code: 'INTERNAL_ERROR' as const, message: '商品数据清理未完成' } };
     }
   });
 }

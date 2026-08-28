@@ -36,10 +36,10 @@ export class SqliteInfringementRepository implements InfringementRepository {
 
   append(input: InfringementRunInput): InfringementRun {
     const last = this.lastRunForProduct(input.productId);
+    const reuseVersion =
+      last && last.fingerprint === input.fingerprint && !input.forceReanalyze;
     const version =
-      input.version ?? (last && last.fingerprint === input.fingerprint
-        ? last.version
-        : (last?.version ?? 0) + 1);
+      input.version ?? (reuseVersion ? last.version : (last?.version ?? 0) + 1);
 
     const run: InfringementRun = {
       id: input.id,

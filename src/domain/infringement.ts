@@ -22,6 +22,8 @@ export type InfringementRun = {
 
 export type InfringementRunInput = Omit<InfringementRun, 'version'> & {
   version?: number;
+  /** 用户主动强制重新检测：即使指纹未变也递增版本，产生一条新 run。 */
+  forceReanalyze?: boolean;
 };
 
 export interface InfringementRepository {

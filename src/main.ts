@@ -73,10 +73,10 @@ app.whenReady().then(async () => {
     );
   };
   const productSync = {
-    syncDefault: (signal?: AbortSignal) =>
-      createProductSyncService().syncDefault(signal),
-    reconcileTracked: (productIds: string[], signal?: AbortSignal) =>
-      createProductSyncService().reconcileTracked(productIds, signal),
+    syncDefault: (
+      signal?: AbortSignal,
+      onProgress?: (line: string) => void,
+    ) => createProductSyncService().syncDefault(signal, onProgress),
     syncOne: (productId: string, signal?: AbortSignal) =>
       createProductSyncService().syncOne(productId, signal),
   };
@@ -118,6 +118,11 @@ app.whenReady().then(async () => {
       infringementService,
       modelProxy,
       getAppInfo,
+      sendProgress: (channel, line) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          window.webContents.send(channel, { line });
+        }
+      },
       connectionTests: new ConnectionTestService(
         providerRegistry,
         undefined,

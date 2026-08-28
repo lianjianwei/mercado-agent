@@ -147,6 +147,12 @@ test('synchronizes the workbench and retains history when a product disappears',
     await expect(productRow.getByText('厨房用具 / 清洁刷')).toBeVisible();
     await expect(productRow.getByText('21.8')).toBeVisible();
     await expect(productRow.getByText('MLB、MPE')).toBeVisible();
+    // The local publish column defaults to 未发布.
+    await expect(productRow.getByText('未发布')).toBeVisible();
+    // The terminal-style progress log appears while syncing.
+    await expect(page.getByRole('log')).toBeVisible();
+    await expect(page.getByRole('log').getByText(/第 1 页完成：1 条/)).toBeVisible();
+    await expect(page.getByRole('log').getByText(/同步完成：发现 1，成功 1，失败 0，耗时/)).toBeVisible();
     await productRow.click();
     await expect(page.getByRole('tab', { name: '快速检查' })).toBeVisible();
     await expect(page.getByRole('heading', { name: '只读详情概要' })).toBeVisible();
@@ -156,24 +162,20 @@ test('synchronizes the workbench and retains history when a product disappears',
     await rowSyncButton.click();
     await expect(page.getByText(/同步完成：E2E Kitchen Brush/)).toBeVisible();
 
-    const summary = await page.evaluate(async (id) => {
-      return window.mercado.products.reconcileTracked([id]);
-    }, detailId);
-    expect(summary).toMatchObject({ missing: 1, failed: 0 });
-    await page.getByRole('button', { name: /远端缺失/ }).click();
-    await expect(page.getByRole('row', { name: /E2E Kitchen Brush/ })).toBeVisible();
-
     await application.close();
     application = undefined;
 
     const database = new DatabaseSync(path.join(userDataDir, 'mercado-agent.sqlite3'));
     try {
       expect(database.prepare('SELECT state FROM products WHERE id = ?').get(detailId)).toEqual({
-        state: 'missing',
+        state: 'notPublished',
       });
       expect(
         database.prepare('SELECT COUNT(*) AS count FROM product_snapshots WHERE product_id = ?').get(detailId),
       ).toEqual({ count: 2 });
+      expect(
+        database.prepare('SELECT local_publish_state FROM products WHERE id = ?').get(detailId),
+      ).toEqual({ local_publish_state: 'notPublished' });
     } finally {
       database.close();
     }
@@ -181,7 +183,7 @@ test('synchronizes the workbench and retains history when a product disappears',
     launched = await launch(userDataDir);
     application = launched.application;
     page = launched.page;
-    await page.getByRole('button', { name: /远端缺失/ }).click();
+    await page.getByRole('button', { name: '工作台' }).click();
     await expect(page.getByRole('row', { name: /E2E Kitchen Brush/ })).toBeVisible();
   } finally {
     await application?.close();

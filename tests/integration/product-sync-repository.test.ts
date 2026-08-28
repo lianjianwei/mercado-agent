@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { openAppDatabase } from '../../src/main/db/database';
 import type { RemoteProductIdentity } from '../../src/domain/product';
+import { SqliteInfringementRepository } from '../../src/main/repositories/infringement-repository';
 import { SqliteProductRepository } from '../../src/main/repositories/product-repository';
 import { SqliteSnapshotRepository } from '../../src/main/repositories/snapshot-repository';
 
@@ -66,6 +67,7 @@ describe('product synchronization repositories', () => {
       { version: 2, name: 'products' },
       { version: 3, name: 'infringement' },
       { version: 4, name: 'products_columns' },
+      { version: 5, name: 'local_publish_state' },
     ]);
     secondConnection.close();
   });
@@ -159,6 +161,113 @@ describe('product synchronization repositories', () => {
       sites: ['BR', 'MX'],
       sourcePrice: '18.9',
     });
+    database.close();
+  });
+
+  it('persists the local publish state and timestamp on the product row', () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteProductRepository(database);
+
+    repository.upsertRemoteIdentity(remoteProduct());
+
+    expect(repository.getById('collect-box-101')).toMatchObject({
+      localPublishState: 'notPublished',
+      localPublishedAt: null,
+    });
+
+    repository.setLocalPublishState(
+      'collect-box-101',
+      'localPublished',
+      '2026-08-27T03:00:00.000Z',
+    );
+
+    expect(repository.getById('collect-box-101')).toMatchObject({
+      localPublishState: 'localPublished',
+      localPublishedAt: '2026-08-27T03:00:00.000Z',
+    });
+    database.close();
+  });
+
+  it('filters product pages by the local publish state', () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteProductRepository(database);
+    repository.upsertRemoteIdentity(remoteProduct());
+    repository.upsertRemoteIdentity(
+      remoteProduct({
+        id: 'collect-box-102',
+        title: 'Keyboard',
+        itemNumber: 'KEYBOARD-102',
+        syncedAt: '2026-08-27T00:01:00.000Z',
+      }),
+    );
+    repository.setLocalPublishState(
+      'collect-box-102',
+      'localPublished',
+      '2026-08-27T00:02:00.000Z',
+    );
+
+    expect(
+      repository.page({
+        localPublishState: 'localPublished',
+        offset: 0,
+        limit: 20,
+      }),
+    ).toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ id: 'collect-box-102' })],
+    });
+    expect(
+      repository.page({ localPublishState: 'notPublished', offset: 0, limit: 20 }),
+    ).toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ id: 'collect-box-101' })],
+    });
+    database.close();
+  });
+
+  it('clears products, snapshots and infringement runs, keeping configuration', () => {
+    const database = openAppDatabase(createDatabasePath());
+    const products = new SqliteProductRepository(database);
+    const snapshots = new SqliteSnapshotRepository(database);
+    const infringements = new SqliteInfringementRepository(database);
+    products.upsertRemoteIdentity(remoteProduct());
+    snapshots.append({
+      id: 'snapshot-001',
+      productId: 'collect-box-101',
+      kind: 'miaoshou',
+      capturedAt: '2026-08-27T01:00:00.000Z',
+      payload: { title: 'Wireless mouse' },
+    });
+    infringements.append({
+      id: 'run-1',
+      productId: 'collect-box-101',
+      fingerprint: 'a'.repeat(64),
+      version: 1,
+      level: 'high',
+      kind: 'brand_owner',
+      decision: {
+        level: 'high',
+        kind: 'brand_owner',
+        fingerprint: 'a'.repeat(64),
+        imagesIncluded: true,
+        rules: [],
+        summary: 'high',
+        evidence: [],
+        ai: null,
+      },
+      createdAt: '2026-08-27T02:00:00.000Z',
+    });
+
+    products.clearAll();
+
+    expect(products.page({ offset: 0, limit: 20 })).toEqual({
+      items: [],
+      offset: 0,
+      limit: 20,
+      total: 0,
+    });
+    expect(snapshots.listForProduct('collect-box-101')).toEqual([]);
+    expect(infringements.listForProduct('collect-box-101')).toEqual([]);
     database.close();
   });
 

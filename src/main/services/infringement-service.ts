@@ -16,6 +16,10 @@ export type InfringementBatchItem = {
   product: RiskRelevantProduct;
 };
 
+export type InfringementProgress = (line: string) => void;
+
+const BATCH_CONCURRENCY = 3;
+
 export type InfringementBatchSummary = {
   discovered: number;
   succeeded: number;
@@ -38,23 +42,26 @@ export class InfringementService {
     productId: string,
     product: RiskRelevantProduct,
     signal?: AbortSignal,
+    forceReanalyze = false,
   ): Promise<InfringementRun> {
     const current = this.repository.currentForProduct(productId);
     const fingerprint = riskFingerprint(product);
-    if (current && current.fingerprint === fingerprint) {
-      // 内容未变化：沿用现有结果，不产生新 run。
+    if (!forceReanalyze && current && current.fingerprint === fingerprint) {
+      // 内容未变化：沿用现有结果，不产生新 run（批量检测等静默路径）。
+      // 用户主动点「分析侵权风险」时传 forceReanalyze=true 强制重新检测。
       return current;
     }
     const decision = await this.analyzerFactory().analyze(
       product,
       signal ?? new AbortController().signal,
     );
-    return this.appendRun(productId, decision);
+    return this.appendRun(productId, decision, forceReanalyze);
   }
 
   async analyzeBatch(
     items: InfringementBatchItem[],
     signal?: AbortSignal,
+    onProgress?: InfringementProgress,
   ): Promise<InfringementBatchSummary> {
     const summary: InfringementBatchSummary = {
       discovered: items.length,
@@ -62,24 +69,49 @@ export class InfringementService {
       failed: 0,
       failures: [],
     };
-    for (const item of items) {
+    // A bounded worker pool keeps concurrent model calls from tripping provider
+    // rate limits while still finishing the batch much faster than serially.
+    const queue = [...items];
+    const workers = Array.from(
+      { length: Math.min(BATCH_CONCURRENCY, queue.length) },
+      () => this.runWorker(queue, summary, signal, onProgress),
+    );
+    await Promise.all(workers);
+    return summary;
+  }
+
+  private async runWorker(
+    queue: InfringementBatchItem[],
+    summary: InfringementBatchSummary,
+    signal?: AbortSignal,
+    onProgress?: InfringementProgress,
+  ): Promise<void> {
+    while (true) {
+      const item = queue.shift();
+      if (!item) return;
       try {
         await this.analyzeProduct(item.productId, item.product, signal);
         summary.succeeded += 1;
+        onProgress?.(`商品 ${item.productId} 侵权检测成功。`);
       } catch (error) {
         summary.failed += 1;
         summary.failures.push({
           productId: item.productId,
           message: error instanceof Error ? error.message : '检测失败',
         });
+        onProgress?.(
+          `商品 ${item.productId} 侵权检测失败：${
+            error instanceof Error ? error.message : '检测失败'
+          }。`,
+        );
       }
     }
-    return summary;
   }
 
   private appendRun(
     productId: string,
     decision: InfringementDecision,
+    forceReanalyze = false,
   ): InfringementRun {
     return this.repository.append({
       id: randomUUID(),
@@ -89,6 +121,7 @@ export class InfringementService {
       kind: decision.kind,
       decision,
       createdAt: this.now(),
+      forceReanalyze,
     });
   }
 }

@@ -198,6 +198,32 @@ describe('edit draft IPC', () => {
     expect(draft!.skus[0].package.length).toEqual({ value: '20', source: 'ai', confidence: 0.7 });
   });
 
+  it('readLatestDraft fills stock/sourcePrice/package on legacy SKUs that only had a name', () => {
+    // Drafts saved before the multi-SKU model stored SKUs as
+    // { skuKey, name } only. Reading one must backfill stock/sourcePrice/
+    // package so the panel never renders sku.stock.value or
+    // sku.package.length.value on undefined.
+    const legacy = makeDraft(1);
+    legacy.skus = [{ skuKey: ';white;', name: { value: 'Blanco', source: 'ai', confidence: 0.9 } }] as never;
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: '2026-08-28T01:00:00.000Z',
+        payload: legacy,
+      },
+    ]);
+
+    const draft = readLatestDraft(snapshots, '90001');
+    expect(draft).not.toBeNull();
+    expect(draft!.skus[0].stock).toEqual({ value: '', source: 'ai', confidence: 0 });
+    expect(draft!.skus[0].sourcePrice).toEqual({ value: '', source: 'ai', confidence: 0 });
+    expect(draft!.skus[0].package.length).toEqual({ value: '', source: 'ai', confidence: 0 });
+    expect(draft!.skus[0].package.dimensionUnit).toBe('cm');
+    expect(draft!.skus[0].package.weightUnit).toBe('g');
+  });
+
   it('readLatestDraft ignores miaoshou snapshots and returns the newest aiDraft', () => {
     const snapshots = fakeSnapshots([
       {

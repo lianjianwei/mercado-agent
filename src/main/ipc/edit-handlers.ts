@@ -45,22 +45,26 @@ export function readLatestDraft(
 // each SKU package's units.
 function normalizeDraft(draft: EditDraft): EditDraft {
   const legacy = draft as EditDraft & { package?: unknown };
+  const emptyField = { value: '', source: 'ai', confidence: 0 } as const;
   const normalizePackage = (
     pkg?: Partial<EditDraft['skus'][number]['package']>,
   ): EditDraft['skus'][number]['package'] => ({
-    length: pkg?.length ?? { value: '', source: 'ai', confidence: 0 },
-    width: pkg?.width ?? { value: '', source: 'ai', confidence: 0 },
-    height: pkg?.height ?? { value: '', source: 'ai', confidence: 0 },
+    length: pkg?.length ?? emptyField,
+    width: pkg?.width ?? emptyField,
+    height: pkg?.height ?? emptyField,
     dimensionUnit: DIMENSION_UNIT,
-    weight: pkg?.weight ?? { value: '', source: 'ai', confidence: 0 },
+    weight: pkg?.weight ?? emptyField,
     weightUnit: WEIGHT_UNIT,
   });
   return {
     ...draft,
     skus: (legacy.skus ?? []).map((sku) => ({
       ...sku,
-      // Old drafts stored no per-SKU package; default the package fields to
-      // empty values so the panel renders without crashing.
+      // Old drafts stored only skuKey + name (no per-SKU stock/sourcePrice/
+      // package); default the missing fields so the panel renders without
+      // crashing on sku.stock.value / sku.package.length.value.
+      stock: sku.stock ?? emptyField,
+      sourcePrice: sku.sourcePrice ?? emptyField,
       package: normalizePackage(sku.package),
     })),
   };

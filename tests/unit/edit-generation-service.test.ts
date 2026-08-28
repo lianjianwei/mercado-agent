@@ -57,6 +57,31 @@ function fakeSnapshots(detailValue: CollectBoxDetailDto): ProductSnapshotReposit
   };
 }
 
+// The state right after a first generate: an aiDraft snapshot was appended
+// after the miaoshou one. Regenerating must read the miaoshou snapshot, not
+// the aiDraft (whose payload is an EditDraft with no siteCollectItemInfo).
+function snapshotsWithLaterAiDraft(detailValue: CollectBoxDetailDto): ProductSnapshotRepository {
+  return {
+    append: vi.fn(),
+    listForProduct: vi.fn(() => [
+      {
+        id: 's1',
+        productId: '90001',
+        kind: 'miaoshou' as const,
+        capturedAt: '2026-08-28T00:00:00.000Z',
+        payload: detailValue,
+      },
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft' as const,
+        capturedAt: '2026-08-28T02:00:00.000Z',
+        payload: { version: 1, title: {}, skus: [] },
+      },
+    ]),
+  };
+}
+
 function validOutput(): AiEditOutput {
   return {
     title: { value: 'Molinillo de café con muela de cerámica', confidence: 0.95 },
@@ -481,6 +506,23 @@ describe('EditGenerationService', () => {
     const draft = await service.generate('90001');
 
     expect(draft.model).toEqual({ value: 'Generic', source: 'fixed', confidence: 1 });
+  });
+
+  it('regenerates from the miaoshou snapshot even when an aiDraft was appended after it', async () => {
+    // After the first generate, the newest snapshot is an aiDraft (EditDraft
+    // payload with no siteCollectItemInfo). Regenerating must read the latest
+    // miaoshou snapshot instead, or it crashes on skuMap access.
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      snapshotsWithLaterAiDraft(detail()),
+      () => provider,
+    );
+
+    const draft = await service.generate('90001');
+
+    expect(draft.skus.map((sku) => sku.skuKey)).toEqual([';white;', ';black;']);
+    expect(draft.title.value).toBe('Molinillo de café con muela de cerámica');
   });
 
   it('throws when the model response does not match the schema', async () => {

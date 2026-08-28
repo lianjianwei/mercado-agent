@@ -87,7 +87,13 @@ export class EditGenerationService {
 
   private latestDetail(productId: string): CollectBoxDetailDto {
     const snapshots = this.snapshots.listForProduct(productId);
-    const latest = snapshots[snapshots.length - 1];
+    // Only the miaoshou snapshot carries the detail response. A previous
+    // generate appends an aiDraft snapshot (an EditDraft payload) that is the
+    // newest row but has no siteCollectItemInfo — reading it would crash on
+    // skuMap access when the user clicks regenerate.
+    const latest = [...snapshots]
+      .reverse()
+      .find((snapshot) => snapshot.kind === 'miaoshou');
     if (!latest) {
       throw new Error('该商品尚无同步快照，无法生成编辑草稿。请先同步商品。');
     }

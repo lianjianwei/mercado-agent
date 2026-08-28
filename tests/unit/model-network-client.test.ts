@@ -30,6 +30,43 @@ describe('ModelNetworkClient', () => {
     expect(client.getRoute()).toBe('http_proxy');
   });
 
+  it('logs the request start and the response status and duration', async () => {
+    const logs: string[] = [];
+    const originalLog = console.log;
+    console.log = (message: unknown) => {
+      logs.push(String(message));
+    };
+    try {
+      const client = new ModelNetworkClient(new FakeSession(), () => 'direct');
+      await client.fetch('https://models.example.com/v1/chat/completions', {
+        method: 'POST',
+      });
+    } finally {
+      console.log = originalLog;
+    }
+    expect(logs[0]).toMatch(/\[model\] POST https:\/\/models\.example\.com\/v1\/chat\/completions …/);
+    expect(logs[1]).toMatch(/\[model\] POST .*-> 200 \(\d+ms\)/);
+  });
+
+  it('logs a failed request with the error message', async () => {
+    const session = new FakeSession();
+    session.fetchError = new Error('net::CONNECTION_REFUSED');
+    const errors: string[] = [];
+    const originalError = console.error;
+    console.error = (message: unknown) => {
+      errors.push(String(message));
+    };
+    try {
+      const client = new ModelNetworkClient(session, () => 'direct');
+      await client.fetch('https://models.example.com/v1/chat/completions', {
+        method: 'POST',
+      }).catch(() => undefined);
+    } finally {
+      console.error = originalError;
+    }
+    expect(errors[0]).toMatch(/\[model\] POST .*FAILED after \d+ms net::CONNECTION_REFUSED/);
+  });
+
   it('maps an unreachable local proxy without falling back to direct fetch', async () => {
     const session = new FakeSession();
     session.fetchError = new Error('net::ERR_PROXY_CONNECTION_FAILED');

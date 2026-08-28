@@ -24,9 +24,23 @@ export class ModelNetworkClient implements ModelNetworkTransport {
   ) {}
 
   async fetch(input: string, init: RequestInit): Promise<Response> {
+    const startedAt = Date.now();
+    // Model calls run in the main process, so they never appear in the
+    // renderer's DevTools Network panel; log them to the terminal instead so
+    // a generate/regenerate can be confirmed at a glance.
+    const method = init?.method ?? 'GET';
+    console.log(`[model] ${method} ${input} …`);
     try {
-      return await this.session.fetch(input, init);
+      const response = await this.session.fetch(input, init);
+      const durationMs = Date.now() - startedAt;
+      console.log(
+        `[model] ${method} ${input} -> ${response.status} (${durationMs}ms)`,
+      );
+      return response;
     } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[model] ${method} ${input} FAILED after ${durationMs}ms ${detail}`);
       if (
         this.getRoute() === 'http_proxy' &&
         error instanceof Error &&

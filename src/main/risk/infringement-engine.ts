@@ -93,6 +93,7 @@ export class InfringementEngine {
       '风险等级：none（无）/ low（低）/ medium（中）/ high（高）。',
       '先判断商品是品牌本体（brand_owner）、第三方兼容配件（compatible_accessory）、无品牌（unbranded）还是不确定（unknown）。',
       '兼容配件若仅用品牌名说明适用对象、品牌为真实制造商或 Generic、图片无伪造 Logo，不因品牌词判高风险。',
+      '描述中的固定字段（如"有可授权的自有品牌"）与授权无关，不得据此提高风险。',
       '图片中出现受保护 Logo、仿冒外观、误导包装或受保护设计时提高风险。',
       '',
       '商品信息：',

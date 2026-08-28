@@ -25,13 +25,11 @@ export type LocalRulesResult = {
 const COMPATIBLE_PATTERNS =
   /适用于|兼容|compatible\s+with|\bfor\b|\bfor\s+use\s+with\b|\bfits\b|\bdesigned\s+for\b|\bcompat\b/i;
 
-// Language that implies counterfeiting / replica.
+// Language that implies counterfeiting / replica. 同款 / 一模一样 are common
+// in normal descriptions (e.g. "XX 同款手机壳"), so they are deliberately
+// excluded — they are not reliable counterfeit signals.
 const COUNTERFEIT_PATTERNS =
-  /仿品|复刻|同款|一模一样|高仿|山寨|knock\s*off|replica|fake|copy|imitation|仿冒/i;
-
-// Language that claims official brand authorization.
-const LICENSE_PATTERNS =
-  /官方|正品|授权|正规|officially\s+licensed|official|authorized|genuine|正版|代理/i;
+  /仿品|复刻|高仿|山寨|knock\s*off|replica|fake|copy|imitation|仿冒/i;
 
 // Categories most commonly affected by brand protection actions per the
 // official note (Technology, Fashion & Beauty, Skin Care).
@@ -53,7 +51,6 @@ export function evaluateLocalRules(input: LocalRulesInput): LocalRulesResult {
   const brandIsRestricted = isRestrictedBrand(brand);
   const isAccessory = accessorySignal(input);
   const hasCounterfeit = COUNTERFEIT_PATTERNS.test(`${input.title} ${input.description ?? ''}`);
-  const hasLicenseHint = LICENSE_PATTERNS.test(`${input.title} ${input.description ?? ''}`);
   const sensitiveCategory = SENSITIVE_CATEGORY_PATTERNS.test(input.category ?? '');
 
   if (brandIsRestricted && !isAccessory) {
@@ -72,14 +69,6 @@ export function evaluateLocalRules(input: LocalRulesInput): LocalRulesResult {
     });
   }
 
-  if (hasLicenseHint) {
-    hits.push({
-      rule: 'license-hint',
-      level: 'medium',
-      reason: '存在官方/授权暗示，需人工确认是否有真实授权。',
-    });
-  }
-
   if (brandIsRestricted && sensitiveCategory && !isAccessory) {
     hits.push({
       rule: 'sensitive-category-high',
@@ -91,7 +80,7 @@ export function evaluateLocalRules(input: LocalRulesInput): LocalRulesResult {
   const highHit = hits.some((hit) => hit.level === 'high');
   const effectiveLevel: RiskLevel = highHit ? 'high' : 'none';
   const needsAiReview =
-    brandIsRestricted || hasCounterfeit || hasLicenseHint || isAccessory || !brandIsRestricted;
+    brandIsRestricted || hasCounterfeit || isAccessory || !brandIsRestricted;
 
   const aiContext = [
     `品牌：${brand || '未提供'}`,

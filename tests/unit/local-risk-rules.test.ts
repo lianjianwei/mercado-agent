@@ -58,13 +58,25 @@ describe('local risk rules', () => {
     expect(result.hits.map((hit) => hit.rule)).toContain('counterfeit-language');
   });
 
-  it('flags official-license hints as requiring review and raising risk', () => {
+  it('does not flag the fixed Miaoshou authorization note as a license hint', () => {
     const result = evaluateLocalRules({
       ...baseInput(),
-      title: '官方正品授权 Apple 配件',
+      title: '适用于 iPhone 的钢化膜',
+      description: '有可授权的自有品牌：是',
       brand: 'Generic',
     });
-    expect(result.hits.map((hit) => hit.rule)).toContain('license-hint');
+    expect(result.hits.map((hit) => hit.rule)).not.toContain('license-hint');
+    expect(result.effectiveLevel).not.toBe('high');
+  });
+
+  it('does not flag 同款 / 一模一样 as counterfeit language', () => {
+    const result = evaluateLocalRules({
+      ...baseInput(),
+      title: 'Apple Watch 同款表带 一模一样外观',
+      brand: 'Generic',
+    });
+    expect(result.hits.map((hit) => hit.rule)).not.toContain('counterfeit-language');
+    expect(result.effectiveLevel).not.toBe('high');
   });
 
   it('flags a branded product in a sensitive clothing category as high', () => {

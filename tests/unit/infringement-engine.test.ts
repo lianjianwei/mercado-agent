@@ -89,6 +89,51 @@ describe('InfringementEngine', () => {
     expect(decision.rules.some((hit) => hit.rule === 'counterfeit-language')).toBe(true);
   });
 
+  it('does not escalate AI risk for 同款 / 一模一样 wording', async () => {
+    const aiDecision = {
+      level: 'low',
+      kind: 'compatible_accessory',
+      summary: 'Generic accessory, wording only describes a same-style look.',
+      evidence: [{ source: 'text', quote: '同款', explanation: '外观描述，非仿冒信号' }],
+      imageEvidence: [],
+    };
+    const provider = fakeProvider(aiDecision);
+    const engine = new InfringementEngine(provider as never);
+    const product: RiskRelevantProduct = {
+      ...sampleProduct(),
+      title: 'Apple Watch 同款表带 一模一样外观',
+      brand: 'Generic',
+    };
+
+    const decision = await engine.analyze(product, new AbortController().signal);
+
+    expect(decision.rules.some((hit) => hit.rule === 'counterfeit-language')).toBe(false);
+    expect(decision.level).toBe('low');
+  });
+
+  it('does not escalate AI risk for the fixed authorization note in the description', async () => {
+    const aiDecision = {
+      level: 'low',
+      kind: 'compatible_accessory',
+      summary: 'Generic accessory.',
+      evidence: [{ source: 'text', quote: '适用于', explanation: '兼容表述' }],
+      imageEvidence: [],
+    };
+    const provider = fakeProvider(aiDecision);
+    const engine = new InfringementEngine(provider as never);
+    const product: RiskRelevantProduct = {
+      ...sampleProduct(),
+      title: '适用于 iPhone 的钢化膜',
+      description: '有可授权的自有品牌：是',
+      brand: 'Generic',
+    };
+
+    const decision = await engine.analyze(product, new AbortController().signal);
+
+    expect(decision.rules).toHaveLength(0);
+    expect(decision.level).toBe('low');
+  });
+
   it('throws a structured error when AI output does not validate', async () => {
     const provider = fakeProvider({ level: 'ultra-high' });
     const engine = new InfringementEngine(provider as never);

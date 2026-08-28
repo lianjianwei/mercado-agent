@@ -31,10 +31,10 @@
 
 **Files:** `src/domain/product.ts`, `src/main/ipc/product-detail-mapper.ts`, `tests/unit/product-detail-mapper.test.ts`
 
-- [ ] 在 `ProductDetailSku` 增加 `length`/`width`/`height`/`lengthWidthHeightUnit`/`weight`/`weightUnit` 字段（从妙手 `skuMap` 透出，可能为空）。
-- [ ] 更新 `product-detail-mapper.ts` 从 `skuMap` 读取并透出这些字段。
-- [ ] 写测试：多 SKU、尺寸/重量存在、尺寸/重量为空。
-- [ ] 运行测试，提交 `feat: expose sku package dimensions in product detail`。
+- [x] 在 `ProductDetailSku` 增加 `length`/`width`/`height`/`lengthWidthHeightUnit`/`weight`/`weightUnit` 字段（从妙手 `skuMap` 透出，可能为空）。
+- [x] 更新 `product-detail-mapper.ts` 从 `skuMap` 读取并透出这些字段。
+- [x] 写测试：多 SKU、尺寸/重量存在、尺寸/重量为空。
+- [x] 运行测试，提交 `feat: expose sku package dimensions in product detail`。
 
 ### Task 2: 编辑领域模型与 AI 输出 schema
 
@@ -49,15 +49,14 @@ export type EditDraft = {
   brand: EditField;            // 固定 Generic
   model: EditField;            // 明确型号直接用；否则从标题/描述挑选
   skus: SkuEditField[];        // 每个 SKU 名称翻译
-  package: PackageEditField;   // 长×宽×高 + 单位
-  weight: WeightEditField;     // 重量 + 单位
+  package: PackageEditField;   // 长×宽×高 + 单位 + 计费重量 + 重量单位
 };
 export interface EditField { value: string; source: 'remote' | 'ai' | 'user'; confidence: number }
 ```
 
-- [ ] 写 Zod schema 校验测试：标题≤60、字段必填、坏响应拒绝。
-- [ ] 实现 `EditDraft` 领域类型与 schema。
-- [ ] 运行测试，提交 `feat: model AI edit draft and output schema`。
+- [x] 写 Zod schema 校验测试：标题≤60、字段必填、坏响应拒绝。
+- [x] 实现 `EditDraft` 领域类型与 schema。
+- [x] 运行测试，提交 `feat: model AI edit draft and output schema`。
 
 ### Task 3: AI 编辑生成服务
 
@@ -69,36 +68,36 @@ export interface EditGenerationService {
 }
 ```
 
-- [ ] 写测试：prompt 组装（含原尺寸/重量 + 图片 URL）、schema 校验、无 provider 时抛错、坏响应不覆盖已有草稿。
-- [ ] 实现服务：读商品详情快照 → 组装 prompt → `provider.generate({prompt, imageUrls}, signal)` → Zod 校验 → 组装 `EditDraft`。
-- [ ] 包裹尺寸/重量提示词规则：参考妙手原 skuMap 尺寸/重量 + 图片，校验/预估，标注来源与置信度。
-- [ ] 运行测试，提交 `feat: generate AI edit drafts`。
+- [x] 写测试：prompt 组装（含原尺寸/重量 + 图片 URL）、schema 校验、无 provider 时抛错、坏响应不覆盖已有草稿。
+- [x] 实现服务：读商品详情快照 → 组装 prompt → `provider.generate({prompt, imageUrls}, signal)` → Zod 校验 → 组装 `EditDraft`。
+- [x] 包裹尺寸/重量提示词规则：参考妙手原 skuMap 尺寸/重量 + 图片，校验/预估，标注来源与置信度。
+- [x] 运行测试，提交 `feat: generate AI edit drafts`。
 
 ### Task 4: 编辑 IPC 与草稿保存
 
 **Files:** `src/main/ipc/edit-handlers.ts`, `src/shared/ipc-contract.ts`, `src/preload.ts`, `src/main/ipc/register-handlers.ts`, `src/main.ts`, `tests/integration/edit-draft-ipc.test.ts`
 
-- [ ] 定义 IPC 通道：`edit:generate`、`edit:draft`（读当前草稿）、`edit:save-draft`（用户确认后更新 aiDraft 快照）。
-- [ ] 写集成测试：生成→读→保存草稿→回读 aiDraft 快照。
-- [ ] 实现 handler、preload 暴露、register 挂载、main 装配 `EditGenerationService`。
-- [ ] 运行测试，提交 `feat: expose AI edit draft over IPC`。
+- [x] 定义 IPC 通道：`edit:generate`、`edit:draft`（读当前草稿）、`edit:save-draft`（用户确认后更新 aiDraft 快照）。
+- [x] 写集成测试：生成→读→保存草稿→回读 aiDraft 快照。
+- [x] 实现 handler、preload 暴露、register 挂载、main 装配 `EditGenerationService`。
+- [x] 运行测试，提交 `feat: expose AI edit draft over IPC`。
 
 ### Task 5: 工作台双视图编辑面板
 
 **Files:** `src/ui/features/editor/EditPanel.tsx`, `src/ui/pages/WorkbenchPage.tsx`, `tests/ui/edit-panel.test.tsx`
 
-- [ ] 写 UI 测试：生成草稿、妙手详情与 AI 编辑详情切换、逐字段编辑、来源/置信度展示、保存草稿。
-- [ ] 实现编辑面板：右侧 `edit` tab 从占位符改为双视图（妙手详情 / AI 编辑详情），字段含标题/描述/品牌/型号/SKU/尺寸/重量。
-- [ ] 商品行「编辑」列从「未编辑」→「已编辑」（有 aiDraft 快照时）。
-- [ ] 运行 UI 测试，提交 `feat: build dual-view AI edit panel`。
+- [x] 写 UI 测试：生成草稿、妙手详情与 AI 编辑详情切换、逐字段编辑、来源/置信度展示、保存草稿。
+- [x] 实现编辑面板：右侧 `edit` tab 从占位符改为双视图（妙手详情 / AI 编辑详情），字段含标题/描述/品牌/型号/SKU/尺寸/重量。
+- [x] 商品行「编辑」列从「未编辑」→「已编辑」（有 aiDraft 快照时）。
+- [x] 运行 UI 测试，提交 `feat: build dual-view AI edit panel`。
 
 ### Task 6: 全量验证与文档同步
 
 **Files:** `docs/acceptance/phase-4-checklist.md`, `docs/superpowers/plans/2026-08-26-mercado-agent-roadmap.md`
 
-- [ ] 跑全量测试 / lint / typecheck / 生产构建。
-- [ ] 更新 roadmap 阶段 4 描述：草稿生成已实现，保存妙手/回读/复检待后续。
-- [ ] 更新验收清单，提交 `docs: document AI draft generation sub-phase`。
+- [x] 跑全量测试 / lint / typecheck / 生产构建。
+- [x] 更新 roadmap 阶段 4 描述：草稿生成已实现，保存妙手/回读/复检待后续。
+- [x] 更新验收清单，提交 `docs: document AI draft generation sub-phase`。
 
 ---
 

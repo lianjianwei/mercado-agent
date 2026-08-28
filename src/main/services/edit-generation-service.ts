@@ -46,7 +46,6 @@ export class EditGenerationService {
     signal?: AbortSignal,
   ): Promise<EditDraft> {
     const detail = this.latestDetail(productId);
-    const info = detail.siteCollectItemInfo;
     const provider = this.providerFactory();
     const prompt = this.buildPrompt(detail);
     const raw = await provider.generate(
@@ -142,8 +141,6 @@ export class EditGenerationService {
     detail: CollectBoxDetailDto,
     output: AiEditOutput,
   ): EditDraft {
-    const info = detail.siteCollectItemInfo;
-    const skuMap = info.skuMap ?? {};
     const skus: SkuEditField[] = output.skus.map((sku) => ({
       skuKey: sku.skuKey,
       name: {

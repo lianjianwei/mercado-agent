@@ -43,8 +43,6 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   // a product. The two views compare the miaoshou snapshot with the draft.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError('');
     void Promise.all([api.draft(product.id), loadDetail(product.id)])
       .then(([existing, loadedDetail]) => {
         if (cancelled) return;

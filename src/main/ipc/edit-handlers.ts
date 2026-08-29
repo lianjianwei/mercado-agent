@@ -6,6 +6,7 @@ import type { ProductSnapshotRepository } from '../../domain/product';
 import { DIMENSION_UNIT, WEIGHT_UNIT, type EditDraft } from '../../domain/edit';
 import { editDraftSchema } from '../../shared/edit-output-schema';
 import type { EditGenerationService } from '../services/edit-generation-service';
+import type { NetProfitCalculator } from '../services/net-profit-calculator';
 
 const productIdSchema = z.strictObject({ productId: z.string().min(1) });
 
@@ -17,6 +18,7 @@ const saveDraftSchema = z.strictObject({
 type EditHandlerDependencies = {
   snapshots: Pick<ProductSnapshotRepository, 'listForProduct' | 'append'>;
   service: Pick<EditGenerationService, 'generate'>;
+  netProfit: Pick<NetProfitCalculator, 'computeForDraft'>;
 };
 
 // The aiDraft snapshot is the second of the product's two snapshots: it
@@ -61,6 +63,10 @@ function normalizeDraft(draft: EditDraft): EditDraft {
     // Brand is a fixed constant (Generic); drafts saved before it became
     // fixed carry source 'ai' and would mislabel it as AI-generated.
     brand: { value: 'Generic', source: 'fixed', confidence: 1 },
+    // Drafts saved before net-profit computation carry no publish sites /
+    // price maps; default them so the renderer never reads undefined.
+    sites: draft.sites ?? [],
+    siteAndPriceMap: draft.siteAndPriceMap ?? {},
     skus: (legacy.skus ?? []).map((sku) => ({
       ...sku,
       // Old drafts stored only skuKey + name (no per-SKU stock/sourcePrice/
@@ -69,6 +75,8 @@ function normalizeDraft(draft: EditDraft): EditDraft {
       stock: sku.stock ?? emptyField,
       sourcePrice: sku.sourcePrice ?? emptyField,
       package: normalizePackage(sku.package),
+      siteAndPriceMap: sku.siteAndPriceMap ?? {},
+      siteAndListingTypeInfoMap: sku.siteAndListingTypeInfoMap ?? {},
     })),
   };
 }
@@ -130,9 +138,10 @@ export function registerEditHandlers(
   registrar.handle(IPC_CHANNELS.editSaveDraft, async (_event, payload) => {
     try {
       const { productId, draft } = saveDraftSchema.parse(payload);
+      const recomputed = dependencies.netProfit.computeForDraft(draft);
       const saved = {
-        ...draft,
-        version: nextVersion(dependencies.snapshots, productId, draft),
+        ...recomputed,
+        version: nextVersion(dependencies.snapshots, productId, recomputed),
       };
       appendDraft(dependencies.snapshots, productId, saved);
       return { ok: true, data: saved };

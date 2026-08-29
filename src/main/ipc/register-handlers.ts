@@ -26,6 +26,7 @@ import type { ModelProxyService } from '../services/model-proxy-service';
 import type { ProductSyncService } from '../services/product-sync-service';
 import type { InfringementService } from '../services/infringement-service';
 import type { EditGenerationService } from '../services/edit-generation-service';
+import type { NetProfitCalculator } from '../services/net-profit-calculator';
 import type { DiagnosticSnapshot } from '../../shared/ipc-contract';
 
 type HandlerDependencies = {
@@ -41,6 +42,7 @@ type HandlerDependencies = {
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;
   editService: EditGenerationService;
+  netProfitCalculator: Pick<NetProfitCalculator, 'computeForDraft'>;
   netProfitSettings: NetProfitSettingsRepository;
   fxRates: FxRateRepository;
   refreshRates: () => Promise<FxRates>;
@@ -73,6 +75,7 @@ export function registerHandlers(
   registerEditHandlers(registrar, {
     snapshots: dependencies.snapshots,
     service: dependencies.editService,
+    netProfit: dependencies.netProfitCalculator,
   });
   registerNetProfitHandlers(registrar, {
     settings: dependencies.netProfitSettings,

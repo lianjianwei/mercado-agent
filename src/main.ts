@@ -23,6 +23,7 @@ import { SqliteInfringementRepository } from './main/repositories/infringement-r
 import { InfringementService } from './main/services/infringement-service';
 import { InfringementEngine } from './main/risk/infringement-engine';
 import { EditGenerationService } from './main/services/edit-generation-service';
+import { NetProfitCalculator } from './main/services/net-profit-calculator';
 import { FxRateService } from './main/services/fx-rate-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
 import type { TextModelProvider } from './domain/providers';
@@ -75,7 +76,8 @@ app.whenReady().then(async () => {
   const appSettings = new SqliteAppSettingsRepository(appDatabase);
   const fxRateRepository = new SqliteFxRateRepository(appDatabase);
   const fxRateService = new FxRateService(fxRateRepository);
-  void fxRateService.refresh().catch(() => {});
+  void fxRateService.refresh().catch(() => { /* 离线时用缓存/默认 */ });
+  const netProfitCalculator = new NetProfitCalculator(appSettings, fxRateRepository);
   const modelSession = createElectronModelSession();
   const modelProxy = new ModelProxyService(appSettings, modelSession);
   await modelProxy.initialize();
@@ -137,6 +139,7 @@ app.whenReady().then(async () => {
       }
       return provider;
     },
+    { netProfit: netProfitCalculator },
   );
   registerHandlers(
     {
@@ -153,6 +156,7 @@ app.whenReady().then(async () => {
       infringementRepository,
       infringementService,
       editService,
+      netProfitCalculator,
       netProfitSettings: appSettings,
       fxRates: fxRateRepository,
       refreshRates: () => fxRateService.refresh(),

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EditDraft } from '../../src/domain/edit';
 import {
-  DEFAULT_FX_RATES,
   DEFAULT_NET_PROFIT_CONFIG,
   type FxRateRepository,
   type FxRates,
@@ -47,6 +46,8 @@ function sku(skuKey: string, sourcePrice: string, weight: string, dims: [string,
       weight: { value: weight, source: 'ai', confidence: 0.8 },
       weightUnit: 'g',
     },
+    siteAndPriceMap: {},
+    siteAndListingTypeInfoMap: {},
   };
 }
 

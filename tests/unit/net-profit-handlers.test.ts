@@ -8,8 +8,6 @@ import { registerNetProfitHandlers } from '../../src/main/ipc/net-profit-handler
 import {
   DEFAULT_FX_RATES,
   DEFAULT_NET_PROFIT_CONFIG,
-  type FxRateRepository,
-  type NetProfitSettingsRepository,
 } from '../../src/domain/net-profit';
 
 function registrarOf(): { registrar: IpcRegistrar; handlers: Map<string, IpcListener> } {
@@ -51,6 +49,24 @@ describe('net-profit handlers', () => {
 
     expect(save).toHaveBeenCalledWith(next);
     expect(result).toEqual({ ok: true, data: next });
+  });
+
+  it('rejects an invalid config with VALIDATION_ERROR', async () => {
+    const { registrar, handlers } = registrarOf();
+    const save = vi.fn();
+    registerNetProfitHandlers(registrar, {
+      settings: { getNetProfitConfig: () => DEFAULT_NET_PROFIT_CONFIG, saveNetProfitConfig: save },
+      fxRates: { getFxRates: () => ({ ...DEFAULT_FX_RATES }), saveFxRates: vi.fn() },
+      refreshRates: vi.fn(),
+    });
+
+    const result = await handlers.get(IPC_CHANNELS.netProfitSaveConfig)!(
+      {},
+      { config: { ...DEFAULT_NET_PROFIT_CONFIG, targetMargin: -1 } },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'VALIDATION_ERROR', message: '净收益配置无效' } });
+    expect(save).not.toHaveBeenCalled();
   });
 
   it('refreshes rates through the injected function', async () => {

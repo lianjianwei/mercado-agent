@@ -3,9 +3,21 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ProductSnapshotRepository } from '../../src/domain/product';
 import type { TextModelProvider } from '../../src/domain/providers';
 import { EditGenerationService } from '../../src/main/services/edit-generation-service';
+import { NetProfitCalculator } from '../../src/main/services/net-profit-calculator';
 import { ModelStructuredOutputError } from '../../src/main/providers/openai-compatible-text-provider';
 import type { CollectBoxDetailDto } from '../../src/shared/miaoshou-schemas';
 import type { AiEditOutput } from '../../src/shared/edit-output-schema';
+import {
+  DEFAULT_FX_RATES,
+  DEFAULT_NET_PROFIT_CONFIG,
+  type FxRateRepository,
+  type NetProfitSettingsRepository,
+} from '../../src/domain/net-profit';
+
+const realCalculator = new NetProfitCalculator(
+  { getNetProfitConfig: () => DEFAULT_NET_PROFIT_CONFIG, saveNetProfitConfig: vi.fn() } as NetProfitSettingsRepository,
+  { getFxRates: () => ({ ...DEFAULT_FX_RATES }), saveFxRates: vi.fn() } as FxRateRepository,
+);
 
 function detail(): CollectBoxDetailDto {
   return {
@@ -144,6 +156,8 @@ describe('EditGenerationService', () => {
       description: { value: 'Muele café en grano con muela de cerámica ajustable.', source: 'ai', confidence: 0.88 },
       brand: { value: 'Generic', source: 'fixed', confidence: 1 },
       model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+      sites: [],
+      siteAndPriceMap: {},
       skus: [
         {
           skuKey: ';white;',
@@ -158,6 +172,8 @@ describe('EditGenerationService', () => {
             weight: { value: '500', source: 'ai', confidence: 0.8 },
             weightUnit: 'g',
           },
+          siteAndPriceMap: {},
+          siteAndListingTypeInfoMap: {},
         },
         {
           skuKey: ';black;',
@@ -172,9 +188,41 @@ describe('EditGenerationService', () => {
             weight: { value: '500', source: 'ai', confidence: 0.8 },
             weightUnit: 'g',
           },
+          siteAndPriceMap: {},
+          siteAndListingTypeInfoMap: {},
         },
       ],
     });
+  });
+
+  it('computes net profit on the generated draft when a calculator is wired', async () => {
+    const withSitesDetail: CollectBoxDetailDto = {
+      siteCollectItemInfo: {
+        ...detail().siteCollectItemInfo,
+        sites: ['MX(Up)', 'AR(Up)'],
+      },
+    };
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(withSitesDetail),
+      () => provider,
+      { now: () => '2026-08-28T01:00:00.000Z', netProfit: realCalculator },
+    );
+
+    const draft = await service.generate('90001');
+
+    expect(draft.sites).toEqual(['MX(Up)', 'AR(Up)']);
+    // 66 元 / 500g → 铂金;MX 与 AR 均有净收益。
+    expect(draft.skus[0].siteAndPriceMap['MX(Up)']).toBeTruthy();
+    expect(draft.skus[0].siteAndListingTypeInfoMap.MX).toEqual({ listingType: 'gold_pro' });
+    expect(draft.skus[0].siteAndListingTypeInfoMap.AR).toEqual({ listingType: 'gold_special' });
+    // The top-level product map is the global net profit (max across every
+    // SKU × site), applied uniformly to each publish site.
+    const globalMax = draft.skus
+      .flatMap((sku) => Object.values(sku.siteAndPriceMap))
+      .reduce((a, b) => (Number(a) > Number(b) ? a : b));
+    expect(Object.values(draft.siteAndPriceMap ?? {})).toEqual([globalMax, globalMax]);
   });
 
   it('sends the product images selected from the skuMap to the model', async () => {

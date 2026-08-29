@@ -69,6 +69,7 @@ function draft(): EditDraft {
     description: { value: 'Muele café en grano.', source: 'ai', confidence: 0.88 },
     brand: { value: 'Generic', source: 'fixed', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+    siteAndPriceMap: {},
     skus: [
       {
         skuKey: ';white;',
@@ -83,6 +84,8 @@ function draft(): EditDraft {
           weight: { value: '500', source: 'ai', confidence: 0.8 },
           weightUnit: 'g',
         },
+        siteAndPriceMap: {},
+        siteAndListingTypeInfoMap: {},
       },
     ],
   };

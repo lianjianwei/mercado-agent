@@ -16,6 +16,7 @@ import {
 } from '../../shared/edit-output-schema';
 import type { CollectBoxDetailDto } from '../../shared/miaoshou-schemas';
 import type { TextModelProvider } from '../../domain/providers';
+import type { NetProfitCalculator } from './net-profit-calculator';
 import { ModelStructuredOutputError } from '../providers/openai-compatible-text-provider';
 import { selectModelImages } from '../risk/risk-relevant-mapper';
 
@@ -35,6 +36,7 @@ import { selectModelImages } from '../risk/risk-relevant-mapper';
 
 export type EditGenerationServiceOptions = {
   now?: () => string;
+  netProfit?: Pick<NetProfitCalculator, 'computeForDraft'>;
 };
 
 // Brand is always Generic — it is never AI-generated. A missing/empty model
@@ -56,6 +58,7 @@ type DraftSku = {
 
 export class EditGenerationService {
   private readonly now: () => string;
+  private readonly netProfit?: Pick<NetProfitCalculator, 'computeForDraft'>;
 
   constructor(
     private readonly products: Pick<ProductRepository, 'getById'>,
@@ -64,6 +67,7 @@ export class EditGenerationService {
     options: EditGenerationServiceOptions = {},
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
+    this.netProfit = options.netProfit;
   }
 
   async generate(
@@ -82,7 +86,9 @@ export class EditGenerationService {
     if (!parsed.success) {
       throw new ModelStructuredOutputError('模型结构化输出不符合编辑草稿 schema。');
     }
-    return this.toDraft(detail, parsed.data, skus);
+    const draft = this.toDraft(detail, parsed.data, skus);
+    const withSites = { ...draft, sites: detail.siteCollectItemInfo.sites ?? [] };
+    return this.netProfit ? this.netProfit.computeForDraft(withSites) : withSites;
   }
 
   private latestDetail(productId: string): CollectBoxDetailDto {
@@ -264,6 +270,10 @@ export class EditGenerationService {
         package: modelSku
           ? this.skuPackage(modelSku.package)
           : this.originalPackage(original),
+        // Net-profit maps are filled by NetProfitCalculator after generation;
+        // until then they are empty so the draft shape is always complete.
+        siteAndPriceMap: {},
+        siteAndListingTypeInfoMap: {},
       };
     });
 
@@ -277,6 +287,10 @@ export class EditGenerationService {
       brand: GENERIC_FIELD,
       // A missing/empty model falls back to Generic instead of staying blank.
       model: output.model.value.trim() ? this.aiField(output.model) : GENERIC_FIELD,
+      // Publish sites are attached from the miaoshou detail in generate();
+      // the product-level global net-profit map is filled by the calculator.
+      sites: [],
+      siteAndPriceMap: {},
       skus: skuFields,
     };
   }

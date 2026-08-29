@@ -202,6 +202,7 @@ function editDraft(): EditDraft {
     description: { value: 'Descripción', source: 'ai', confidence: 0.8 },
     brand: { value: 'Generic', source: 'ai', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+    siteAndPriceMap: {},
     skus: [
       {
         skuKey: ';white;',
@@ -216,6 +217,8 @@ function editDraft(): EditDraft {
           weight: { value: '500', source: 'ai', confidence: 0.8 },
           weightUnit: 'g',
         },
+        siteAndPriceMap: {},
+        siteAndListingTypeInfoMap: {},
       },
     ],
   };

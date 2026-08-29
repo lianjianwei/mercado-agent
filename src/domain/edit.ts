@@ -48,10 +48,10 @@ export type SkuEditField = {
   stock: EditField;
   sourcePrice: EditField;
   package: PackageEditField;
-  // 新增(对齐妙手 skuMap[key].siteAndPriceMap / siteAndListingTypeInfoMap)。
-  // Task 8 会把它们变成必填并在生成/保存时写入。
-  siteAndPriceMap?: SkuSiteAndPriceMap;
-  siteAndListingTypeInfoMap?: SkuSiteAndListingTypeInfoMap;
+  // 对齐妙手 skuMap[key].siteAndPriceMap / siteAndListingTypeInfoMap。由
+  // NetProfitCalculator 在生成/保存时写入,始终必填。
+  siteAndPriceMap: SkuSiteAndPriceMap;
+  siteAndListingTypeInfoMap: SkuSiteAndListingTypeInfoMap;
 };
 
 export type EditDraft = {
@@ -61,10 +61,11 @@ export type EditDraft = {
   description: EditField;
   brand: EditField;
   model: EditField;
-  // 新增:发布站点(原始键,如 'MX(Up)')与产品级全球净收益(对齐
-  // siteCollectItemInfo.siteAndPriceMap)。
+  // 发布站点(原始键,如 'MX(Up)'),只有计算器写入时才有意义,保持可选。
   sites?: string[];
-  siteAndPriceMap?: Record<string, string>;
+  // 产品级全球净收益(对齐 siteCollectItemInfo.siteAndPriceMap),由
+  // NetProfitCalculator 写入,始终必填。
+  siteAndPriceMap: Record<string, string>;
   skus: SkuEditField[];
 };
 

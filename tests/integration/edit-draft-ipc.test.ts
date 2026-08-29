@@ -7,6 +7,10 @@ import {
 import { IPC_CHANNELS, type IpcListener } from '../../src/shared/ipc-contract';
 import type { EditDraft } from '../../src/domain/edit';
 
+// A pass-through calculator: these handler tests exercise draft persistence,
+// not net-profit math, so recompute just echoes the draft back.
+const identityCalculator = { computeForDraft: vi.fn((draft: EditDraft) => draft) };
+
 function makeDraft(version: number): EditDraft {
   return {
     version,
@@ -15,6 +19,8 @@ function makeDraft(version: number): EditDraft {
     description: { value: 'Descripción', source: 'ai', confidence: 0.8 },
     brand: { value: 'Generic', source: 'fixed', confidence: 1 },
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
+    sites: [],
+    siteAndPriceMap: {},
     skus: [
       {
         skuKey: ';white;',
@@ -29,6 +35,8 @@ function makeDraft(version: number): EditDraft {
           weight: { value: '500', source: 'ai', confidence: 0.8 },
           weightUnit: 'g',
         },
+        siteAndPriceMap: {},
+        siteAndListingTypeInfoMap: {},
       },
     ],
   };
@@ -64,7 +72,7 @@ describe('edit draft IPC', () => {
     };
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service },
+      { snapshots, service, netProfit: identityCalculator },
     );
 
     await expect(
@@ -87,7 +95,7 @@ describe('edit draft IPC', () => {
     const snapshots = fakeSnapshots();
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() } },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
     );
 
     await expect(
@@ -116,7 +124,7 @@ describe('edit draft IPC', () => {
     ]);
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() } },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
     );
 
     await expect(
@@ -138,7 +146,7 @@ describe('edit draft IPC', () => {
     ]);
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() } },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
     );
 
     const edited = makeDraft(3);
@@ -160,7 +168,7 @@ describe('edit draft IPC', () => {
     const snapshots = fakeSnapshots();
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() } },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
     );
 
     await expect(

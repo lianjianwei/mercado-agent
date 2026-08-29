@@ -68,13 +68,13 @@ export class ImageGenerationService {
       const ref = sku.imageUrls[0];
       if (!ref) continue;
       const prompt = buildMainImagePrompt({ title, description, category: detail.category ?? '' });
-      mainImages.push(await this.generateOne({ provider, reviser, prompt, refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId }));
+      mainImages.push(await this.generateOne({ provider, reviser, prompt, refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description }));
     }
 
     const detailImages: GeneratedImage[] = [];
     for (const item of plan) {
       const prompt = buildDetailImagePrompt(item, title);
-      detailImages.push(await this.generateOne({ provider, reviser, prompt, refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId }));
+      detailImages.push(await this.generateOne({ provider, reviser, prompt, refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description }));
     }
 
     const failed = [...mainImages, ...detailImages].filter((i) => i.status === 'failed');
@@ -90,24 +90,28 @@ export class ImageGenerationService {
   private async generateOne(args: {
     provider: ImageModelProvider; reviser: ImageReviser; prompt: string; refs: string[];
     kind: 'main' | 'detail'; skuKey?: string; detail?: GeneratedImage['detail']; productId: string;
+    title: string; description: string;
   }): Promise<GeneratedImage> {
     const imageId = randomUUID();
     let attempts = 1;
     let render: ImageResult = { url: '' };
+    // 自检必须能看到图:OpenAI 默认只回 base64(url 为空),用 data URL 喂给视觉自检。
+    const reviewImageUrl = () =>
+      render.url || (render.dataBase64 ? `data:image/png;base64,${render.dataBase64}` : '');
     try {
       const result = await args.provider.generate({ prompt: args.prompt, referenceImageUrls: args.refs }, new AbortController().signal);
       render = result[0] ?? { url: '' };
     } catch {
       return { imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath: '', plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt, attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString() };
     }
-    let review = await args.reviser.review({ imageUrl: render.url || '', context: { title: '', description: '', kind: args.kind } });
+    let review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
     while (shouldRegenerate(review) && attempts < 3) {
       attempts += 1;
       try {
         const result = await args.provider.generate({ prompt: `${args.prompt}\n（上一版未过质检：${review.issues.join('；')} 请修改后重出。）`, referenceImageUrls: args.refs }, new AbortController().signal);
         render = result[0] ?? render;
       } catch { break; }
-      review = await args.reviser.review({ imageUrl: render.url || '', context: { title: '', description: '', kind: args.kind } });
+      review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
     }
     const localPath = render.dataBase64 || render.url ? await saveImageBytes(this.deps.imagesDir, args.productId, imageId, render) : '';
     return {

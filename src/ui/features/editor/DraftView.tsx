@@ -31,6 +31,7 @@ type DraftViewProps = {
   onSave: () => void;
   generating: boolean;
   generatingImages: boolean;
+  imageError: string;
   imageResult: AiImagesResult | null;
   saving: boolean;
 };
@@ -111,13 +112,16 @@ function toViewModel(
 }
 
 // 图片生成进度区:主图 + 详情图缩略图,带生成状态。生成后可重试。
+// error 就地展示(不与弹窗后方的 page-error 横幅混淆),方便排查接口返回的错误。
 function ImageProgress({
   result,
   generating,
+  error,
   onRetry,
 }: {
   result: AiImagesResult | null;
   generating: boolean;
+  error: string;
   onRetry: () => void;
 }) {
   const images = result ? [...result.mainImages, ...result.detailImages] : [];
@@ -125,7 +129,10 @@ function ImageProgress({
     <section className="image-progress">
       <h3>图片生成</h3>
       {generating && <p className="image-progress-line">图片生成中…</p>}
-      {!generating && images.length === 0 && <p className="empty-risk">暂无生成图片。</p>}
+      {!generating && images.length === 0 && !error && (
+        <p className="empty-risk">暂无生成图片。</p>
+      )}
+      {error && <p className="image-progress-error">{error}</p>}
       {images.length > 0 && (
         <div className="image-progress-grid">
           {images.map((image) => (
@@ -167,6 +174,7 @@ export function DraftView({
   onSave,
   generating,
   generatingImages,
+  imageError,
   imageResult,
   saving,
 }: DraftViewProps) {
@@ -180,7 +188,7 @@ export function DraftView({
     <div className="edit-draft-view" aria-label="AI 编辑详情">
       <DetailPreview vm={vm} />
 
-      <ImageProgress result={imageResult} generating={generatingImages} onRetry={onRetryImages} />
+      <ImageProgress error={imageError} result={imageResult} generating={generatingImages} onRetry={onRetryImages} />
 
       <div className="edit-actions">
         <button

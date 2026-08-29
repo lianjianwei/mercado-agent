@@ -102,7 +102,7 @@ describe('infringement run history', () => {
       secondConnection
         .prepare('SELECT COUNT(*) AS count FROM schema_migrations')
         .get(),
-    ).toEqual({ count: 6 });
+    ).toEqual({ count: 7 });
   });
 
   it('assigns V1 then V2 when the risk fingerprint changes, preserving the old run', async () => {

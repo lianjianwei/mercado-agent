@@ -23,6 +23,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [generating, setGenerating] = useState(false);
   const [generatingImages, setGeneratingImages] = useState(false);
   const [imageResult, setImageResult] = useState<AiImagesResult | null>(null);
+  const [imageError, setImageError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -67,12 +68,13 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   async function runGenerateImages() {
     if (!product) return;
     setGeneratingImages(true);
-    setError('');
+    setImageError('');
     try {
       const result = await api.images.generateImages(product.id);
       setImageResult(result);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '图片生成失败。');
+      // 独立于共享 error 横幅(在弹窗内会被遮住):在「图片生成」区就地展示。
+      setImageError(reason instanceof Error ? reason.message : '图片生成失败。');
     } finally {
       setGeneratingImages(false);
     }
@@ -200,6 +202,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
           draft={draft}
           generating={generating}
           generatingImages={generatingImages}
+          imageError={imageError}
           imageResult={imageResult}
           onGenerate={() => void runGenerate()}
           onRetryImages={() => void runGenerateImages()}

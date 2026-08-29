@@ -1508,6 +1508,17 @@
   font-size: 13px;
 }
 
+.image-progress-error {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #991b1b;
+  background: #fee2e2;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+}
+
 .image-progress-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));

@@ -6,6 +6,7 @@ import infringementMigration from './migrations/003_infringement.sql?raw';
 import productsColumnsMigration from './migrations/004_products_columns.sql?raw';
 import localPublishStateMigration from './migrations/005_local_publish_state.sql?raw';
 import fxRatesMigration from './migrations/006_fx_rates.sql?raw';
+import aiImagesKindMigration from './migrations/007_ai_images_kind.sql?raw';
 
 type Migration = {
   version: number;
@@ -43,6 +44,11 @@ const migrations: Migration[] = [
     version: 6,
     name: 'fx_rates',
     sql: fxRatesMigration,
+  },
+  {
+    version: 7,
+    name: 'ai_images_kind',
+    sql: aiImagesKindMigration,
   },
 ];
 

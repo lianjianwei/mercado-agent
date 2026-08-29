@@ -149,10 +149,10 @@ app.whenReady().then(async () => {
   const imageService = new ImageGenerationService({
     // 与 product-handlers 的 productDetail 同款取数:product + 最新 miaoshou 快照。
     readDetail: (productId: string) => {
-      const product = products.getById(productId);
       const latest = [...snapshots.listForProduct(productId)].reverse()
         .find((s) => s.kind === 'miaoshou')?.payload as CollectBoxDetailDto | undefined;
-      return productDetailFromSources(product, latest);
+      if (!latest) return null;
+      return productDetailFromSources(products.getById(productId), latest);
     },
     readDraft: (productId) => readLatestDraft(snapshots, productId),
     imageProvider: () => providerRegistry.createActive('image') as ImageModelProvider,

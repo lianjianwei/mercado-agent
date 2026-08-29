@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import type { ProductDetail } from '../../domain/product';
 import type { EditDraft } from '../../domain/edit';
 import type { GeneratedImage, AiImagesResult, DetailPlanItem } from '../../domain/images';
+import type { ImageReview } from '../../shared/image-schemas';
 import type { ImageModelProvider, ImageResult, TextModelProvider } from '../../domain/providers';
 import { ImagePlanner } from './image-planner';
 import { ImageReviser, shouldRegenerate } from './image-reviser';
@@ -98,22 +99,39 @@ export class ImageGenerationService {
     // 自检必须能看到图:OpenAI 默认只回 base64(url 为空),用 data URL 喂给视觉自检。
     const reviewImageUrl = () =>
       render.url || (render.dataBase64 ? `data:image/png;base64,${render.dataBase64}` : '');
+    let review: ImageReview = { ok: true, issues: [] };
     try {
       const result = await args.provider.generate({ prompt: args.prompt, referenceImageUrls: args.refs }, new AbortController().signal);
       render = result[0] ?? { url: '' };
+      if (!render.dataBase64 && !render.url) {
+        return { imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath: '', plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt, attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString() };
+      }
     } catch {
       return { imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath: '', plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt, attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString() };
     }
-    let review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
+    try {
+      review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
+    } catch {
+      review = { ok: true, issues: ['自检服务异常，未验证'] };
+    }
     while (shouldRegenerate(review) && attempts < 3) {
       attempts += 1;
       try {
         const result = await args.provider.generate({ prompt: `${args.prompt}\n（上一版未过质检：${review.issues.join('；')} 请修改后重出。）`, referenceImageUrls: args.refs }, new AbortController().signal);
         render = result[0] ?? render;
       } catch { break; }
-      review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
+      try {
+        review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
+      } catch {
+        review = { ok: true, issues: ['自检服务异常，未验证'] };
+      }
     }
-    const localPath = render.dataBase64 || render.url ? await saveImageBytes(this.deps.imagesDir, args.productId, imageId, render) : '';
+    let localPath = '';
+    try {
+      localPath = await saveImageBytes(this.deps.imagesDir, args.productId, imageId, render);
+    } catch {
+      localPath = '';
+    }
     return {
       imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath,
       plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt,

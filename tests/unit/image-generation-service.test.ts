@@ -46,4 +46,47 @@ describe('ImageGenerationService', () => {
     expect(result.mainImages[0].plannedPath).toMatch(/^mercado\/p1\/.+\.png$/);
     expect(result.mainImages[0].localPath.endsWith('.png')).toBe(true);
   });
+
+  it('isolates a self-check failure and still appends a snapshot', async () => {
+    const appendImages = vi.fn();
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn(async () => [{ url: '', dataBase64: 'AAAA' }]) } as unknown as ImageModelProvider;
+    const textProvider = {
+      testConnection: vi.fn(),
+      // 自检分支(提示词含「质检」)直接抛出,模拟自检服务不可用;规划分支仍返回 plans。
+      generate: vi.fn(async (request: { prompt?: string }) => {
+        if (String(request.prompt ?? '').includes('质检')) throw new Error('自检服务异常');
+        return { plans: [{ id: 'd1', kind: '功能图', subject: 's', textEs: '', textPt: '', hasPerson: false, referenceNote: '' }] };
+      }),
+    } as unknown as TextModelProvider;
+    const service = new ImageGenerationService({
+      readDetail: () => detail,
+      readDraft: () => draft,
+      imageProvider: () => imageProvider,
+      textProvider: () => textProvider,
+      appendImages,
+      imagesDir: '/tmp/imgs',
+      now: () => '2026-08-29T00:00:00.000Z',
+    });
+    const result = await service.generate('p1');
+    expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
+    expect(result.status).toBe('done');
+    // 自检被跳过,但仍保存图片(状态 ok)。
+    expect(result.mainImages[0].status).toBe('ok');
+    expect(result.mainImages[0].localPath).toMatch(/\/tmp\/imgs\/p1\/.+\.png$/);
+  });
+
+  it('throws when there is no miaoshou detail', async () => {
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn() } as unknown as ImageModelProvider;
+    const textProvider = { testConnection: vi.fn(), generate: vi.fn() } as unknown as TextModelProvider;
+    const service = new ImageGenerationService({
+      readDetail: () => null,
+      readDraft: () => null,
+      imageProvider: () => imageProvider,
+      textProvider: () => textProvider,
+      appendImages: vi.fn(),
+      imagesDir: '/tmp/imgs',
+      now: () => '2026-08-29T00:00:00.000Z',
+    });
+    await expect(service.generate('p1')).rejects.toThrow(/暂无|无法生图/);
+  });
 });

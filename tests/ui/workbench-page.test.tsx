@@ -348,26 +348,6 @@ describe('WorkbenchPage', () => {
     expect(await screen.findByText(/发布功能将在后续阶段实现/)).toBeTruthy();
   });
 
-  it('opens the detail modal and shows title, description and SKUs', async () => {
-    const user = userEvent.setup();
-    const fake = createApi();
-    render(<WorkbenchPage api={fake.api} />);
-
-    const row = await screen.findByRole('row', { name: /Stainless Coffee Grinder/ });
-    await user.click(within(row).getByRole('button', { name: '详情' }));
-
-    expect(fake.detail).toHaveBeenCalledWith('detail-1');
-    expect(await screen.findByRole('dialog', { name: '商品详情' })).toBeTruthy();
-    expect(await screen.findByText(/一体式陶瓷磨芯，粗细可调/)).toBeTruthy();
-    expect(screen.getByText('白色')).toBeTruthy();
-    expect(screen.getByText('黑色')).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: '关闭' }));
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: '商品详情' })).toBeNull();
-    });
-  });
-
   it('shows per-product synchronization failures and the elapsed time', async () => {
     const user = userEvent.setup();
     const summary: ProductSyncSummary = {

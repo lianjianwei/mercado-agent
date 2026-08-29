@@ -10,7 +10,6 @@ import type {
 import type { InfringementRun } from '../../domain/infringement';
 import type { EditApi, InfringementApi, NetProfitApi, ProductApi } from '../../shared/ipc-contract';
 import { DEFAULT_FX_RATES, DEFAULT_NET_PROFIT_CONFIG } from '../../domain/net-profit';
-import { ProductDetailModal } from '../components/ProductDetailModal';
 import { EditDraftModal } from '../features/editor/EditDraftModal';
 import { NetProfitConfigModal } from '../features/netprofit/NetProfitConfigModal';
 import {
@@ -236,7 +235,6 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const [syncingOneId, setSyncingOneId] = useState<string | null>(null);
   const [syncOneMessage, setSyncOneMessage] = useState('');
   const [rightTab, setRightTab] = useState<RightTab>('quick');
-  const [detailProductId, setDetailProductId] = useState<string | null>(null);
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
   const [riskByProduct, setRiskByProduct] = useState<
     Record<string, InfringementRun | null>
@@ -265,11 +263,6 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const selectedProduct = useMemo(
     () => page?.items.find((item) => item.id === selectedId) ?? page?.items[0] ?? null,
     [page, selectedId],
-  );
-
-  const detailProduct = useMemo(
-    () => page?.items.find((item) => item.id === detailProductId) ?? null,
-    [page, detailProductId],
   );
 
   const editDraftProduct = useMemo(
@@ -778,16 +771,6 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
                         <td>
                           <div className="row-actions">
                             <button
-                              className="row-action-button view"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setDetailProductId(product.id);
-                              }}
-                              type="button"
-                            >
-                              详情
-                            </button>
-                            <button
                               className="row-action-button"
                               disabled={syncingOneId === product.id}
                               onClick={(event) => {
@@ -942,14 +925,6 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
         logs={logLines}
         onSelectTab={setActiveLogTab}
       />
-
-      {detailProduct && (
-        <ProductDetailModal
-          api={productApi}
-          onClose={() => setDetailProductId(null)}
-          product={detailProduct}
-        />
-      )}
 
       {editDraftProduct && (
         <EditDraftModal

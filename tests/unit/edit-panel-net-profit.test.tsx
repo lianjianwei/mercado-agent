@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditPanel } from '../../src/ui/features/editor/EditPanel';
 import type { EditDraft } from '../../src/domain/edit';
@@ -77,14 +77,16 @@ describe('EditPanel net profit display', () => {
     // 草稿存在 → 出现「AI 编辑详情」页签
     fireEvent.click(await screen.findByText('AI 编辑详情'));
 
-    expect(screen.getByText('全球净收益')).toBeTruthy();
-    // 全球净收益区块渲染为 $<值> USD 完整字符串
-    expect(screen.getByText('$11.5 USD')).toBeTruthy();
-    expect(screen.getByText('$11.5')).toBeTruthy();
-    // 站点行:墨西哥(铂金, 9)+ 阿根廷(经典, 11.5)
-    expect(screen.getByText('墨西哥')).toBeTruthy();
-    expect(screen.getByText('阿根廷')).toBeTruthy();
-    expect(screen.getByText('铂金')).toBeTruthy();
-    expect(screen.getByText('经典')).toBeTruthy();
+    // 全球净收益:数值框 + 币种框并排。
+    const globalSection = screen.getByText('全球净收益').closest('section')!;
+    expect(within(globalSection).getByText('11.5')).toBeTruthy();
+    expect(within(globalSection).getByText('USD')).toBeTruthy();
+    // 站点净收益矩阵:列 = 站点(墨西哥/阿根廷),单元格 = 净收益 + 产品类型。
+    const siteSection = screen.getByText('站点净收益 (USD)').closest('section')!;
+    expect(within(siteSection).getByText('墨西哥')).toBeTruthy();
+    expect(within(siteSection).getByText('阿根廷')).toBeTruthy();
+    expect(within(siteSection).getByText('铂金')).toBeTruthy();
+    expect(within(siteSection).getByText('经典')).toBeTruthy();
+    expect(within(siteSection).getByText('9')).toBeTruthy();
   });
 });

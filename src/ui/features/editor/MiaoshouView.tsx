@@ -6,7 +6,7 @@
 import type { ProductDetail } from '../../../domain/product';
 import {
   DetailPreview,
-  buildSiteNetProfitRows,
+  buildSiteNetProfit,
   fieldLine,
   type PreviewField,
   type PreviewGlobalNetProfit,
@@ -60,7 +60,7 @@ function toViewModel(detail: ProductDetail): PreviewViewModel {
       { label: '型号', field: readonly(detail.model) },
     ],
     skus,
-    siteNetProfitRows: buildSiteNetProfitRows(skus, siteAndPriceMaps, listingTypeMaps, {
+    siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps, {
       siteAndPriceMap: detail.siteAndPriceMap,
       listingTypeBySite: detail.listingTypeBySite,
     }),

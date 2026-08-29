@@ -8,7 +8,7 @@ import type { EditDraft, EditField } from '../../../domain/edit';
 import type { ProductDetail } from '../../../domain/product';
 import {
   DetailPreview,
-  buildSiteNetProfitRows,
+  buildSiteNetProfit,
   deriveGlobalNetProfit,
   fieldLine,
   type PreviewField,
@@ -99,7 +99,7 @@ function toViewModel(
       { label: '型号', field: editable(draft.model, (value) => handlers.onUpdateField('model', value)) },
     ],
     skus,
-    siteNetProfitRows: buildSiteNetProfitRows(skus, siteAndPriceMaps, listingTypeMaps),
+    siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps),
     globalNetProfit,
   };
 }

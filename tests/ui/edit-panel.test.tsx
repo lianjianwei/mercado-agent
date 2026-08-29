@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -123,9 +123,10 @@ describe('EditPanel', () => {
 
   it('shows the product-level global net profit in the Miaoshou view', async () => {
     renderPanel();
-    // 妙手产品级 netProfit 每个产品都有,应显示为全球净收益。
-    expect(await screen.findByText('全球净收益')).toBeTruthy();
-    expect(screen.getByText('$52.40 USD')).toBeTruthy();
+    // 妙手产品级 netProfit 每个产品都有,应显示为全球净收益(数值框 + 币种框)。
+    const globalSection = (await screen.findByText('全球净收益')).closest('section')!;
+    expect(within(globalSection).getByText('52.40')).toBeTruthy();
+    expect(within(globalSection).getByText('USD')).toBeTruthy();
   });
 
   it('shows the Miaoshou site net profit rows with type from the product level', async () => {
@@ -151,11 +152,11 @@ describe('EditPanel', () => {
       />,
     );
 
-    // 站点净收益表:类型取自产品级(铂金)与默认(经典),净值取自产品级价。
+    // 站点净收益矩阵:类型取自产品级(铂金)与默认(经典),净值取自产品级价。
     expect(await screen.findByText('铂金')).toBeTruthy();
     expect(screen.getByText('经典')).toBeTruthy();
-    expect(screen.getByText('$11.5')).toBeTruthy();
-    expect(screen.getByText('$9')).toBeTruthy();
+    expect(screen.getByText('11.5')).toBeTruthy();
+    expect(screen.getByText('9')).toBeTruthy();
   });
 
   it('shows every SKU with name, stock, source price, dimensions and weight in the Miaoshou view', async () => {

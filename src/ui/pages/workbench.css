@@ -988,20 +988,26 @@
   font-weight: 600;
 }
 
+/* 全球净收益:数值框 + 币种框并排(参照妙手)。 */
 .global-net-profit {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
   margin-bottom: 16px;
-}
-
-.global-net-profit label {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--muted);
-  font-weight: 800;
-  font-size: 12.5px;
 }
 
 .global-net-profit .edit-readonly-value {
   font-weight: 700;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.global-net-profit .global-net-profit-unit {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 72px;
+  text-align: center;
+  color: var(--muted);
 }
 
 .edit-unit-display {
@@ -1210,25 +1216,66 @@
   margin-bottom: 0;
 }
 
-/* 站点净收益表。 */
-.net-profit-table {
+/* 站点净收益矩阵:行 = SKU,列 = 站点。外层横向滚动,站点多时不撑破。 */
+.site-net-profit-scroll {
+  overflow-x: auto;
+}
+
+.site-net-profit-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
 }
 
-.net-profit-table th,
-.net-profit-table td {
-  padding: 7px 10px;
+.site-net-profit-table th,
+.site-net-profit-table td {
+  padding: 8px 10px;
   border: 1px solid var(--line);
   text-align: left;
+  vertical-align: top;
 }
 
-.net-profit-table th {
+.site-net-profit-table th {
   color: #496784;
   font-size: 11px;
   font-weight: 800;
   background: #f8fbff;
+  white-space: nowrap;
+}
+
+.sn-site-name {
+  font-weight: 800;
+}
+
+.sn-batch {
+  margin-left: 6px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* 单元格:两行盒(净收益 / 产品类型)。 */
+.site-net-profit-cell {
+  min-width: 150px;
+}
+
+.sn-cell-box {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+
+.sn-cell-box:last-child {
+  margin-bottom: 0;
+}
+
+.sn-cell-label {
+  color: var(--muted);
+  margin-right: 4px;
 }
 
 /* 类目值很长时单行横向滚动,不换行。 */

@@ -43,12 +43,27 @@ export type PreviewAttribute = {
   field: PreviewField;
 };
 
+export type PreviewSiteNetProfitCell = {
+  netProfit: string; // e.g. '15.47'; '' 表示该站点无值
+  listingTypeLabel: string; // '经典' | '铂金'(找不到时回退默认「经典」)
+};
+
 export type PreviewSiteNetProfitRow = {
   skuKey: string;
   skuLabel: string;
-  siteLabel: string;
-  listingTypeLabel: string; // '经典' | '铂金'(找不到时回退默认「经典」)
-  netProfit: string; // e.g. '9'
+  imageUrl: string | null;
+  cells: PreviewSiteNetProfitCell[];
+};
+
+export type PreviewSiteNetProfitColumn = {
+  code: string; // 裸站点码,如 'MX'
+  label: string; // 展示名,如 '墨西哥'
+};
+
+// 站点净收益矩阵:行 = SKU,列 = 站点,单元格 = { 净收益, 产品类型 }。
+export type PreviewSiteNetProfit = {
+  columns: PreviewSiteNetProfitColumn[];
+  rows: PreviewSiteNetProfitRow[];
 };
 
 export type PreviewGlobalNetProfit = { value: string; currency: string };
@@ -59,7 +74,7 @@ export type PreviewViewModel = {
   description: PreviewField;
   attributes: PreviewAttribute[]; // 类目 & 属性
   skus: PreviewSku[]; // SKU 信息
-  siteNetProfitRows: PreviewSiteNetProfitRow[]; // 站点净收益表
+  siteNetProfit: PreviewSiteNetProfit; // 站点净收益矩阵
   globalNetProfit: PreviewGlobalNetProfit | null;
 };
 
@@ -93,7 +108,7 @@ export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
       <AttributesSection attributes={vm.attributes} />
       <SkuSection vm={vm} />
       <GlobalNetProfitSection globalNetProfit={vm.globalNetProfit} />
-      <SiteNetProfitSection rows={vm.siteNetProfitRows} />
+      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} />
       <ImagesSection skus={vm.skus} />
     </div>
   );
@@ -297,7 +312,7 @@ function SkuSection({ vm }: { vm: PreviewViewModel }) {
   );
 }
 
-// 全球净收益独立成一块,置于「站点净收益」上方。
+// 全球净收益独立成一块,置于「站点净收益」上方。数值框 + 币种框并排(参照妙手)。
 function GlobalNetProfitSection({
   globalNetProfit,
 }: {
@@ -308,42 +323,75 @@ function GlobalNetProfitSection({
     <section className="detail-section">
       <h3>全球净收益</h3>
       <div className="global-net-profit">
-        <span className="edit-readonly-value">
-          ${globalNetProfit.value} {globalNetProfit.currency}
+        <span className="edit-readonly-value">{globalNetProfit.value}</span>
+        <span className="edit-readonly-value global-net-profit-unit">
+          {globalNetProfit.currency}
         </span>
       </div>
     </section>
   );
 }
 
-function SiteNetProfitSection({ rows }: { rows: PreviewSiteNetProfitRow[] }) {
+function SiteNetProfitSection({
+  siteNetProfit,
+}: {
+  siteNetProfit: PreviewSiteNetProfit;
+}) {
+  const { columns, rows } = siteNetProfit;
+  if (columns.length === 0 || rows.length === 0) {
+    return (
+      <section className="detail-section">
+        <h3>站点净收益 (USD)</h3>
+        <p className="empty-risk">暂无净收益数据。</p>
+      </section>
+    );
+  }
+  // 参照妙手矩阵:行 = SKU(图片预览 + SKU),列 = 站点,单元格 = { 净收益, 产品类型 }。
   return (
     <section className="detail-section">
-      <h3>站点净收益</h3>
-      {rows.length > 0 ? (
-        <table className="net-profit-table">
+      <h3>站点净收益 (USD)</h3>
+      <div className="site-net-profit-scroll">
+        <table className="site-net-profit-table">
           <thead>
             <tr>
+              <th>图片预览</th>
               <th>SKU</th>
-              <th>站点</th>
-              <th>类型</th>
-              <th>净收益</th>
+              {columns.map((column) => (
+                <th key={column.code}>
+                  <span className="sn-site-name">{column.label}</span>
+                  <span className="sn-batch">批量</span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={`${row.skuKey}-${row.siteLabel}-${index}`}>
+            {rows.map((row) => (
+              <tr key={row.skuKey}>
+                <td>
+                  {row.imageUrl ? (
+                    <img alt="" className="sku-thumb" src={row.imageUrl} />
+                  ) : (
+                    <span className="sku-thumb-placeholder">—</span>
+                  )}
+                </td>
                 <td>{row.skuLabel || row.skuKey}</td>
-                <td>{row.siteLabel}</td>
-                <td>{row.listingTypeLabel}</td>
-                <td>${row.netProfit}</td>
+                {row.cells.map((cell, index) => (
+                  <td key={`${row.skuKey}-${index}`} className="site-net-profit-cell">
+                    <div className="sn-cell-box">
+                      <span className="sn-cell-label">净收益:</span>
+                      {cell.netProfit || '—'}
+                    </div>
+                    <div className="sn-cell-box">
+                      <span className="sn-cell-label">产品类型:</span>
+                      {cell.listingTypeLabel}
+                    </div>
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
-      ) : (
-        <p className="empty-risk">暂无净收益数据。</p>
-      )}
+      </div>
     </section>
   );
 }
@@ -376,11 +424,11 @@ function ImagesSection({ skus }: { skus: PreviewSku[] }) {
   );
 }
 
-// Re-export a small helper for site row building shared by both wrappers.
-// `product` 可选:妙手把站点价/产品类型放在产品级(顶层 siteAndPriceMap /
-// siteAndListingTypeList),per-SKU 可能为空。行取数优先 per-SKU,回退产品级;
+// Build the 站点净收益 matrix (rows = SKU, columns = site) shared by both
+// wrappers. `product` 可选:妙手把站点价/产品类型放在产品级(顶层 siteAndPriceMap /
+// siteAndListingTypeList),per-SKU 可能为空。取数优先 per-SKU,回退产品级;
 // 类型取值:per-SKU → 产品级 → 默认「经典」(妙手默认类型)。
-export function buildSiteNetProfitRows(
+export function buildSiteNetProfit(
   skus: PreviewSku[],
   siteAndPriceMaps: Record<string, string>[],
   siteAndListingTypeInfoMaps: Record<string, { listingType: string }>[],
@@ -388,30 +436,53 @@ export function buildSiteNetProfitRows(
     siteAndPriceMap?: Record<string, string>;
     listingTypeBySite?: Record<string, string>;
   },
-): PreviewSiteNetProfitRow[] {
-  const rows: PreviewSiteNetProfitRow[] = [];
+): PreviewSiteNetProfit {
   const productPriceMap = product?.siteAndPriceMap ?? {};
   const productListingBySite = product?.listingTypeBySite ?? {};
-  skus.forEach((sku, index) => {
-    const perSkuPriceMap = siteAndPriceMaps[index] ?? {};
-    const listingTypeInfoMap = siteAndListingTypeInfoMaps[index] ?? {};
-    // 站点价:per-SKU 有值用它,为空则回退产品级(摊到该 SKU),保证表格非空。
-    const effectivePriceMap =
-      Object.keys(perSkuPriceMap).length > 0 ? perSkuPriceMap : productPriceMap;
-    for (const [siteKey, value] of Object.entries(effectivePriceMap)) {
-      const code = normalizeSiteKey(siteKey);
-      const listingType =
-        listingTypeInfoMap[code]?.listingType
-        ?? productListingBySite[code]
-        ?? 'gold_special';
-      rows.push({
-        skuKey: sku.skuKey,
-        skuLabel: sku.name.value,
-        siteLabel: siteLabel(siteKey),
-        listingTypeLabel: listingTypeLabel(listingType),
-        netProfit: value,
-      });
-    }
+
+  // 每个 SKU 的有效站点价表:per-SKU 有值用它,为空则回退产品级(摊到该 SKU)。
+  const effectiveMaps = skus.map((_, index) => {
+    const perSku = siteAndPriceMaps[index] ?? {};
+    return Object.keys(perSku).length > 0 ? perSku : productPriceMap;
   });
-  return rows;
+
+  // 列 = 所有 SKU 站点码的并集,按首次出现顺序;label 用首个引入该码的站点名。
+  const columns: PreviewSiteNetProfitColumn[] = [];
+  const seen = new Set<string>();
+  for (const map of effectiveMaps) {
+    for (const rawSiteKey of Object.keys(map)) {
+      const code = normalizeSiteKey(rawSiteKey);
+      if (seen.has(code)) continue;
+      seen.add(code);
+      columns.push({ code, label: siteLabel(rawSiteKey) });
+    }
+  }
+
+  const rows: PreviewSiteNetProfitRow[] = skus.map((sku, index) => {
+    const map = effectiveMaps[index] ?? {};
+    const listingTypeInfoMap = siteAndListingTypeInfoMaps[index] ?? {};
+    // 按裸码分桶,便于按列对齐取值。
+    const valueByCode = new Map<string, string>();
+    for (const [rawSiteKey, value] of Object.entries(map)) {
+      valueByCode.set(normalizeSiteKey(rawSiteKey), value);
+    }
+    const cells = columns.map((column) => {
+      const listingType =
+        listingTypeInfoMap[column.code]?.listingType
+        ?? productListingBySite[column.code]
+        ?? 'gold_special';
+      return {
+        netProfit: valueByCode.get(column.code) ?? '',
+        listingTypeLabel: listingTypeLabel(listingType),
+      };
+    });
+    return {
+      skuKey: sku.skuKey,
+      skuLabel: sku.name.value,
+      imageUrl: sku.images[0] ?? null,
+      cells,
+    };
+  });
+
+  return { columns, rows };
 }

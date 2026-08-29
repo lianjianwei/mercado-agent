@@ -66,6 +66,7 @@ function detail(): ProductDetail {
     skuList: [],
     brand: null,
     model: null,
+    siteAndPriceMap: {},
   };
 }
 

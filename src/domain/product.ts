@@ -133,6 +133,12 @@ export type ProductDetailSku = {
   dimensionUnit: string | null;
   weight: string | null;
   weightUnit: string | null;
+  // 站点净收益/产品类型(对齐 skuMap[key].siteAndPriceMap /
+  // siteAndListingTypeInfoMap),与妙手/AI 草稿结构一致,供站点净收益表展示。
+  siteAndPriceMap: Record<string, string>;
+  siteAndListingTypeInfoMap: Record<string, { listingType: string }>;
+  // 该 SKU 的完整主图列表(妙手 skuMap[key].imgUrls);imageUrl 为 imageUrls[0]。
+  imageUrls: string[];
 };
 
 export type ProductDetail = {
@@ -152,4 +158,7 @@ export type ProductDetail = {
   // the AI edit draft generates (brand fixed to Generic, model inferred).
   brand: string | null;
   model: string | null;
+  // 产品级全球净收益(对齐 siteCollectItemInfo.siteAndPriceMap)。妙手原本的值,
+  // 可能为空;AI 草稿则始终用计算器写入的值。
+  siteAndPriceMap: Record<string, string>;
 };

@@ -896,6 +896,8 @@
   font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+  /* 描述换行:保留多行文本的换行;单行值渲染不受影响。 */
+  white-space: pre-wrap;
 }
 
 .edit-package-grid {
@@ -1114,4 +1116,150 @@
   .net-profit-rates-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ---- shared detail preview (妙手详情 & AI 编辑详情) ---- */
+.detail-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.detail-section {
+  display: block;
+}
+
+.detail-section > h3 {
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* 商品属性:类目/品牌/型号 左标签右只读值,复用 edit-draft-field 节奏。 */
+.attr-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.attr-item {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.attr-item label {
+  padding-top: 7px;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+/* SKU 卡顶部:缩略图 + 名称/货源价/库存 三列。 */
+.sku-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.sku-thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.sku-card-fields {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sku-card-fields .edit-draft-field {
+  margin-bottom: 0;
+}
+
+/* 站点净收益表。 */
+.net-profit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.net-profit-table th,
+.net-profit-table td {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.net-profit-table th {
+  color: #496784;
+  font-size: 11px;
+  font-weight: 800;
+  background: #f8fbff;
+}
+
+.edit-global-net-profit label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+.edit-global-net-profit .edit-readonly-value {
+  font-weight: 700;
+}
+
+/* 产品图片:每个 SKU 一段,图网格。 */
+.sku-images {
+  margin-bottom: 14px;
+}
+
+.sku-images-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+}
+
+.product-image-thumb {
+  width: 84px;
+  height: 84px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.attr-value {
+  min-width: 0;
+}
+
+.attr-value .edit-readonly-value {
+  width: auto;
+  min-width: 100%;
+}
+
+.attr-value .edit-source {
+  display: inline-block;
+  margin-top: 4px;
 }

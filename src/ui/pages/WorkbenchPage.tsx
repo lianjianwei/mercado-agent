@@ -143,6 +143,7 @@ const ssrProductApi: ProductApi = {
       skuList: [],
       brand: null,
       model: null,
+      siteAndPriceMap: {},
     };
   },
   async syncDefault() {

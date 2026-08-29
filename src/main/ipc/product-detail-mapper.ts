@@ -10,6 +10,35 @@ function stringValue(value: unknown): string | null {
   return value === undefined || value === null ? null : String(value);
 }
 
+// 妙手 skuMap[key].siteAndPriceMap 的值可能是数字或字符串,统一转成字符串
+// (与草稿 siteAndPriceMap 的字符串格式一致),缺失/异常时返回空对象。
+function recordToStrings(record: unknown): Record<string, string> {
+  if (!record || typeof record !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(record as Record<string, unknown>)) {
+    if (value !== undefined && value !== null) out[key] = String(value);
+  }
+  return out;
+}
+
+// 妙手 skuMap[key].siteAndListingTypeInfoMap 值是 { listingType } 对象;透传
+// 成同结构,仅保留有 listingType 字符串的项。
+function listingTypeMap(
+  record: unknown,
+): Record<string, { listingType: string }> {
+  if (!record || typeof record !== 'object') return {};
+  const out: Record<string, { listingType: string }> = {};
+  for (const [key, value] of Object.entries(record as Record<string, unknown>)) {
+    if (value && typeof value === 'object') {
+      const listingType = (value as { listingType?: unknown }).listingType;
+      if (typeof listingType === 'string' && listingType) {
+        out[key] = { listingType };
+      }
+    }
+  }
+  return out;
+}
+
 // Site codes arrive from the detail API as "BR(Up)"; strip the parenthesized
 // suffix so they match the bare codes the list API and the workbench use.
 function normalizeSites(sites: string[] | undefined): string[] {
@@ -63,25 +92,31 @@ export function productDetailFromSources(
   const info = latest?.siteCollectItemInfo;
   const images = info ? collectImages(info) : [];
   const skuList: ProductDetailSku[] = info
-    ? Object.entries(info.skuMap ?? {}).map(([key, sku]) => ({
-        skuKey: key,
-        name:
-          skuDisplayName(key, info)
-          ?? stringValue(sku?.itemNum)
-          ?? null,
-        imageUrl: Array.isArray(sku?.imgUrls) && sku.imgUrls.length > 0
-          ? String(sku.imgUrls[0])
-          : null,
-        stock: stringValue(sku?.stock),
-        sourcePrice: stringValue(sku?.originPrice),
-        netProfit: null,
-        length: stringValue(sku?.length),
-        width: stringValue(sku?.width),
-        height: stringValue(sku?.height),
-        dimensionUnit: stringValue(sku?.lengthWidthHeightUnit),
-        weight: stringValue(sku?.weight),
-        weightUnit: stringValue(sku?.weightUnit),
-      }))
+    ? Object.entries(info.skuMap ?? {}).map(([key, sku]) => {
+        const imageUrls = Array.isArray(sku?.imgUrls)
+          ? sku.imgUrls.filter((url: unknown): url is string => typeof url === 'string')
+          : [];
+        return {
+          skuKey: key,
+          name:
+            skuDisplayName(key, info)
+            ?? stringValue(sku?.itemNum)
+            ?? null,
+          imageUrl: imageUrls.length > 0 ? imageUrls[0] : null,
+          stock: stringValue(sku?.stock),
+          sourcePrice: stringValue(sku?.originPrice),
+          netProfit: null,
+          length: stringValue(sku?.length),
+          width: stringValue(sku?.width),
+          height: stringValue(sku?.height),
+          dimensionUnit: stringValue(sku?.lengthWidthHeightUnit),
+          weight: stringValue(sku?.weight),
+          weightUnit: stringValue(sku?.weightUnit),
+          siteAndPriceMap: recordToStrings(sku?.siteAndPriceMap),
+          siteAndListingTypeInfoMap: listingTypeMap(sku?.siteAndListingTypeInfoMap),
+          imageUrls,
+        };
+      })
     : [];
 
   const detailSites = info?.sites && info.sites.length > 0
@@ -103,6 +138,9 @@ export function productDetailFromSources(
     skuList,
     brand: brandOf(info),
     model: modelOf(info),
+    siteAndPriceMap: info?.siteAndPriceMap
+      ? recordToStrings(info.siteAndPriceMap)
+      : {},
   };
 }
 

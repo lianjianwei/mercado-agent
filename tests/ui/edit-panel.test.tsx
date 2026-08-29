@@ -57,8 +57,12 @@ const detail: ProductDetail = {
       dimensionUnit: 'cm',
       weight: '0.5',
       weightUnit: 'kg',
+      siteAndPriceMap: {},
+      siteAndListingTypeInfoMap: {},
+      imageUrls: ['https://images.example.com/grinder.jpg'],
     },
   ],
+  siteAndPriceMap: {},
 };
 
 function draft(): EditDraft {
@@ -120,8 +124,9 @@ describe('EditPanel', () => {
   it('shows every SKU with name, stock, source price, dimensions and weight in the Miaoshou view', async () => {
     renderPanel();
 
-    expect(await screen.findByText('SKU（妙手原数据）')).toBeTruthy();
-    expect(screen.getByText('白色')).toBeTruthy(); // original SKU name
+    expect(await screen.findByText('SKU 信息')).toBeTruthy();
+    // 名称既出现在 SKU 卡里,也出现在「产品图片」区块的图集标签中。
+    expect(screen.getAllByText('白色').length).toBeGreaterThanOrEqual(1); // original SKU name
     expect(screen.getByText('50')).toBeTruthy(); // stock
     expect(screen.getByText('16.9')).toBeTruthy(); // source price
     expect(screen.getByText('20 cm')).toBeTruthy();
@@ -137,7 +142,7 @@ describe('EditPanel', () => {
 
     expect(api.generate).toHaveBeenCalledWith('product-1');
     await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
-    const titleInput = await screen.findByLabelText('标题（≤60 字符）');
+    const titleInput = await screen.findByLabelText('标题');
     expect((titleInput as HTMLInputElement).value).toBe('Molinillo de café');
     expect(screen.getByText('AI 生成 · 95%')).toBeTruthy();
     // Some fields (stock) are fixed at 100%.
@@ -156,7 +161,7 @@ describe('EditPanel', () => {
     expect(screen.getByText('CM-100')).toBeTruthy();
 
     await user.click(screen.getByRole('tab', { name: 'AI 编辑详情' }));
-    expect(await screen.findByLabelText('标题（≤60 字符）')).toBeTruthy();
+    expect(await screen.findByLabelText('标题')).toBeTruthy();
 
     await user.click(screen.getByRole('tab', { name: '妙手详情' }));
     expect(await screen.findByText('Hario')).toBeTruthy();
@@ -167,7 +172,7 @@ describe('EditPanel', () => {
     renderPanel({ existing: draft() });
 
     await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
-    const titleInput = await screen.findByLabelText('标题（≤60 字符）');
+    const titleInput = await screen.findByLabelText('标题');
     await user.clear(titleInput);
     await user.type(titleInput, 'Molinillo editado');
     await user.click(screen.getByRole('button', { name: '保存草稿' }));
@@ -180,7 +185,7 @@ describe('EditPanel', () => {
     const { api } = renderPanel({ existing: draft() });
 
     await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
-    const titleInput = await screen.findByLabelText('标题（≤60 字符）');
+    const titleInput = await screen.findByLabelText('标题');
     await user.clear(titleInput);
     await user.type(titleInput, 'Nuevo título');
     await user.click(screen.getByRole('button', { name: '保存草稿' }));
@@ -203,8 +208,8 @@ describe('EditPanel', () => {
     expect(whiteSku.value).toBe('Blanco');
     expect((screen.getByLabelText('货源价') as HTMLInputElement).value).toBe('66');
     expect((screen.getByLabelText('库存') as HTMLInputElement).value).toBe('2');
-    expect((screen.getByLabelText('长度（cm）') as HTMLInputElement).value).toBe('20');
-    expect((screen.getByLabelText('重量（g）') as HTMLInputElement).value).toBe('500');
+    expect((screen.getByLabelText('长度') as HTMLInputElement).value).toBe('20');
+    expect((screen.getByLabelText('重量') as HTMLInputElement).value).toBe('500');
     // Units are fixed constants, shown inside the field labels (cm/g).
   });
 

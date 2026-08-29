@@ -67,6 +67,69 @@ describe('product detail mapper', () => {
     });
   });
 
+  it('passes through per-SKU site net profit, listing type and full image list', () => {
+    const result = productDetailFromSources(
+      product(),
+      detail({
+        ';white;': {
+          imgUrls: ['https://img.test/white.jpg', 'https://img.test/white-2.jpg'],
+          siteAndPriceMap: { 'MX(Up)': 9, 'AR(Up)': '11.5' },
+          siteAndListingTypeInfoMap: {
+            MX: { listingType: 'gold_pro' },
+            AR: { listingType: 'gold_special' },
+          },
+        },
+      }),
+    );
+    expect(result.skuList[0]).toMatchObject({
+      skuKey: ';white;',
+      imageUrls: ['https://img.test/white.jpg', 'https://img.test/white-2.jpg'],
+      imageUrl: 'https://img.test/white.jpg',
+      siteAndPriceMap: { 'MX(Up)': '9', 'AR(Up)': '11.5' },
+      siteAndListingTypeInfoMap: {
+        MX: { listingType: 'gold_pro' },
+        AR: { listingType: 'gold_special' },
+      },
+    });
+  });
+
+  it('defaults per-SKU site maps and images to empty when the skuMap omits them', () => {
+    const result = productDetailFromSources(
+      product(),
+      detail({ ';black;': {} }),
+    );
+    expect(result.skuList[0]).toMatchObject({
+      skuKey: ';black;',
+      imageUrls: [],
+      imageUrl: null,
+      siteAndPriceMap: {},
+      siteAndListingTypeInfoMap: {},
+    });
+  });
+
+  it('surfaces the product-level siteAndPriceMap (empty when absent)', () => {
+    const result = productDetailFromSources(
+      product(),
+      detail({
+        ';white;': { siteAndPriceMap: { 'MX(Up)': 9 } },
+      }),
+    );
+    expect(result.siteAndPriceMap).toEqual({});
+    const withValue = productDetailFromSources(
+      product(),
+      {
+        siteCollectItemInfo: {
+          collectBoxDetailId: '90001',
+          title: 'Detail title',
+          sites: ['BR', 'MX'],
+          siteAndPriceMap: { 'MX(Up)': '11.5' },
+          skuMap: {},
+        },
+      } as CollectBoxDetailDto,
+    );
+    expect(withValue.siteAndPriceMap).toEqual({ 'MX(Up)': '11.5' });
+  });
+
   it('leaves dimensions and weight null when the skuMap omits them', () => {
     const result = productDetailFromSources(
       product(),

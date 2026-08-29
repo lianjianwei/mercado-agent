@@ -85,6 +85,8 @@ function toViewModel(
 
   const siteAndPriceMaps = draft.skus.map((sku) => sku.siteAndPriceMap);
   const listingTypeMaps = draft.skus.map((sku) => sku.siteAndListingTypeInfoMap);
+  // 计算明细:旧草稿可能缺失,回退空表(单元格无「计算详情」入口)。
+  const detailMaps = draft.skus.map((sku) => sku.siteNetProfitDetail ?? {});
 
   return {
     editable: true,
@@ -99,7 +101,7 @@ function toViewModel(
       { label: '型号', field: editable(draft.model, (value) => handlers.onUpdateField('model', value)) },
     ],
     skus,
-    siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps),
+    siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps, undefined, detailMaps),
     globalNetProfit,
   };
 }

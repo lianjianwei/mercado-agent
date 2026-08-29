@@ -11,7 +11,9 @@ import {
   LISTING_TYPE_LABELS,
   SITE_LABELS,
   normalizeSiteKey,
+  type NetProfitBreakdown,
 } from '../../../domain/net-profit';
+import { NetProfitBreakdownPopover } from './NetProfitBreakdownPopover';
 
 // A single displayed/editable field. `editable` decides input/textarea vs
 // read-only span; `multiline` switches input→textarea and adds pre-wrap;
@@ -49,6 +51,7 @@ export type PreviewAttribute = {
 export type PreviewSiteNetProfitCell = {
   netProfit: string; // e.g. '15.47'; '' 表示该站点无值
   listingTypeLabel: string; // '经典' | '铂金'(找不到时回退默认「经典」)
+  detail: NetProfitBreakdown | null; // 计算明细,有值时单元格显示「计算详情」入口
 };
 
 export type PreviewSiteNetProfitRow = {
@@ -109,14 +112,31 @@ export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const zoom = (url: string) => setLightboxSrc(url);
 
+  // 净收益计算详情浮层:锚定在触发按钮旁,至多一个同时打开。
+  const [breakdown, setBreakdown] = useState<{
+    detail: NetProfitBreakdown;
+    anchor: { left: number; top: number; width: number; height: number };
+  } | null>(null);
+  const showBreakdown = (
+    detail: NetProfitBreakdown,
+    anchor: { left: number; top: number; width: number; height: number },
+  ) => setBreakdown({ detail, anchor });
+
   return (
     <div className="detail-preview">
       <ProductInfoSection vm={vm} />
       <AttributesSection attributes={vm.attributes} />
       <SkuSection vm={vm} onZoom={zoom} />
       <GlobalNetProfitSection globalNetProfit={vm.globalNetProfit} />
-      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} onZoom={zoom} />
+      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} onZoom={zoom} onShowBreakdown={showBreakdown} />
       <ImagesSection skus={vm.skus} onZoom={zoom} />
+      {breakdown && (
+        <NetProfitBreakdownPopover
+          anchor={breakdown.anchor}
+          detail={breakdown.detail}
+          onClose={() => setBreakdown(null)}
+        />
+      )}
       <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
@@ -363,9 +383,14 @@ function GlobalNetProfitSection({
 function SiteNetProfitSection({
   siteNetProfit,
   onZoom,
+  onShowBreakdown,
 }: {
   siteNetProfit: PreviewSiteNetProfit;
   onZoom: (url: string) => void;
+  onShowBreakdown: (
+    detail: NetProfitBreakdown,
+    anchor: { left: number; top: number; width: number; height: number },
+  ) => void;
 }) {
   const { columns, rows } = siteNetProfit;
   if (columns.length === 0 || rows.length === 0) {
@@ -387,10 +412,7 @@ function SiteNetProfitSection({
               <th>图片预览</th>
               <th>SKU</th>
               {columns.map((column) => (
-                <th key={column.code}>
-                  <span className="sn-site-name">{column.label}</span>
-                  <span className="sn-batch">批量</span>
-                </th>
+                <th key={column.code}>{column.label}</th>
               ))}
             </tr>
           </thead>
@@ -401,18 +423,37 @@ function SiteNetProfitSection({
                   <ZoomableImage src={row.imageUrl} className="sku-thumb" onZoom={onZoom} />
                 </td>
                 <td>{row.skuLabel || row.skuKey}</td>
-                {row.cells.map((cell, index) => (
-                  <td key={`${row.skuKey}-${index}`} className="site-net-profit-cell">
-                    <div className="sn-cell-box">
-                      <span className="sn-cell-label">净收益:</span>
-                      {cell.netProfit || '—'}
-                    </div>
-                    <div className="sn-cell-box">
-                      <span className="sn-cell-label">产品类型:</span>
-                      {cell.listingTypeLabel}
-                    </div>
-                  </td>
-                ))}
+                {row.cells.map((cell, index) => {
+                  const detail = cell.detail; // const 便于 TS 从谓词收窄到闭包内。
+                  return (
+                    <td key={`${row.skuKey}-${index}`} className="site-net-profit-cell">
+                      <div className="sn-cell-box">
+                        <span className="sn-cell-label">净收益:</span>
+                        {cell.netProfit || '—'}
+                      </div>
+                      <div className="sn-cell-box">
+                        <span className="sn-cell-label">产品类型:</span>
+                        {cell.listingTypeLabel}
+                      </div>
+                      {detail && (
+                        <button
+                          className="sn-cell-detail-button"
+                          onClick={(event) =>
+                            onShowBreakdown(detail, {
+                              left: event.currentTarget.getBoundingClientRect().left,
+                              top: event.currentTarget.getBoundingClientRect().top,
+                              width: event.currentTarget.getBoundingClientRect().width,
+                              height: event.currentTarget.getBoundingClientRect().height,
+                            })
+                          }
+                          type="button"
+                        >
+                          计算详情
+                        </button>
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -463,6 +504,7 @@ export function buildSiteNetProfit(
     siteAndPriceMap?: Record<string, string>;
     listingTypeBySite?: Record<string, string>;
   },
+  siteNetProfitDetailMaps?: Record<string, NetProfitBreakdown>[],
 ): PreviewSiteNetProfit {
   const productPriceMap = product?.siteAndPriceMap ?? {};
   const productListingBySite = product?.listingTypeBySite ?? {};
@@ -501,6 +543,7 @@ export function buildSiteNetProfit(
       return {
         netProfit: valueByCode.get(column.code) ?? '',
         listingTypeLabel: listingTypeLabel(listingType),
+        detail: siteNetProfitDetailMaps?.[index]?.[column.code] ?? null,
       };
     });
     return {

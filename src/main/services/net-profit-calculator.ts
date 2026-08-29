@@ -57,7 +57,7 @@ export class NetProfitCalculator {
     const skus = draft.skus.map((sku) => {
       const inputs = parseSkuInputs(sku);
       if (!inputs) {
-        return { ...sku, siteAndPriceMap: {}, siteAndListingTypeInfoMap: {} };
+        return { ...sku, siteAndPriceMap: {}, siteAndListingTypeInfoMap: {}, siteNetProfitDetail: {} };
       }
       const result = computeSkuNetProfit({ ...inputs, sites, config, fx });
       for (const value of Object.values(result.siteAndPriceMap)) {
@@ -70,6 +70,7 @@ export class NetProfitCalculator {
         ...sku,
         siteAndPriceMap: result.siteAndPriceMap,
         siteAndListingTypeInfoMap: result.siteAndListingTypeInfoMap,
+        siteNetProfitDetail: result.siteNetProfitDetail,
       };
     });
 

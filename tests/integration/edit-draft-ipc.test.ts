@@ -6,6 +6,7 @@ import {
 } from '../../src/main/ipc/edit-handlers';
 import { IPC_CHANNELS, type IpcListener } from '../../src/shared/ipc-contract';
 import type { EditDraft } from '../../src/domain/edit';
+import type { NetProfitBreakdown } from '../../src/domain/net-profit';
 
 // A pass-through calculator: these handler tests exercise draft persistence,
 // not net-profit math, so recompute just echoes the draft back.
@@ -251,6 +252,68 @@ describe('edit draft IPC', () => {
     const draft = readLatestDraft(snapshots, '90001');
     expect(draft).not.toBeNull();
     expect(draft!.brand).toEqual({ value: 'Generic', source: 'fixed', confidence: 1 });
+  });
+
+  it('backfills siteNetProfitDetail on read when an old draft lacks it', async () => {
+    // Drafts saved before the calc-detail feature carry no siteNetProfitDetail;
+    // reading one must recompute so the 计算详情 popup always has data.
+    const handlers = new Map<string, IpcListener>();
+    const draft = makeDraft(1);
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: draft.createdAt,
+        payload: draft,
+      },
+    ]);
+    const calc = {
+      computeForDraft: vi.fn((value: EditDraft) => ({
+        ...value,
+        skus: value.skus.map((sku) => ({
+          ...sku,
+          siteNetProfitDetail: { MX: {} as unknown as NetProfitBreakdown },
+        })),
+      })),
+    };
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() }, netProfit: calc },
+    );
+
+    await handlers.get(IPC_CHANNELS.editDraft)?.({}, { productId: '90001' });
+
+    expect(calc.computeForDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not recompute on read when the draft already carries detail', async () => {
+    const handlers = new Map<string, IpcListener>();
+    const draft = makeDraft(1);
+    // A draft that already has a breakdown must NOT be recomputed on read —
+    // its displayed net profit and detail are already consistent.
+    draft.skus[0].siteNetProfitDetail = {
+      MX: {} as unknown as NetProfitBreakdown,
+    };
+    const snapshots = fakeSnapshots([
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: draft.createdAt,
+        payload: draft,
+      },
+    ]);
+    const calc = { computeForDraft: vi.fn((value: EditDraft) => value) };
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() }, netProfit: calc },
+    );
+
+    const result = await handlers.get(IPC_CHANNELS.editDraft)?.({}, { productId: '90001' });
+
+    expect(calc.computeForDraft).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, data: draft });
   });
 
   it('readLatestDraft ignores miaoshou snapshots and returns the newest aiDraft', () => {

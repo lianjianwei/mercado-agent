@@ -36,6 +36,58 @@ const draft: EditDraft = {
         MX: { listingType: 'gold_pro' },
         AR: { listingType: 'gold_special' },
       },
+      siteNetProfitDetail: {
+        MX: {
+          siteKey: 'MX(Up)',
+          siteCode: 'MX',
+          currency: 'MXN',
+          sourcePriceCny: 20,
+          packingCostCny: 2.5,
+          weightG: 500,
+          lengthCm: 20,
+          widthCm: 10,
+          heightCm: 8,
+          billableKg: 0.5,
+          isVolumeWeight: false,
+          targetMargin: 20,
+          marginMode: 'price',
+          listingType: 'gold_pro',
+          commissionPct: 20,
+          fxCny: 7.18,
+          fxLocal: 17.35,
+          siteThreshold: 299,
+          isHigh: true,
+          tier: { minKg: 0.5, maxKg: 0.6, highPriceUsd: 7.16, lowPriceUsd: 4.71 },
+          shippingUsd: 7.16,
+          priceUsd: 17.95,
+          netProfitUsd: 9,
+        },
+        AR: {
+          siteKey: 'AR(Up)',
+          siteCode: 'AR',
+          currency: 'ARS',
+          sourcePriceCny: 20,
+          packingCostCny: 2.5,
+          weightG: 500,
+          lengthCm: 20,
+          widthCm: 10,
+          heightCm: 8,
+          billableKg: 0.5,
+          isVolumeWeight: false,
+          targetMargin: 20,
+          marginMode: 'price',
+          listingType: 'gold_special',
+          commissionPct: 12,
+          fxCny: 7.18,
+          fxLocal: 1450,
+          siteThreshold: 33000,
+          isHigh: false,
+          tier: { minKg: 0.5, maxKg: 0.6, highPriceUsd: 14.4, lowPriceUsd: 5.95 },
+          shippingUsd: 5.95,
+          priceUsd: 19.94,
+          netProfitUsd: 11.5,
+        },
+      },
     },
   ],
 };
@@ -88,5 +140,26 @@ describe('EditPanel net profit display', () => {
     expect(within(siteSection).getByText('铂金')).toBeTruthy();
     expect(within(siteSection).getByText('经典')).toBeTruthy();
     expect(within(siteSection).getByText('9')).toBeTruthy();
+  });
+
+  it('opens the compact breakdown popover from a cell with detail and shows the tier/shipping', async () => {
+    render(<EditPanel api={api()} loadDetail={async () => detail()} product={product} />);
+
+    fireEvent.click(await screen.findByText('AI 编辑详情'));
+    const siteSection = screen.getByText('站点净收益 (USD)').closest('section')!;
+
+    // 每个有明细的单元格都有「计算详情」入口(MX / AR 两列)。
+    const buttons = within(siteSection).getAllByText('计算详情');
+    expect(buttons.length).toBeGreaterThan(0);
+    fireEvent.click(buttons[0]);
+
+    // 浮层弹出,展示命中阶梯与运费等只读明细。
+    const popover = await screen.findByRole('dialog', { name: /净收益计算详情/ });
+    expect(within(popover).getByText('墨西哥')).toBeTruthy();
+    expect(within(popover).getByText('命中阶梯')).toBeTruthy();
+    expect(within(popover).getByText(/0.5–0.6 kg/)).toBeTruthy();
+    expect(within(popover).getByText('7.16 USD(高价档)')).toBeTruthy();
+    expect(within(popover).getByText('净收益')).toBeTruthy();
+    expect(within(popover).getByText('9 USD')).toBeTruthy();
   });
 });

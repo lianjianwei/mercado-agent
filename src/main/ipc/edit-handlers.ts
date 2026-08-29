@@ -114,7 +114,14 @@ export function registerEditHandlers(
   registrar.handle(IPC_CHANNELS.editDraft, async (_event, payload) => {
     try {
       const { productId } = productIdSchema.parse(payload);
-      return { ok: true, data: readLatestDraft(dependencies.snapshots, productId) };
+      // 旧草稿(在计算明细功能之前保存)没有 siteNetProfitDetail,读取时用计算器
+      // 补一份,并按当前配置/汇率刷新净收益,保证「计算详情」浮层始终有数据且与
+      // 展示的净收益一致。
+      let draft = readLatestDraft(dependencies.snapshots, productId);
+      if (draft && draft.skus.some((sku) => !sku.siteNetProfitDetail)) {
+        draft = dependencies.netProfit.computeForDraft(draft);
+      }
+      return { ok: true, data: draft };
     } catch (error) {
       if (error instanceof ZodError) {
         return {

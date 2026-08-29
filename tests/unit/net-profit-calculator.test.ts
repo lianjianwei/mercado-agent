@@ -61,14 +61,17 @@ describe('NetProfitCalculator', () => {
 
     const result = calculator.computeForDraft(draft);
 
-    expect(result.skus[0].siteAndPriceMap).toEqual({ 'MX(Up)': '9', 'AR(Up)': '11.5' });
+    expect(result.skus[0].siteAndPriceMap).toEqual({ 'MX(Up)': '8.33', 'AR(Up)': '6.97' });
     expect(result.skus[0].siteAndListingTypeInfoMap).toEqual({
       MX: { listingType: 'gold_pro' },
       AR: { listingType: 'gold_special' },
     });
     expect(result.skus[1].siteAndPriceMap).toEqual({ 'MX(Up)': '1.9', 'AR(Up)': '2.59' });
-    // global = max(9, 11.5, 1.9)
-    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '11.5', 'AR(Up)': '11.5' });
+    // global = max(8.33, 6.97, 1.9)
+    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '8.33', 'AR(Up)': '8.33' });
+    // 计算明细随每次计算写入,按裸站点码索引。
+    expect(result.skus[0].siteNetProfitDetail?.MX.netProfitUsd).toBeCloseTo(8.33, 1);
+    expect(result.skus[0].siteNetProfitDetail?.AR.currency).toBe('ARS');
   });
 
   it('leaves a SKU with no source price empty and still aggregates the rest', () => {
@@ -82,7 +85,8 @@ describe('NetProfitCalculator', () => {
 
     expect(result.skus[1].siteAndPriceMap).toEqual({});
     expect(result.skus[1].siteAndListingTypeInfoMap).toEqual({});
-    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '11.5', 'AR(Up)': '11.5' });
+    expect(result.skus[1].siteNetProfitDetail).toEqual({});
+    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '8.33', 'AR(Up)': '8.33' });
   });
 
   it('treats missing weight/dimensions as zero instead of failing', () => {

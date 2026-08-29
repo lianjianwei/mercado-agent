@@ -1243,16 +1243,6 @@
   white-space: nowrap;
 }
 
-.sn-site-name {
-  font-weight: 800;
-}
-
-.sn-batch {
-  margin-left: 6px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
 /* 单元格:两行盒(净收益 / 产品类型)。 */
 .site-net-profit-cell {
   min-width: 150px;
@@ -1276,6 +1266,152 @@
 .sn-cell-label {
   color: var(--muted);
   margin-right: 4px;
+}
+
+/* 单元格「计算详情」入口:小链接按钮,仅当该单元格有计算明细时出现。 */
+.sn-cell-detail-button {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1f6feb;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sn-cell-detail-button:hover {
+  text-decoration: underline;
+}
+
+/* ---- 净收益计算详情浮层 ---- */
+.np-breakdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 105;
+  background: transparent;
+}
+
+.np-breakdown-popover {
+  position: fixed;
+  z-index: 110;
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(72vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 14px 40px rgb(7 29 51 / 30%);
+}
+
+.np-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fbff;
+}
+
+.np-header-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #496784;
+}
+
+.np-header-site {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.np-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.np-close:hover {
+  background: var(--line);
+}
+
+.np-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 14px 12px;
+}
+
+.np-group-title {
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.np-group-title:first-child {
+  margin-top: 10px;
+}
+
+.np-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.np-row-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.np-row-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.np-row-strong {
+  color: #1f6feb;
+  font-weight: 800;
+}
+
+.np-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: #f8fbff;
+  font-size: 13px;
+}
+
+.np-footer span {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.np-footer strong {
+  color: #1f6feb;
+  font-size: 16px;
 }
 
 /* 类目值很长时单行横向滚动,不换行。 */

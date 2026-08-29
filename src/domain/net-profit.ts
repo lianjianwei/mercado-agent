@@ -144,6 +144,50 @@ export const LISTING_TYPE_LABELS: Record<string, string> = {
   gold_pro: '铂金',
 };
 
+// The exact tier a billable weight fell into: [minKg, maxKg, highPriceUsd,
+// lowPriceUsd]. maxKg is Infinity for the open-ended last tier.
+export type NetProfitTierDetail = {
+  minKg: number;
+  maxKg: number;
+  highPriceUsd: number;
+  lowPriceUsd: number;
+};
+
+// A recorded breakdown of how one per-site net profit was derived. Stored on
+// the draft at compute time so the 「查看计算详情」 popup always matches the
+// value shown in the cell (recomputing in the UI could drift as config/fx
+// change). Values are raw; the UI owns labels and formatting.
+export type NetProfitBreakdown = {
+  siteKey: string; // full key, e.g. 'MX(Up)'
+  siteCode: string; // bare code, e.g. 'MX'(真实来源始终是 SiteCode,此处放宽为 string 以贴合输入)
+  currency: 'MXN' | 'BRL' | 'ARS';
+  // inputs
+  sourcePriceCny: number;
+  packingCostCny: number;
+  weightG: number;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+  // billable weight
+  billableKg: number;
+  isVolumeWeight: boolean; // 命中体积重:实际重 ≥ 500g 且体积重 > 实际重
+  // config
+  targetMargin: number; // e.g. 20
+  marginMode: MarginMode; // 'income' | 'price'
+  listingType: 'gold_special' | 'gold_pro';
+  commissionPct: number; // 实际采用的产品类型佣金百分比
+  // fx
+  fxCny: number; // USD → CNY
+  fxLocal: number; // USD → 本地货币
+  siteThreshold: number; // 触发高价档的买家价阈值(本地货币)
+  // result
+  isHigh: boolean; // 命中高价运费档
+  tier: NetProfitTierDetail; // 命中的运费阶梯
+  shippingUsd: number;
+  priceUsd: number;
+  netProfitUsd: number;
+};
+
 export interface NetProfitSettingsRepository {
   getNetProfitConfig(): NetProfitConfig;
   saveNetProfitConfig(value: NetProfitConfig): void;

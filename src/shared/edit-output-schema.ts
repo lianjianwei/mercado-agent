@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { NetProfitBreakdown } from '../domain/net-profit';
 
 // Structured output schema for the AI edit generation prompt.
 //
@@ -79,6 +80,14 @@ export const editDraftSchema = z.strictObject({
       siteAndListingTypeInfoMap: z
         .record(z.string(), z.strictObject({ listingType: z.string() }))
         .default({}),
+      // 每个站点的净收益计算明细(按裸站点码索引)。由计算器写入;旧草稿可能缺失,
+      // 故可选。此值仅用于展示且始终由本机引擎产出,故只校验是对象,不逐字段严格校验。
+      siteNetProfitDetail: z
+        .record(
+          z.string(),
+          z.custom<NetProfitBreakdown>((value) => typeof value === 'object' && value !== null),
+        )
+        .optional(),
     }),
   ),
 });

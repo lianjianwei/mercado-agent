@@ -2,6 +2,7 @@ import {
   SITE_META_BY_CODE,
   siteMetaFor,
   type FxRates,
+  type NetProfitBreakdown,
   type NetProfitConfig,
   type ShippingTier,
 } from '../../domain/net-profit';
@@ -31,7 +32,9 @@ export function findTier(
   tiers: readonly ShippingTier[],
   billableKg: number,
 ): ShippingTier {
-  const tier = tiers.find((candidate) => billableKg < candidate[1]);
+  // 上限含界:重量正好落在两档边界(如 0.2)时归入较低档([0.1, 0.2]),
+  // 与参考计算器 `billable <= r[1]` 一致。
+  const tier = tiers.find((candidate) => billableKg <= candidate[1]);
   return tier ?? tiers[tiers.length - 1];
 }
 
@@ -45,7 +48,8 @@ export function listingTypeFor(
   weightG: number,
 ): 'gold_special' | 'gold_pro' {
   if (siteCode === 'AR') return 'gold_special';
-  return sourcePriceCny < 10 && weightG < 200 ? 'gold_special' : 'gold_pro';
+  // 经典:货源价 ≤ 10 元 且 重量 ≤ 200g;否则铂金。边界含界(10 / 200 都算经典)。
+  return sourcePriceCny <= 10 && weightG <= 200 ? 'gold_special' : 'gold_pro';
 }
 
 export type SiteNetProfitResult = {
@@ -57,6 +61,7 @@ export type SiteNetProfitResult = {
   shipping: number;
   price: number;
   isHigh: boolean;
+  breakdown: NetProfitBreakdown;
 };
 
 export type SiteNetProfitInput = {
@@ -96,6 +101,10 @@ export function computeSiteNetProfit(input: SiteNetProfitInput): SiteNetProfitRe
   const tier = findTier(meta.tiers, billable);
   const shipHigh = tier[2];
   const shipLow = tier[3];
+  // 体积重口径:实际重 ≥ 500g 时与体积重比较取大者,命中体积重时标记。
+  const actualKg = input.weightG / 1000;
+  const volumeKg = (input.lengthCm * input.widthCm * input.heightCm) / 6000;
+  const isVolumeWeight = actualKg >= 0.5 && volumeKg > actualKg;
 
   const solveMode2 = (shipping: number): number => {
     const numerator = baseCny / rCny + (target * shipping) / (1 - comm);
@@ -128,6 +137,36 @@ export function computeSiteNetProfit(input: SiteNetProfitInput): SiteNetProfitRe
     shipping,
     price,
     isHigh,
+    breakdown: {
+      siteKey: input.siteKey,
+      siteCode: input.siteCode,
+      currency: meta.currency,
+      sourcePriceCny: input.sourcePriceCny,
+      packingCostCny: input.config.packingCost,
+      weightG: input.weightG,
+      lengthCm: input.lengthCm,
+      widthCm: input.widthCm,
+      heightCm: input.heightCm,
+      billableKg: billable,
+      isVolumeWeight,
+      targetMargin: input.config.targetMargin,
+      marginMode: input.config.marginMode,
+      listingType,
+      commissionPct,
+      fxCny: rCny,
+      fxLocal: rLocal,
+      siteThreshold: meta.threshold,
+      isHigh,
+      tier: {
+        minKg: tier[0],
+        maxKg: tier[1],
+        highPriceUsd: shipHigh,
+        lowPriceUsd: shipLow,
+      },
+      shippingUsd: shipping,
+      priceUsd: price,
+      netProfitUsd: net,
+    },
   };
 }
 
@@ -145,11 +184,14 @@ export type SkuNetProfitInput = {
 export type SkuNetProfitResult = {
   siteAndPriceMap: Record<string, string>;
   siteAndListingTypeInfoMap: Record<string, { listingType: string }>;
+  // 每个站点的计算明细,按裸站点码索引(对齐 siteAndListingTypeInfoMap)。
+  siteNetProfitDetail: Record<string, NetProfitBreakdown>;
 };
 
 export function computeSkuNetProfit(input: SkuNetProfitInput): SkuNetProfitResult {
   const siteAndPriceMap: Record<string, string> = {};
   const siteAndListingTypeInfoMap: Record<string, { listingType: string }> = {};
+  const siteNetProfitDetail: Record<string, NetProfitBreakdown> = {};
   for (const siteKey of input.sites) {
     const meta = siteMetaFor(siteKey);
     if (!meta) continue;
@@ -166,8 +208,9 @@ export function computeSkuNetProfit(input: SkuNetProfitInput): SkuNetProfitResul
     });
     siteAndPriceMap[siteKey] = result.netProfitFormatted;
     siteAndListingTypeInfoMap[result.siteCode] = { listingType: result.listingType };
+    siteNetProfitDetail[result.siteCode] = result.breakdown;
   }
-  return { siteAndPriceMap, siteAndListingTypeInfoMap };
+  return { siteAndPriceMap, siteAndListingTypeInfoMap, siteNetProfitDetail };
 }
 
 // Re-exported for callers that need the supported-site guard.

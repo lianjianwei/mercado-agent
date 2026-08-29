@@ -6,6 +6,8 @@
 // once the draft is saved back to Miaoshou (a later sub-phase). The draft is
 // stored in the shared product_snapshots table under kind `aiDraft`.
 
+import type { NetProfitBreakdown } from './net-profit';
+
 // Where a field's current value came from. `fixed` marks values the app sets
 // deterministically (e.g. the brand is always Generic, and a missing model
 // falls back to Generic) — not remote, not AI.
@@ -52,6 +54,9 @@ export type SkuEditField = {
   // NetProfitCalculator 在生成/保存时写入,始终必填。
   siteAndPriceMap: SkuSiteAndPriceMap;
   siteAndListingTypeInfoMap: SkuSiteAndListingTypeInfoMap;
+  // 每个站点的净收益计算明细(按裸站点码索引),供「查看计算详情」浮层展示。
+  // 由 NetProfitCalculator 在生成/保存时写入;旧草稿可能缺失,视为无明细。
+  siteNetProfitDetail?: Record<string, NetProfitBreakdown>;
 };
 
 export type EditDraft = {

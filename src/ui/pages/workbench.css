@@ -840,12 +840,20 @@
   min-width: 0;
 }
 
-.sku-cell-field .edit-readonly-value {
+.sku-cell-field .edit-readonly-value,
+.sku-cell-field input {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  width: auto;
+  width: 100%;
   min-width: 64px;
   padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
 }
 
 .sku-cell-field .edit-source {
@@ -861,17 +869,20 @@
   gap: 6px;
 }
 
-.dim-stack .edit-readonly-value {
+.dim-stack .edit-readonly-value,
+.dim-stack input {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  width: auto;
+  width: 100%;
   min-width: 56px;
   padding: 6px 9px;
-}
-
-.dim-stack input {
-  width: 100%;
-  min-width: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
 }
 
 .edit-draft-field {

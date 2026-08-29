@@ -1337,6 +1337,67 @@
   background: #fff;
 }
 
+/* 图片点击放大:缩略图包一层按钮,cursor 提示可点击。 */
+.image-zoom-button {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.image-zoom-button .sku-thumb,
+.image-zoom-button .product-image-thumb {
+  transition: box-shadow 0.12s ease;
+}
+
+.image-zoom-button:hover .sku-thumb,
+.image-zoom-button:hover .product-image-thumb {
+  box-shadow: 0 0 0 2px rgb(64 150 255 / 55%);
+}
+
+/* ---- 图片灯箱(全屏放大查看) ---- */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgb(7 29 51 / 72%);
+  cursor: zoom-out;
+}
+
+.lightbox-image {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 50%);
+  background: #fff;
+  object-fit: contain;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 16%);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lightbox-close:hover {
+  background: rgb(255 255 255 / 28%);
+}
+
 .attr-value {
   min-width: 0;
 }

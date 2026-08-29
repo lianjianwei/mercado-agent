@@ -106,8 +106,8 @@ function renderPanel(overrides: {
     saveDraft: vi.fn(async (_id, incoming) => incoming),
   };
   const loadDetail = vi.fn(async () => detail);
-  render(<EditPanel api={api} loadDetail={loadDetail} product={product} />);
-  return { api, loadDetail };
+  const { container } = render(<EditPanel api={api} loadDetail={loadDetail} product={product} />);
+  return { api, loadDetail, container };
 }
 
 describe('EditPanel', () => {
@@ -157,6 +157,24 @@ describe('EditPanel', () => {
     expect(screen.getByText('经典')).toBeTruthy();
     expect(screen.getByText('11.5')).toBeTruthy();
     expect(screen.getByText('9')).toBeTruthy();
+  });
+
+  it('opens a fullscreen lightbox when a product image is clicked and closes on ×', async () => {
+    const user = userEvent.setup();
+    const { container } = renderPanel();
+    // 等待妙手详情(含 SKU 图片)异步渲染完成后再定位缩略图。
+    await screen.findByText('SKU 信息');
+    const thumb = container.querySelector('.image-zoom-button img') as HTMLElement;
+    expect(thumb).toBeTruthy();
+
+    await user.click(thumb);
+    const lightbox = await screen.findByRole('dialog');
+    expect(lightbox.querySelector('.lightbox-image')?.getAttribute('src')).toBe(
+      'https://images.example.com/grinder.jpg',
+    );
+
+    await user.click(screen.getByRole('button', { name: '关闭' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('shows every SKU with name, stock, source price, dimensions and weight in the Miaoshou view', async () => {

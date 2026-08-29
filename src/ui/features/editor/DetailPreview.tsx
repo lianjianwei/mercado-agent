@@ -4,6 +4,9 @@
 // per-field editability differ. See MiaoshouView / DraftView for the two
 // mappings into this ViewModel.
 
+import { useState } from 'react';
+
+import { Lightbox } from '../../components/Lightbox';
 import {
   LISTING_TYPE_LABELS,
   SITE_LABELS,
@@ -102,15 +105,38 @@ export function deriveGlobalNetProfit(
 }
 
 export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
+  // 所有缩略图共享一个灯箱:点击任意图片放大到正常尺寸查看。
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const zoom = (url: string) => setLightboxSrc(url);
+
   return (
     <div className="detail-preview">
       <ProductInfoSection vm={vm} />
       <AttributesSection attributes={vm.attributes} />
-      <SkuSection vm={vm} />
+      <SkuSection vm={vm} onZoom={zoom} />
       <GlobalNetProfitSection globalNetProfit={vm.globalNetProfit} />
-      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} />
-      <ImagesSection skus={vm.skus} />
+      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} onZoom={zoom} />
+      <ImagesSection skus={vm.skus} onZoom={zoom} />
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
+  );
+}
+
+// 可点击放大的缩略图:无图时显示占位。按钮包裹以便聚焦/键盘操作。
+function ZoomableImage({
+  src,
+  className,
+  onZoom,
+}: {
+  src: string | null;
+  className: string;
+  onZoom: (url: string) => void;
+}) {
+  if (!src) return <span className="sku-thumb-placeholder">—</span>;
+  return (
+    <button type="button" className="image-zoom-button" onClick={() => onZoom(src)}>
+      <img alt="" className={className} src={src} />
+    </button>
   );
 }
 
@@ -230,7 +256,13 @@ function AttributesSection({ attributes }: { attributes: PreviewAttribute[] }) {
   );
 }
 
-function SkuSection({ vm }: { vm: PreviewViewModel }) {
+function SkuSection({
+  vm,
+  onZoom,
+}: {
+  vm: PreviewViewModel;
+  onZoom: (url: string) => void;
+}) {
   if (vm.skus.length === 0) {
     return (
       <section className="detail-section">
@@ -259,11 +291,7 @@ function SkuSection({ vm }: { vm: PreviewViewModel }) {
           {vm.skus.map((sku) => (
             <tr key={sku.skuKey}>
               <td>
-                {sku.images[0] ? (
-                  <img alt="" className="sku-thumb" src={sku.images[0]} />
-                ) : (
-                  <span className="sku-thumb-placeholder">—</span>
-                )}
+                <ZoomableImage src={sku.images[0] ?? null} className="sku-thumb" onZoom={onZoom} />
               </td>
               <td>
                 <div className="sku-cell-field">
@@ -334,8 +362,10 @@ function GlobalNetProfitSection({
 
 function SiteNetProfitSection({
   siteNetProfit,
+  onZoom,
 }: {
   siteNetProfit: PreviewSiteNetProfit;
+  onZoom: (url: string) => void;
 }) {
   const { columns, rows } = siteNetProfit;
   if (columns.length === 0 || rows.length === 0) {
@@ -368,11 +398,7 @@ function SiteNetProfitSection({
             {rows.map((row) => (
               <tr key={row.skuKey}>
                 <td>
-                  {row.imageUrl ? (
-                    <img alt="" className="sku-thumb" src={row.imageUrl} />
-                  ) : (
-                    <span className="sku-thumb-placeholder">—</span>
-                  )}
+                  <ZoomableImage src={row.imageUrl} className="sku-thumb" onZoom={onZoom} />
                 </td>
                 <td>{row.skuLabel || row.skuKey}</td>
                 {row.cells.map((cell, index) => (
@@ -396,7 +422,13 @@ function SiteNetProfitSection({
   );
 }
 
-function ImagesSection({ skus }: { skus: PreviewSku[] }) {
+function ImagesSection({
+  skus,
+  onZoom,
+}: {
+  skus: PreviewSku[];
+  onZoom: (url: string) => void;
+}) {
   return (
     <section className="detail-section">
       <h3>产品图片</h3>
@@ -406,12 +438,7 @@ function ImagesSection({ skus }: { skus: PreviewSku[] }) {
             <span className="sku-images-label">{sku.name.value || sku.skuKey}</span>
             <div className="images-grid">
               {sku.images.map((url) => (
-                <img
-                  alt=""
-                  className="product-image-thumb"
-                  key={url}
-                  src={url}
-                />
+                <ZoomableImage key={url} src={url} className="product-image-thumb" onZoom={onZoom} />
               ))}
             </div>
           </div>

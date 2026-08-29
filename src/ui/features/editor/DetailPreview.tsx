@@ -122,7 +122,8 @@ export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
       <ProductInfoSection vm={vm} />
       <AttributesSection attributes={vm.attributes} />
       <SkuSection vm={vm} />
-      <SiteNetProfitSection vm={vm} />
+      <GlobalNetProfitSection globalNetProfit={vm.globalNetProfit} />
+      <SiteNetProfitSection rows={vm.siteNetProfitRows} />
       <ImagesSection skus={vm.skus} />
     </div>
   );
@@ -270,20 +271,30 @@ function SkuSection({ vm }: { vm: PreviewViewModel }) {
   );
 }
 
-function SiteNetProfitSection({ vm }: { vm: PreviewViewModel }) {
-  const { globalNetProfit, siteNetProfitRows } = vm;
+// 全球净收益独立成一块,置于「站点净收益」上方。
+function GlobalNetProfitSection({
+  globalNetProfit,
+}: {
+  globalNetProfit: PreviewGlobalNetProfit | null;
+}) {
+  if (!globalNetProfit) return null;
+  return (
+    <section className="detail-section">
+      <h3>全球净收益</h3>
+      <div className="global-net-profit">
+        <span className="edit-readonly-value">
+          ${globalNetProfit.value} {globalNetProfit.currency}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function SiteNetProfitSection({ rows }: { rows: PreviewSiteNetProfitRow[] }) {
   return (
     <section className="detail-section">
       <h3>站点净收益</h3>
-      {globalNetProfit && (
-        <div className="global-net-profit">
-          <label>全球净收益</label>
-          <span className="edit-readonly-value">
-            ${globalNetProfit.value} {globalNetProfit.currency}
-          </span>
-        </div>
-      )}
-      {siteNetProfitRows.length > 0 ? (
+      {rows.length > 0 ? (
         <table className="net-profit-table">
           <thead>
             <tr>
@@ -294,7 +305,7 @@ function SiteNetProfitSection({ vm }: { vm: PreviewViewModel }) {
             </tr>
           </thead>
           <tbody>
-            {siteNetProfitRows.map((row, index) => (
+            {rows.map((row, index) => (
               <tr key={`${row.skuKey}-${row.siteLabel}-${index}`}>
                 <td>{row.skuLabel || row.skuKey}</td>
                 <td>{row.siteLabel}</td>

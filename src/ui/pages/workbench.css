@@ -848,9 +848,9 @@
 }
 
 .edit-sku-card .edit-package-grid .edit-draft-field label {
-  padding-top: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .edit-draft-field {
@@ -862,10 +862,11 @@
 }
 
 .edit-draft-field label {
-  padding-top: 7px;
+  align-self: center;
   color: var(--muted);
   font-weight: 800;
   font-size: 12.5px;
+  text-align: right;
 }
 
 .edit-draft-field input,

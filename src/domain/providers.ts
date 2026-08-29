@@ -26,6 +26,7 @@ export type ImageGenerationRequest = {
 
 export type ImageResult = {
   url: string;
+  dataBase64?: string; // OpenAI 图像默认返回 base64;url 可能为临时值(已弃用)
 };
 
 export interface ModelConnectionProvider {

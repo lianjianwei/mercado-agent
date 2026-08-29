@@ -81,7 +81,8 @@ export type ProductSnapshotKind =
   | 'miaoshou'
   | 'aiDraft'
   | 'saved'
-  | 'published';
+  | 'published'
+  | 'aiImages';
 
 export type ProductSnapshot = {
   id: string;

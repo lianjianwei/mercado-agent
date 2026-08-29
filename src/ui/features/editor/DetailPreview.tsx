@@ -186,21 +186,35 @@ function ProductInfoSection({ vm }: { vm: PreviewViewModel }) {
   );
 }
 
+// 类目通常很长,单行横向滚动;品牌/型号短,并排成一行节省空间。
 function AttributesSection({ attributes }: { attributes: PreviewAttribute[] }) {
   if (attributes.length === 0) return null;
+  const category = attributes.find((item) => item.label === '类目');
+  const pairs = attributes.filter((item) => item.label !== '类目');
   return (
     <section className="detail-section">
       <h3>类目 &amp; 属性</h3>
       <div className="attr-grid">
-        {attributes.map((item) => (
-          <div className="attr-item" key={item.label}>
-            <label>{item.label}</label>
-            <div className="attr-value">
-              <span className="edit-readonly-value">{item.field.value || '—'}</span>
-              {item.field.meta && <FieldMeta field={item.field.meta} />}
+        {category && (
+          <div className="attr-item">
+            <label>{category.label}</label>
+            <div className="attr-value attr-value-scroll">
+              <span className="edit-readonly-value">{category.field.value || '—'}</span>
+              {category.field.meta && <FieldMeta field={category.field.meta} />}
             </div>
           </div>
-        ))}
+        )}
+        <div className="attr-pair">
+          {pairs.map((item) => (
+            <div className="attr-item" key={item.label}>
+              <label>{item.label}</label>
+              <div className="attr-value">
+                <span className="edit-readonly-value">{item.field.value || '—'}</span>
+                {item.field.meta && <FieldMeta field={item.field.meta} />}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -226,8 +240,10 @@ function SkuSection({ vm }: { vm: PreviewViewModel }) {
             )}
             <div className="sku-card-fields">
               {renderField('SKU 名称', sku.name, { inputId: `edit-sku-name-${sku.skuKey}` })}
-              {renderField('货源价', sku.sourcePrice, { inputId: `edit-sku-price-${sku.skuKey}` })}
-              {renderField('库存', sku.stock, { inputId: `edit-sku-stock-${sku.skuKey}` })}
+              <div className="sku-fields-row">
+                {renderField('货源价', sku.sourcePrice, { inputId: `edit-sku-price-${sku.skuKey}` })}
+                {renderField('库存', sku.stock, { inputId: `edit-sku-stock-${sku.skuKey}` })}
+              </div>
             </div>
           </div>
           <div className="edit-package-grid">
@@ -260,7 +276,7 @@ function SiteNetProfitSection({ vm }: { vm: PreviewViewModel }) {
     <section className="detail-section">
       <h3>站点净收益</h3>
       {globalNetProfit && (
-        <div className="edit-global-net-profit">
+        <div className="global-net-profit">
           <label>全球净收益</label>
           <span className="edit-readonly-value">
             ${globalNetProfit.value} {globalNetProfit.currency}

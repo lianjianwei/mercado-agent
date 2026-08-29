@@ -975,11 +975,19 @@
   font-weight: 600;
 }
 
-.edit-global-net-profit {
-  margin-top: 4px;
+.global-net-profit {
+  margin-bottom: 16px;
 }
 
-.edit-global-net-profit .edit-readonly-value {
+.global-net-profit label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+.global-net-profit .edit-readonly-value {
   font-weight: 700;
 }
 
@@ -1210,16 +1218,35 @@
   background: #f8fbff;
 }
 
-.edit-global-net-profit label {
+/* 类目值很长时单行横向滚动,不换行。 */
+.attr-value-scroll .edit-readonly-value {
   display: block;
-  margin-bottom: 6px;
-  color: var(--muted);
-  font-weight: 800;
-  font-size: 12.5px;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.edit-global-net-profit .edit-readonly-value {
-  font-weight: 700;
+/* 品牌/型号/etc 短属性并排成一行,节省空间。 */
+.attr-pair {
+  display: flex;
+  gap: 16px;
+}
+
+.attr-pair .attr-item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 货源价 + 库存并排一行,SKU 名称独占上方一行。 */
+.sku-fields-row {
+  display: flex;
+  gap: 16px;
+}
+
+.sku-fields-row .edit-draft-field {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-bottom: 0;
 }
 
 /* 产品图片:每个 SKU 一段,图网格。 */

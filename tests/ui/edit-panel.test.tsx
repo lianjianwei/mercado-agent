@@ -121,6 +121,13 @@ describe('EditPanel', () => {
     expect(screen.queryByRole('tab', { name: 'AI 编辑详情' })).toBeNull();
   });
 
+  it('shows the product-level global net profit in the Miaoshou view', async () => {
+    renderPanel();
+    // 妙手产品级 netProfit 每个产品都有,应显示为全球净收益。
+    expect(await screen.findByText('全球净收益')).toBeTruthy();
+    expect(screen.getByText('$52.40 USD')).toBeTruthy();
+  });
+
   it('shows every SKU with name, stock, source price, dimensions and weight in the Miaoshou view', async () => {
     renderPanel();
 

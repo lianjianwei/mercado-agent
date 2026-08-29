@@ -7,9 +7,9 @@ import type { ProductDetail } from '../../../domain/product';
 import {
   DetailPreview,
   buildSiteNetProfitRows,
-  deriveGlobalNetProfit,
   fieldLine,
   type PreviewField,
+  type PreviewGlobalNetProfit,
   type PreviewViewModel,
 } from './DetailPreview';
 
@@ -26,8 +26,10 @@ const readonly = (value: string | null | undefined): PreviewField => ({
 });
 
 function toViewModel(detail: ProductDetail): PreviewViewModel {
-  // 产品级全球净收益:妙手原本显示什么就显示什么(有值显示,无值不显示)。
-  const globalNetProfit = deriveGlobalNetProfit(detail.siteAndPriceMap);
+  // 产品级全球净收益:妙手产品级 netProfit 每个产品都有(来自 product 行)。
+  const globalNetProfit: PreviewGlobalNetProfit | null = detail.netProfit
+    ? { value: detail.netProfit, currency: 'USD' }
+    : null;
 
   const skus = detail.skuList.map((sku) => ({
     skuKey: sku.skuKey,

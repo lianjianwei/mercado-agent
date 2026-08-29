@@ -793,64 +793,85 @@
   background: var(--surface);
 }
 
-/* One card per SKU so distinct SKUs are visually separated. Shared by the
-   Miaoshou detail view and the AI draft view. */
-.edit-sku-card {
-  margin: 0 0 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
+/* SKU 表格(参照妙手):去掉平台SKU/UPC/操作列。 */
+.sku-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
 }
 
-.edit-sku-card > h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
+.sku-table th,
+.sku-table td {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.sku-table th {
+  color: #496784;
+  font-size: 11px;
+  font-weight: 800;
+  background: #f8fbff;
+  white-space: nowrap;
+}
+
+.sku-thumb {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.sku-thumb-placeholder {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
   color: var(--muted);
 }
 
-.edit-sku-card > h3 code {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #eef3f8;
-  font-size: 12px;
-  color: #536579;
+/* 表格单元格里的字段:只读值带单位后缀左对齐。 */
+.sku-cell-field {
+  min-width: 0;
 }
 
-/* Fixed-width labels inside a SKU card keep every row aligned regardless of
-   label text length (SKU 名称 / 库存 / 货源价 / 长度（cm）...). */
-.edit-sku-card .edit-draft-field {
-  grid-template-columns: 88px 1fr;
-  margin-bottom: 10px;
-}
-
-.edit-sku-card .edit-readonly-value {
-  min-height: 34px;
-  display: flex;
+.sku-cell-field .edit-readonly-value {
+  display: inline-flex;
   align-items: center;
+  width: auto;
+  min-width: 64px;
+  padding: 6px 9px;
 }
 
-/* Dimensions + weight as a compact 2x2 grid inside a card. */
-.edit-sku-card .edit-package-grid {
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-  margin-top: 2px;
+.sku-cell-field .edit-source {
+  grid-column: auto;
+  display: inline-block;
+  margin-top: 4px;
 }
 
-.edit-sku-card .edit-package-grid .edit-draft-field {
-  grid-template-columns: 88px 1fr;
-  margin-bottom: 0;
-}
-
-.edit-sku-card .edit-package-grid .edit-draft-field label {
+/* 包装尺寸:长/宽/高 纵向叠放,各自带 cm 后缀。 */
+.dim-stack {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dim-stack .edit-readonly-value {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
+  width: auto;
+  min-width: 56px;
+  padding: 6px 9px;
+}
+
+.dim-stack input {
+  width: 100%;
+  min-width: 40px;
 }
 
 .edit-draft-field {

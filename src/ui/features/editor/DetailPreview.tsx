@@ -176,6 +176,39 @@ function renderField(
   );
 }
 
+// 表格单元格字段:无 label(单元格有列头),仅控件(保持 aria-label 供测试/
+// 无障碍),只读时保留单位后缀。
+function renderCellField(
+  label: string,
+  field: PreviewField,
+  opts: { inputId?: string; suffix?: string; unitClass?: string } = {},
+) {
+  const inputId = opts.inputId;
+  const suffix = opts.suffix ?? '';
+  if (field.editable && field.onChange) {
+    return (
+      <>
+        <input
+          aria-label={label}
+          id={inputId}
+          onChange={(event) => field.onChange!(event.target.value)}
+          value={field.value}
+        />
+        {field.meta && <FieldMeta field={field.meta} />}
+      </>
+    );
+  }
+  return (
+    <>
+      <span className={`edit-readonly-value ${opts.unitClass ?? ''}`}>
+        {field.value || '—'}
+        {suffix}
+      </span>
+      {field.meta && <FieldMeta field={field.meta} />}
+    </>
+  );
+}
+
 function ProductInfoSection({ vm }: { vm: PreviewViewModel }) {
   const { title, description } = vm;
   return (
@@ -230,43 +263,75 @@ function SkuSection({ vm }: { vm: PreviewViewModel }) {
       </section>
     );
   }
+  // 参照妙手 SKU 表格:图片预览 / 颜色 / 货源价 / 库存 / 包装尺寸 / 计费重量。
+  // 去掉平台SKU、UPC、操作列。
   return (
     <section className="detail-section">
       <h3>SKU 信息</h3>
-      {vm.skus.map((sku) => (
-        <div className="edit-sku-card" key={sku.skuKey}>
-          <div className="sku-card-top">
-            {sku.images[0] && (
-              <img alt="" className="sku-thumb" src={sku.images[0]} />
-            )}
-            <div className="sku-card-fields">
-              {renderField('SKU 名称', sku.name, { inputId: `edit-sku-name-${sku.skuKey}` })}
-              <div className="sku-fields-row">
-                {renderField('货源价', sku.sourcePrice, { inputId: `edit-sku-price-${sku.skuKey}` })}
-                {renderField('库存', sku.stock, { inputId: `edit-sku-stock-${sku.skuKey}` })}
-              </div>
-            </div>
-          </div>
-          <div className="edit-package-grid">
-            {renderField('长度', sku.pkg.length, {
-              inputId: `edit-sku-length-${sku.skuKey}`,
-              suffix: ` ${sku.pkg.dimensionUnit}`,
-            })}
-            {renderField('宽度', sku.pkg.width, {
-              inputId: `edit-sku-width-${sku.skuKey}`,
-              suffix: ` ${sku.pkg.dimensionUnit}`,
-            })}
-            {renderField('高度', sku.pkg.height, {
-              inputId: `edit-sku-height-${sku.skuKey}`,
-              suffix: ` ${sku.pkg.dimensionUnit}`,
-            })}
-            {renderField('重量', sku.pkg.weight, {
-              inputId: `edit-sku-weight-${sku.skuKey}`,
-              suffix: ` ${sku.pkg.weightUnit}`,
-            })}
-          </div>
-        </div>
-      ))}
+      <table className="sku-table">
+        <thead>
+          <tr>
+            <th>图片预览</th>
+            <th>SKU 名称</th>
+            <th>货源价</th>
+            <th>库存</th>
+            <th>包装尺寸（cm）</th>
+            <th>计费重量（g）</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vm.skus.map((sku) => (
+            <tr key={sku.skuKey}>
+              <td>
+                {sku.images[0] ? (
+                  <img alt="" className="sku-thumb" src={sku.images[0]} />
+                ) : (
+                  <span className="sku-thumb-placeholder">—</span>
+                )}
+              </td>
+              <td>
+                <div className="sku-cell-field">
+                  {renderCellField('SKU 名称', sku.name, { inputId: `edit-sku-name-${sku.skuKey}` })}
+                </div>
+              </td>
+              <td>
+                <div className="sku-cell-field">
+                  {renderCellField('货源价', sku.sourcePrice, { inputId: `edit-sku-price-${sku.skuKey}` })}
+                </div>
+              </td>
+              <td>
+                <div className="sku-cell-field">
+                  {renderCellField('库存', sku.stock, { inputId: `edit-sku-stock-${sku.skuKey}` })}
+                </div>
+              </td>
+              <td>
+                <div className="dim-stack">
+                  {renderCellField('长度', sku.pkg.length, {
+                    inputId: `edit-sku-length-${sku.skuKey}`,
+                    suffix: ` ${sku.pkg.dimensionUnit}`,
+                  })}
+                  {renderCellField('宽度', sku.pkg.width, {
+                    inputId: `edit-sku-width-${sku.skuKey}`,
+                    suffix: ` ${sku.pkg.dimensionUnit}`,
+                  })}
+                  {renderCellField('高度', sku.pkg.height, {
+                    inputId: `edit-sku-height-${sku.skuKey}`,
+                    suffix: ` ${sku.pkg.dimensionUnit}`,
+                  })}
+                </div>
+              </td>
+              <td>
+                <div className="sku-cell-field">
+                  {renderCellField('重量', sku.pkg.weight, {
+                    inputId: `edit-sku-weight-${sku.skuKey}`,
+                    suffix: ` ${sku.pkg.weightUnit}`,
+                  })}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }

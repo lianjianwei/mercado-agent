@@ -17,6 +17,32 @@ describe('netProfitConfigSchema', () => {
       netProfitConfigSchema.safeParse({ ...DEFAULT_NET_PROFIT_CONFIG, marginMode: 'net' }).success,
     ).toBe(false);
   });
+  it('rejects a 100% target margin', () => {
+    expect(
+      netProfitConfigSchema.safeParse({ ...DEFAULT_NET_PROFIT_CONFIG, targetMargin: 100 }).success,
+    ).toBe(false);
+  });
+  it('rejects a 100% premium commission', () => {
+    expect(
+      netProfitConfigSchema.safeParse({
+        ...DEFAULT_NET_PROFIT_CONFIG,
+        commission: { ...DEFAULT_NET_PROFIT_CONFIG.commission, premium: 100 },
+      }).success,
+    ).toBe(false);
+  });
+  it('accepts a 99.9% target margin', () => {
+    expect(
+      netProfitConfigSchema.safeParse({ ...DEFAULT_NET_PROFIT_CONFIG, targetMargin: 99.9 }).success,
+    ).toBe(true);
+  });
+  it('accepts a 99.9% commission', () => {
+    expect(
+      netProfitConfigSchema.safeParse({
+        ...DEFAULT_NET_PROFIT_CONFIG,
+        commission: { ...DEFAULT_NET_PROFIT_CONFIG.commission, classic: 99.9 },
+      }).success,
+    ).toBe(true);
+  });
 });
 
 describe('fxRatesSchema', () => {

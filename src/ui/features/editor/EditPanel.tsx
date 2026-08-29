@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import type { EditDraft, EditField } from '../../../domain/edit';
+import {
+  LISTING_TYPE_LABELS,
+  SITE_LABELS,
+  normalizeSiteKey,
+} from '../../../domain/net-profit';
 import type { Product, ProductDetail } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
 
@@ -324,6 +329,15 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             <FieldMeta field={draft.model} />
           </div>
 
+          {Object.values(draft.siteAndPriceMap ?? {})[0] !== undefined && (
+            <div className="edit-draft-field edit-global-net-profit">
+              <label>全球净收益</label>
+              <span className="edit-readonly-value">
+                ${Object.values(draft.siteAndPriceMap ?? {})[0]} USD
+              </span>
+            </div>
+          )}
+
           {draft.skus.map((sku) => (
             <section className="edit-sku-card" key={sku.skuKey}>
               <h3>
@@ -411,6 +425,23 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                   <FieldMeta field={sku.package.weight} />
                 </div>
               </div>
+              <div className="edit-net-profit">
+                <h4>净收益</h4>
+                {Object.entries(sku.siteAndPriceMap ?? {}).map(([siteKey, value]) => {
+                  const siteCode = normalizeSiteKey(siteKey);
+                  const listingType = sku.siteAndListingTypeInfoMap?.[siteCode]?.listingType;
+                  return (
+                    <div className="edit-net-profit-row" key={siteKey}>
+                      <span className="net-profit-site">{siteLabel(siteKey)}</span>
+                      <span className="net-profit-type">{listingTypeLabel(listingType)}</span>
+                      <span className="net-profit-value">${value}</span>
+                    </div>
+                  );
+                })}
+                {Object.keys(sku.siteAndPriceMap ?? {}).length === 0 && (
+                  <p className="empty-risk">暂无净收益数据。</p>
+                )}
+              </div>
             </section>
           ))}
 
@@ -440,6 +471,14 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
       )}
     </div>
   );
+}
+
+function siteLabel(siteKey: string): string {
+  return SITE_LABELS[normalizeSiteKey(siteKey)] ?? siteKey;
+}
+
+function listingTypeLabel(listingType: string | undefined): string {
+  return listingType ? (LISTING_TYPE_LABELS[listingType] ?? listingType) : '—';
 }
 
 function FieldMeta({ field }: { field: EditField }) {

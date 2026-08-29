@@ -1116,6 +1116,50 @@
   color: #6b7280;
 }
 
+.edit-sku-card .edit-net-profit {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-weak, rgba(0, 0, 0, 0.08));
+}
+
+.edit-sku-card .edit-net-profit h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.edit-net-profit-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.net-profit-site {
+  min-width: 64px;
+  font-weight: 600;
+}
+
+.net-profit-type {
+  color: var(--text-muted, #777);
+  flex: 1;
+}
+
+.net-profit-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.edit-global-net-profit {
+  margin-top: 4px;
+}
+
+.edit-global-net-profit .edit-readonly-value {
+  font-weight: 700;
+}
+
 .edit-unit-display {
   display: flex;
   align-items: center;

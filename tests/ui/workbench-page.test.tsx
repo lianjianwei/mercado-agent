@@ -179,10 +179,40 @@ function createApi(allProducts: Product[] = products) {
     api: {
       products: { page, detail, syncDefault, onSyncLog, syncOne, clear },
       infringement: createInfringementApi().api,
-      edit: { generate, draft, saveDraft },
+      edit: {
+        generate,
+        draft,
+        saveDraft,
+        images: {
+          generateImages: vi.fn(async () => ({
+            version: 1,
+            productId: 'p1',
+            mainImages: [],
+            detailImages: [],
+            plan: [],
+            status: 'done' as const,
+            createdAt: 'x',
+          })),
+        },
+      },
     },
     products: { page, detail, syncDefault, onSyncLog, syncOne, clear },
-    edit: { generate, draft, saveDraft },
+    edit: {
+      generate,
+      draft,
+      saveDraft,
+      images: {
+        generateImages: vi.fn(async () => ({
+          version: 1,
+          productId: 'p1',
+          mainImages: [],
+          detailImages: [],
+          plan: [],
+          status: 'done' as const,
+          createdAt: 'x',
+        })),
+      },
+    },
     page,
     detail,
     syncDefault,

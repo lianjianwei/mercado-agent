@@ -67,6 +67,17 @@ function api(): EditApi {
     generate: vi.fn(async () => draft),
     draft: vi.fn(async () => null),
     saveDraft: vi.fn(async (_id, value) => value),
+    images: {
+      generateImages: vi.fn(async () => ({
+        version: 1,
+        productId: 'p1',
+        mainImages: [],
+        detailImages: [],
+        plan: [],
+        status: 'done' as const,
+        createdAt: 'x',
+      })),
+    },
   };
 }
 

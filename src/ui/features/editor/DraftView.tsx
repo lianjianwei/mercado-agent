@@ -5,6 +5,7 @@
 // carries no images.
 
 import type { EditDraft, EditField } from '../../../domain/edit';
+import type { AiImagesResult } from '../../../domain/images';
 import type { ProductDetail } from '../../../domain/product';
 import {
   DetailPreview,
@@ -26,8 +27,11 @@ type DraftViewProps = {
   onUpdateSkuField: (skuKey: string, path: SkuFieldPath, value: string) => void;
   onUpdateSkuPackage: (skuKey: string, field: SkuPackagePath, value: string) => void;
   onGenerate: () => void;
+  onRetryImages: () => void;
   onSave: () => void;
   generating: boolean;
+  generatingImages: boolean;
+  imageResult: AiImagesResult | null;
   saving: boolean;
 };
 
@@ -106,6 +110,52 @@ function toViewModel(
   };
 }
 
+// 图片生成进度区:主图 + 详情图缩略图,带生成状态。生成后可重试。
+function ImageProgress({
+  result,
+  generating,
+  onRetry,
+}: {
+  result: AiImagesResult | null;
+  generating: boolean;
+  onRetry: () => void;
+}) {
+  const images = result ? [...result.mainImages, ...result.detailImages] : [];
+  return (
+    <section className="image-progress">
+      <h3>图片生成</h3>
+      {generating && <p className="image-progress-line">图片生成中…</p>}
+      {!generating && images.length === 0 && <p className="empty-risk">暂无生成图片。</p>}
+      {images.length > 0 && (
+        <div className="image-progress-grid">
+          {images.map((image) => (
+            <div
+              className={`image-progress-item image-status-${image.status}`}
+              key={image.imageId}
+            >
+              <img alt="" className="image-progress-thumb" src={image.localPath} />
+              <span className="image-progress-kind">
+                {image.kind === 'main' ? '主图' : '详情图'}
+              </span>
+              <span className="image-progress-status">
+                {image.status === 'ok' ? '成功' : image.status === 'retried' ? '重试' : '失败'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        className="secondary-button"
+        disabled={generating}
+        onClick={onRetry}
+        type="button"
+      >
+        {generating ? '生成中…' : '重新生成图片'}
+      </button>
+    </section>
+  );
+}
+
 export function DraftView({
   draft,
   detail,
@@ -113,8 +163,11 @@ export function DraftView({
   onUpdateSkuField,
   onUpdateSkuPackage,
   onGenerate,
+  onRetryImages,
   onSave,
   generating,
+  generatingImages,
+  imageResult,
   saving,
 }: DraftViewProps) {
   const vm = toViewModel(draft, detail, {
@@ -126,6 +179,8 @@ export function DraftView({
   return (
     <div className="edit-draft-view" aria-label="AI 编辑详情">
       <DetailPreview vm={vm} />
+
+      <ImageProgress result={imageResult} generating={generatingImages} onRetry={onRetryImages} />
 
       <div className="edit-actions">
         <button

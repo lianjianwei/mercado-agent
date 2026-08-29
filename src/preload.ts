@@ -82,6 +82,10 @@ const desktopApi: DesktopApi = {
       invoke(IPC_CHANNELS.editDraft, { productId }),
     saveDraft: (productId, draft) =>
       invoke(IPC_CHANNELS.editSaveDraft, { productId, draft }),
+    images: {
+      generateImages: (productId) =>
+        invoke(IPC_CHANNELS.imagesGenerate, { productId }),
+    },
   },
   netProfit: {
     getConfig: () => invoke(IPC_CHANNELS.netProfitGetConfig),

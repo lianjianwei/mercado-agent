@@ -11,6 +11,18 @@ import { EditPanel } from '../../src/ui/features/editor/EditPanel';
 
 afterEach(cleanup);
 
+function emptyImagesResult() {
+  return {
+    version: 1,
+    productId: 'product-1',
+    mainImages: [],
+    detailImages: [],
+    plan: [],
+    status: 'done' as const,
+    createdAt: 'x',
+  };
+}
+
 const product: Product = {
   id: 'product-1',
   state: 'notPublished',
@@ -104,6 +116,7 @@ function renderPanel(overrides: {
     generate: vi.fn(async () => generated),
     draft: vi.fn(async () => existing),
     saveDraft: vi.fn(async (_id, incoming) => incoming),
+    images: { generateImages: vi.fn(async () => emptyImagesResult()) },
   };
   const loadDetail = vi.fn(async () => detail);
   const { container } = render(<EditPanel api={api} loadDetail={loadDetail} product={product} />);
@@ -146,6 +159,7 @@ describe('EditPanel', () => {
           generate: vi.fn(async () => draft()),
           draft: vi.fn(async () => null),
           saveDraft: vi.fn(async (_id, value) => value),
+          images: { generateImages: vi.fn(async () => emptyImagesResult()) },
         }}
         loadDetail={loadDetail}
         product={product}
@@ -259,6 +273,7 @@ describe('EditPanel', () => {
       }),
       draft: vi.fn(async () => null),
       saveDraft: vi.fn(async (_id, incoming) => incoming),
+      images: { generateImages: vi.fn(async () => emptyImagesResult()) },
     };
     const user = userEvent.setup();
     render(<EditPanel api={api} loadDetail={vi.fn(async () => detail)} product={product} />);

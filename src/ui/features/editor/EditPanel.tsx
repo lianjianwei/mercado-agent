@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { EditDraft, EditField } from '../../../domain/edit';
+import type { AiImagesResult } from '../../../domain/images';
 import type { Product, ProductDetail } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
 import { DraftView } from './DraftView';
@@ -20,6 +21,8 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingImages, setGeneratingImages] = useState(false);
+  const [imageResult, setImageResult] = useState<AiImagesResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,10 +55,26 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     try {
       const generated = await api.generate(product.id);
       setDraft(generated);
+      // 草稿生成后同一动作接着触发图片生成。
+      void runGenerateImages();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'AI 编辑草稿生成失败。');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function runGenerateImages() {
+    if (!product) return;
+    setGeneratingImages(true);
+    setError('');
+    try {
+      const result = await api.images.generateImages(product.id);
+      setImageResult(result);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '图片生成失败。');
+    } finally {
+      setGeneratingImages(false);
     }
   }
 
@@ -180,7 +199,10 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
           detail={detail}
           draft={draft}
           generating={generating}
+          generatingImages={generatingImages}
+          imageResult={imageResult}
           onGenerate={() => void runGenerate()}
+          onRetryImages={() => void runGenerateImages()}
           onSave={() => void runSave()}
           onUpdateField={updateDraftField}
           onUpdateSkuField={updateSkuField}

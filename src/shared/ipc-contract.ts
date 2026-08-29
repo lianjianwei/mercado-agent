@@ -125,6 +125,7 @@ export interface EditApi {
   generate(productId: string): Promise<EditDraft>;
   draft(productId: string): Promise<EditDraft | null>;
   saveDraft(productId: string, draft: EditDraft): Promise<EditDraft>;
+  images: ImageApi;
 }
 
 export interface NetProfitApi {

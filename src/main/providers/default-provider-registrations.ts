@@ -1,8 +1,9 @@
 import type { ProviderFactoryRegistration } from './provider-registry';
-import { BearerModelConnectionProvider } from './bearer-model-connection-provider';
 import { DoubaoTextProvider } from './text/doubao';
 import { DeepSeekTextProvider } from './text/deepseek';
 import { OpenAiTextProvider } from './text/openai';
+import { OpenAiImageProvider } from './image/openai';
+import { ProviderUnavailableError } from '../../domain/providers';
 import type { ModelNetworkTransport } from '../network/model-network-client';
 import type { ProviderConfig } from '../../domain/config';
 
@@ -42,14 +43,22 @@ export function createDefaultProviderRegistrations(
       createTextProvider(textProviders[provider], configuration, network),
   }));
 
-  const image = (
-    ['doubao', 'openai'] as const
-  ).map((provider) => ({
+  const image = (['openai'] as const).map((provider) => ({
     kind: 'image' as const,
     provider,
     create: (configuration: ProviderConfig) =>
-      new BearerModelConnectionProvider(configuration, network),
+      new OpenAiImageProvider(
+        { baseUrl: configuration.baseUrl, apiKey: configuration.apiKey, model: configuration.model },
+        network,
+        (url, signal) => downloadBytes(network, url, signal),
+      ),
   }));
 
   return [...text, ...image] as ProviderFactoryRegistration[];
+}
+
+async function downloadBytes(network: ModelNetworkTransport, url: string, signal: AbortSignal): Promise<Buffer> {
+  const response = await network.fetch(url, { method: 'GET', signal });
+  if (!response.ok) throw new ProviderUnavailableError('参考图下载失败。');
+  return Buffer.from(await response.arrayBuffer());
 }

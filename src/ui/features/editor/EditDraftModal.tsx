@@ -19,7 +19,10 @@ export function EditDraftModal({
 }: EditDraftModalProps) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Escape') return;
+      // 图片灯箱打开时,Esc 只关灯箱,不关本弹窗(避免按一下 Esc 两处都关)。
+      if (document.querySelector('.lightbox-overlay')) return;
+      onClose();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

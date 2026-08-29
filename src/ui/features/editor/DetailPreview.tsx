@@ -4,26 +4,19 @@
 // per-field editability differ. See MiaoshouView / DraftView for the two
 // mappings into this ViewModel.
 
-import type { EditField } from '../../../domain/edit';
 import {
   LISTING_TYPE_LABELS,
   SITE_LABELS,
   normalizeSiteKey,
 } from '../../../domain/net-profit';
 
-export type PreviewFieldMeta = {
-  source: EditField['source'];
-  confidence: number;
-};
-
 // A single displayed/editable field. `editable` decides input/textarea vs
-// read-only span; `multiline` switches input→textarea and adds pre-wrap; `meta`
-// renders the source/confidence pill; `onChange` is required when editable.
+// read-only span; `multiline` switches input→textarea and adds pre-wrap;
+// `onChange` is required when editable.
 export type PreviewField = {
   value: string;
   editable: boolean;
   multiline?: boolean;
-  meta?: PreviewFieldMeta;
   onChange?: (value: string) => void;
 };
 
@@ -70,21 +63,6 @@ export type PreviewViewModel = {
   globalNetProfit: PreviewGlobalNetProfit | null;
 };
 
-export const sourceLabels: Record<EditField['source'], string> = {
-  remote: '原值',
-  ai: 'AI 生成',
-  user: '人工修改',
-  fixed: '固定值',
-};
-
-function sourcePillClass(source: EditField['source']): string {
-  return `edit-source edit-source-${source}`;
-}
-
-export function formatConfidence(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}
-
 export function fieldLine(value: string | null | undefined): string {
   return value ? String(value) : '—';
 }
@@ -95,14 +73,6 @@ function siteLabel(siteKey: string): string {
 
 function listingTypeLabel(listingType: string | undefined): string {
   return listingType ? (LISTING_TYPE_LABELS[listingType] ?? listingType) : '—';
-}
-
-export function FieldMeta({ field }: { field: PreviewFieldMeta }) {
-  return (
-    <span className={sourcePillClass(field.source)}>
-      {sourceLabels[field.source]} · {formatConfidence(field.confidence)}
-    </span>
-  );
 }
 
 // Build the 全球净收益 line from a product-level siteAndPriceMap.妙手原本显示
@@ -171,7 +141,6 @@ function renderField(
     <div className="edit-draft-field">
       <label htmlFor={inputId}>{label}</label>
       {control}
-      {field.meta && <FieldMeta field={field.meta} />}
     </div>
   );
 }
@@ -187,25 +156,19 @@ function renderCellField(
   const suffix = opts.suffix ?? '';
   if (field.editable && field.onChange) {
     return (
-      <>
-        <input
-          aria-label={label}
-          id={inputId}
-          onChange={(event) => field.onChange!(event.target.value)}
-          value={field.value}
-        />
-        {field.meta && <FieldMeta field={field.meta} />}
-      </>
+      <input
+        aria-label={label}
+        id={inputId}
+        onChange={(event) => field.onChange!(event.target.value)}
+        value={field.value}
+      />
     );
   }
   return (
-    <>
-      <span className={`edit-readonly-value ${opts.unitClass ?? ''}`}>
-        {field.value || '—'}
-        {suffix}
-      </span>
-      {field.meta && <FieldMeta field={field.meta} />}
-    </>
+    <span className={`edit-readonly-value ${opts.unitClass ?? ''}`}>
+      {field.value || '—'}
+      {suffix}
+    </span>
   );
 }
 
@@ -234,7 +197,6 @@ function AttributesSection({ attributes }: { attributes: PreviewAttribute[] }) {
             <label>{category.label}</label>
             <div className="attr-value attr-value-scroll">
               <span className="edit-readonly-value">{category.field.value || '—'}</span>
-              {category.field.meta && <FieldMeta field={category.field.meta} />}
             </div>
           </div>
         )}
@@ -244,7 +206,6 @@ function AttributesSection({ attributes }: { attributes: PreviewAttribute[] }) {
               <label>{item.label}</label>
               <div className="attr-value">
                 <span className="edit-readonly-value">{item.field.value || '—'}</span>
-                {item.field.meta && <FieldMeta field={item.field.meta} />}
               </div>
             </div>
           ))}

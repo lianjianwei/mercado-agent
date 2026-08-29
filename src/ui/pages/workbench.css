@@ -856,12 +856,6 @@
   font-family: inherit;
 }
 
-.sku-cell-field .edit-source {
-  grid-column: auto;
-  display: inline-block;
-  margin-top: 4px;
-}
-
 /* 包装尺寸:长/宽/高 纵向叠放,各自带 cm 后缀。 */
 .dim-stack {
   display: flex;
@@ -946,30 +940,6 @@
 
 .edit-package-grid .edit-draft-field label {
   padding-top: 0;
-}
-
-.edit-source {
-  display: inline-block;
-  grid-column: 2;
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: var(--muted);
-}
-
-.edit-package-grid .edit-source {
-  grid-column: 1;
-}
-
-.edit-source-ai {
-  color: #166534;
-}
-
-.edit-source-user {
-  color: #075985;
-}
-
-.edit-source-fixed {
-  color: #6b7280;
 }
 
 .edit-sku-card .edit-net-profit {
@@ -1319,7 +1289,3 @@
   min-width: 100%;
 }
 
-.attr-value .edit-source {
-  display: inline-block;
-  margin-top: 4px;
-}

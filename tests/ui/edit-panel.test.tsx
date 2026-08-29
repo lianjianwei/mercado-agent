@@ -151,11 +151,7 @@ describe('EditPanel', () => {
     await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
     const titleInput = await screen.findByLabelText('标题');
     expect((titleInput as HTMLInputElement).value).toBe('Molinillo de café');
-    expect(screen.getByText('AI 生成 · 95%')).toBeTruthy();
-    // Some fields (stock) are fixed at 100%.
-    expect(screen.getAllByText('AI 生成 · 100%').length).toBeGreaterThanOrEqual(1);
-    // Brand is a fixed value, not an editable input, and shows its own badge.
-    expect(screen.getByText('固定值 · 100%')).toBeTruthy();
+    // Brand is a fixed value, shown as a read-only span (no AI badge now).
     expect(screen.getByText('Generic')).toBeTruthy();
   });
 
@@ -172,19 +168,6 @@ describe('EditPanel', () => {
 
     await user.click(screen.getByRole('tab', { name: '妙手详情' }));
     expect(await screen.findByText('Hario')).toBeTruthy();
-  });
-
-  it('marks a manually edited field as 人工修改', async () => {
-    const user = userEvent.setup();
-    renderPanel({ existing: draft() });
-
-    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
-    const titleInput = await screen.findByLabelText('标题');
-    await user.clear(titleInput);
-    await user.type(titleInput, 'Molinillo editado');
-    await user.click(screen.getByRole('button', { name: '保存草稿' }));
-
-    expect(await screen.findByText('人工修改 · 100%')).toBeTruthy();
   });
 
   it('saves the edited draft through the api', async () => {

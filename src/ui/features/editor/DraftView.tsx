@@ -1,8 +1,8 @@
 // AI 编辑详情 view: editable mapping of the EditDraft into the shared
-// DetailPreview ViewModel. Shows source/confidence pills per field, wires
-// onChange to the existing update handlers, and renders the regenerate/save
-// footer. Images are resolved by skuKey from the 妙手 ProductDetail (the draft
-// keeps the same skuKeys); the draft itself carries no images.
+// DetailPreview ViewModel. Wires onChange to the existing update handlers and
+// renders the regenerate/save footer. Images are resolved by skuKey from the
+// 妙手 ProductDetail (the draft keeps the same skuKeys); the draft itself
+// carries no images.
 
 import type { EditDraft, EditField } from '../../../domain/edit';
 import type { ProductDetail } from '../../../domain/product';
@@ -12,7 +12,6 @@ import {
   deriveGlobalNetProfit,
   fieldLine,
   type PreviewField,
-  type PreviewFieldMeta,
   type PreviewViewModel,
 } from './DetailPreview';
 
@@ -41,8 +40,6 @@ function editable(
     value: field.value,
     editable: !opts.readonly,
     multiline: opts.multiline,
-    meta: { source: field.source, confidence: field.confidence } as PreviewFieldMeta,
-    // A read-only field still carries meta but no onChange.
     onChange: opts.readonly ? undefined : onChange,
   };
 }
@@ -97,7 +94,7 @@ function toViewModel(
     }),
     attributes: [
       { label: '类目', field: { value: fieldLine(detail?.category), editable: false } },
-      // 品牌是固定值(Generic),只读但保留 meta pill。
+      // 品牌是固定值(Generic),只读。
       { label: '品牌', field: editable(draft.brand, () => undefined, { readonly: true }) },
       { label: '型号', field: editable(draft.model, (value) => handlers.onUpdateField('model', value)) },
     ],

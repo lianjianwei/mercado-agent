@@ -17,6 +17,7 @@ import type {
 import type { InfringementRun } from '../domain/infringement';
 import type { EditDraft } from '../domain/edit';
 import type { FxRates, NetProfitConfig } from '../domain/net-profit';
+import type { AiImagesResult } from '../domain/images';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -48,6 +49,7 @@ export const IPC_CHANNELS = {
   netProfitGetConfig: 'netProfit:get-config',
   netProfitSaveConfig: 'netProfit:save-config',
   netProfitRefreshRates: 'netProfit:refresh-rates',
+  imagesGenerate: 'images:generate',
 } as const;
 
 export type IpcErrorCode =
@@ -131,6 +133,10 @@ export interface NetProfitApi {
   refreshRates(): Promise<FxRates>;
 }
 
+export interface ImageApi {
+  generateImages(productId: string): Promise<AiImagesResult>;
+}
+
 export type InfringementBatchFailure = { productId: string; message: string };
 
 export type InfringementBatchSummary = {
@@ -168,4 +174,5 @@ export interface DesktopApi {
   edit: EditApi;
   netProfit: NetProfitApi;
   infringement: InfringementApi;
+  images: ImageApi;
 }

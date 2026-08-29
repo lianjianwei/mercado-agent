@@ -112,6 +112,10 @@ const desktopApi: DesktopApi = {
     current: (productId) =>
       invoke(IPC_CHANNELS.infringementCurrent, { productId }),
   },
+  images: {
+    generateImages: (productId) =>
+      invoke(IPC_CHANNELS.imagesGenerate, { productId }),
+  },
 };
 
 contextBridge.exposeInMainWorld('mercado', desktopApi);

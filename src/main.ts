@@ -1,9 +1,13 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { openAppDatabase, resolveDatabasePath } from './main/db/database';
 import { registerHandlers } from './main/ipc/register-handlers';
+import { readLatestDraft } from './main/ipc/edit-handlers';
+import { productDetailFromSources } from './main/ipc/product-detail-mapper';
+import type { CollectBoxDetailDto } from './shared/miaoshou-schemas';
 import { createDefaultProviderRegistrations } from './main/providers/default-provider-registrations';
 import { ProviderRegistry } from './main/providers/provider-registry';
 import { SqliteCredentialRepository } from './main/repositories/credential-repository';
@@ -23,10 +27,11 @@ import { SqliteInfringementRepository } from './main/repositories/infringement-r
 import { InfringementService } from './main/services/infringement-service';
 import { InfringementEngine } from './main/risk/infringement-engine';
 import { EditGenerationService } from './main/services/edit-generation-service';
+import { ImageGenerationService } from './main/services/image-generation-service';
 import { NetProfitCalculator } from './main/services/net-profit-calculator';
 import { FxRateService } from './main/services/fx-rate-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
-import type { TextModelProvider } from './domain/providers';
+import type { TextModelProvider, ImageModelProvider } from './domain/providers';
 
 let appDatabase: DatabaseSync | null = null;
 
@@ -141,6 +146,24 @@ app.whenReady().then(async () => {
     },
     { netProfit: netProfitCalculator },
   );
+  const imageService = new ImageGenerationService({
+    // 与 product-handlers 的 productDetail 同款取数:product + 最新 miaoshou 快照。
+    readDetail: (productId: string) => {
+      const product = products.getById(productId);
+      const latest = [...snapshots.listForProduct(productId)].reverse()
+        .find((s) => s.kind === 'miaoshou')?.payload as CollectBoxDetailDto | undefined;
+      return productDetailFromSources(product, latest);
+    },
+    readDraft: (productId) => readLatestDraft(snapshots, productId),
+    imageProvider: () => providerRegistry.createActive('image') as ImageModelProvider,
+    textProvider: () => {
+      const p = providerRegistry.createActive('text') as TextModelProvider;
+      if (typeof p.generate !== 'function') throw new ActiveProviderMissingError('text');
+      return p;
+    },
+    appendImages: (productId, result) => snapshots.append({ id: `${productId}:aiImages:${randomUUID()}`, productId, kind: 'aiImages', capturedAt: result.createdAt, payload: result }),
+    imagesDir: path.join(app.getPath('userData'), 'images'),
+  });
   registerHandlers(
     {
       handle: (channel, listener) => {
@@ -156,6 +179,7 @@ app.whenReady().then(async () => {
       infringementRepository,
       infringementService,
       editService,
+      imageService,
       netProfitCalculator,
       netProfitSettings: appSettings,
       fxRates: fxRateRepository,

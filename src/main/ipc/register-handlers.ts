@@ -18,6 +18,7 @@ import { registerConfigHandlers } from './config-handlers';
 import { registerDiagnosticHandlers } from './diagnostic-handlers';
 import { registerInfringementHandlers } from './infringement-handlers';
 import { registerEditHandlers } from './edit-handlers';
+import { registerImageHandlers } from './image-handlers';
 import { registerNetProfitHandlers } from './net-profit-handlers';
 import { registerProductHandlers } from './product-handlers';
 import { registerProxyConfigHandlers } from './proxy-config-handlers';
@@ -26,6 +27,7 @@ import type { ModelProxyService } from '../services/model-proxy-service';
 import type { ProductSyncService } from '../services/product-sync-service';
 import type { InfringementService } from '../services/infringement-service';
 import type { EditGenerationService } from '../services/edit-generation-service';
+import type { ImageGenerationService } from '../services/image-generation-service';
 import type { NetProfitCalculator } from '../services/net-profit-calculator';
 import type { DiagnosticSnapshot } from '../../shared/ipc-contract';
 
@@ -42,6 +44,7 @@ type HandlerDependencies = {
   infringementRepository: InfringementRepository;
   infringementService: InfringementService;
   editService: EditGenerationService;
+  imageService: ImageGenerationService;
   netProfitCalculator: Pick<NetProfitCalculator, 'computeForDraft'>;
   netProfitSettings: NetProfitSettingsRepository;
   fxRates: FxRateRepository;
@@ -76,6 +79,9 @@ export function registerHandlers(
     snapshots: dependencies.snapshots,
     service: dependencies.editService,
     netProfit: dependencies.netProfitCalculator,
+  });
+  registerImageHandlers(registrar, {
+    service: dependencies.imageService,
   });
   registerNetProfitHandlers(registrar, {
     settings: dependencies.netProfitSettings,

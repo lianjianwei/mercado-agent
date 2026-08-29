@@ -1111,7 +1111,11 @@ git commit -m "feat: persist net-profit config and cached fx rates"
 ```ts
 import { describe, expect, it, vi } from 'vitest';
 import { FxRateService, FX_API_URL, type JsonFetcher } from '../../src/main/services/fx-rate-service';
-import { DEFAULT_FX_RATES, type FxRateRepository } from '../../src/domain/net-profit';
+import {
+  DEFAULT_FX_RATES,
+  type FxRateRepository,
+  type FxRates,
+} from '../../src/domain/net-profit';
 
 function repo(): FxRateRepository {
   const saved: FxRates[] = [];
@@ -1302,6 +1306,10 @@ function sku(skuKey: string, sourcePrice: string, weight: string, dims: [string,
       weight: { value: weight, source: 'ai', confidence: 0.8 },
       weightUnit: 'g',
     },
+    // These are required after Task 8; keeping them here makes this helper
+    // future-proof across the whole plan.
+    siteAndPriceMap: {},
+    siteAndListingTypeInfoMap: {},
   };
 }
 
@@ -1336,7 +1344,8 @@ describe('NetProfitCalculator', () => {
 
     expect(result.skus[1].siteAndPriceMap).toEqual({});
     expect(result.skus[1].siteAndListingTypeInfoMap).toEqual({});
-    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '9', 'AR(Up)': '11.5' });
+    // 全球 = 所有存活 SKU 的最大值(heavy 的 MX 9 / AR 11.5 → 11.5),应用到所有站点键。
+    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '11.5', 'AR(Up)': '11.5' });
   });
 
   it('treats missing weight/dimensions as zero instead of failing', () => {
@@ -1460,22 +1469,24 @@ git commit -m "feat: orchestrate net-profit computation over a draft"
 
 ---
 
-### Task 7: IPC 接线(contract + handlers + preload)
+### Task 7: IPC 接线(contract + handlers + preload + main 装配)
 
 **Files:**
 - Modify: `src/shared/ipc-contract.ts`(channels + `NetProfitApi` + `DesktopApi`)
 - Create: `src/main/ipc/net-profit-handlers.ts`
 - Modify: `src/main/ipc/register-handlers.ts`(注册)
 - Modify: `src/preload.ts`(暴露 `window.mercado.netProfit`)
+- Modify: `src/main.ts`(装配 `fxRateRepository`/`fxRateService`,给 registerHandlers 传 `netProfitSettings`/`fxRates`/`refreshRates`)
 - Create: `tests/unit/net-profit-handlers.test.ts`
 
 **Interfaces:**
-- Consumes: `NetProfitSettingsRepository` / `FxRateRepository` / `NetProfitConfig` / `FxRates` / `NetProfitSnapshot`。
+- Consumes: `NetProfitSettingsRepository` / `FxRateRepository` / `NetProfitConfig` / `FxRates` / `NetProfitSnapshot`;`SqliteFxRateRepository` / `FxRateService`。
 - Produces:
   - `IPC_CHANNELS.netProfitGetConfig = 'netProfit:get-config'`、`netProfitSaveConfig = 'netProfit:save-config'`、`netProfitRefreshRates = 'netProfit:refresh-rates'`
   - `type NetProfitSnapshot = { config: NetProfitConfig; fxRates: FxRates }`
   - `interface NetProfitApi { getConfig(): Promise<NetProfitSnapshot>; saveConfig(config: NetProfitConfig): Promise<NetProfitConfig>; refreshRates(): Promise<FxRates> }`
   - `function registerNetProfitHandlers(registrar: IpcRegistrar, deps: { settings: NetProfitSettingsRepository; fxRates: FxRateRepository; refreshRates: () => Promise<FxRates> }): void`
+  - **main.ts 已装配**:`fxRateRepository: SqliteFxRateRepository`(复用同一 `appDatabase`)、`fxRateService: FxRateService`,启动时 `void fxRateService.refresh().catch(() => {})`;`registerHandlers` 依赖对象含 `netProfitSettings: appSettings`(即 `SqliteAppSettingsRepository`,已实现 `NetProfitSettingsRepository`)、`fxRates: fxRateRepository`、`refreshRates: () => fxRateService.refresh()`。→ 保证 Task 7 结束时分支可编译,Task 8 只追加 calculator。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1691,7 +1702,28 @@ export function registerNetProfitHandlers(
 }
 ```
 
-修改 `src/main/ipc/register-handlers.ts`:导入 `registerNetProfitHandlers` 与 `NetProfitSettingsRepository`/`FxRateRepository`;在 `HandlerDependencies` 加 `netProfitSettings: NetProfitSettingsRepository; fxRates: FxRateRepository; refreshRates: () => Promise<FxRates>`;在 `registerHandlers` 里调用 `registerNetProfitHandlers(registrar, { settings: dependencies.netProfitSettings, fxRates: dependencies.fxRates, refreshRates: dependencies.refreshRates })`。
+修改 `src/main/ipc/register-handlers.ts`:
+
+- 导入 `registerNetProfitHandlers`、`NetProfitSettingsRepository`、`FxRateRepository`、`type NetProfitConfig`(用于 refreshRates 返回)。
+- `HandlerDependencies` 加:
+
+```ts
+  netProfitSettings: NetProfitSettingsRepository;
+  fxRates: FxRateRepository;
+  refreshRates: () => Promise<FxRates>;
+```
+
+- `registerHandlers` 里调用:
+
+```ts
+  registerNetProfitHandlers(registrar, {
+    settings: dependencies.netProfitSettings,
+    fxRates: dependencies.fxRates,
+    refreshRates: dependencies.refreshRates,
+  });
+```
+
+(Task 8 再往 `HandlerDependencies` 加 `netProfitCalculator` 并传给 `registerEditHandlers`。)
 
 修改 `src/preload.ts`,在 `desktopApi` 加:
 
@@ -1702,6 +1734,27 @@ netProfit: {
   refreshRates: () => invoke(IPC_CHANNELS.netProfitRefreshRates),
 },
 ```
+
+修改 `src/main.ts`(装配汇率仓储/服务,并把依赖传给 registerHandlers):
+
+```ts
+import { FxRateService } from './main/services/fx-rate-service';
+import { SqliteFxRateRepository } from './main/repositories/fx-rate-repository';
+// app.whenReady 内,appSettings 之后:
+const fxRateRepository = new SqliteFxRateRepository(appDatabase);
+const fxRateService = new FxRateService(fxRateRepository);
+void fxRateService.refresh().catch(() => { /* 离线时用缓存/默认 */ });
+```
+
+`registerHandlers(...)` 依赖对象加:
+
+```ts
+      netProfitSettings: appSettings,
+      fxRates: fxRateRepository,
+      refreshRates: () => fxRateService.refresh(),
+```
+
+`register-handlers.ts` 的 `HandlerDependencies` 增加并转发(见下方实现段落)。
 
 - [ ] **Step 4: 运行测试,确认通过**
 
@@ -1778,7 +1831,13 @@ it('computes net profit on the generated draft when a calculator is wired', asyn
   expect(draft.skus[0].siteAndPriceMap['MX(Up)']).toBeTruthy();
   expect(draft.skus[0].siteAndListingTypeInfoMap.MX).toEqual({ listingType: 'gold_pro' });
   expect(draft.skus[0].siteAndListingTypeInfoMap.AR).toEqual({ listingType: 'gold_special' });
-  expect(Object.values(draft.siteAndPriceMap ?? {})[0]).toBe(draft.skus[0].siteAndPriceMap['MX(Up)']);
+  // 全球净收益 = 所有 SKU × 所有站点的最大值,不必然等于第一个 SKU 的 MX 值。
+  const maxAcross = Math.max(
+    ...draft.skus.flatMap((sku) =>
+      Object.values(sku.siteAndPriceMap ?? {}).map(Number),
+    ),
+  );
+  expect(Number(Object.values(draft.siteAndPriceMap ?? {})[0])).toBe(maxAcross);
 });
 ```
 
@@ -1872,18 +1931,13 @@ this.netProfit = options.netProfit;
       appendDraft(dependencies.snapshots, productId, saved);
 ```
 
-改 `src/main/ipc/register-handlers.ts`:`HandlerDependencies` 加 `netProfitCalculator: Pick<NetProfitCalculator, 'computeForDraft'>`、`netProfitSettings: NetProfitSettingsRepository`、`fxRates: FxRateRepository`、`refreshRates: () => Promise<FxRates>`;`registerEditHandlers` 调用处传 `netProfit: dependencies.netProfitCalculator`;`registerNetProfitHandlers` 调用处传 `settings`/`fxRates`/`refreshRates`。
+改 `src/main/ipc/register-handlers.ts`(在 Task 7 基础上):`HandlerDependencies` 加 `netProfitCalculator: Pick<NetProfitCalculator, 'computeForDraft'>`;`registerEditHandlers` 调用处传 `netProfit: dependencies.netProfitCalculator`(Task 7 已传 `settings`/`fxRates`/`refreshRates` 给 `registerNetProfitHandlers`)。
 
-改 `src/main.ts`:
+改 `src/main.ts`(复用 Task 7 已装配的 `fxRateRepository`/`fxRateService`):
 
 ```ts
 import { NetProfitCalculator } from './main/services/net-profit-calculator';
-import { FxRateService } from './main/services/fx-rate-service';
-import { SqliteFxRateRepository } from './main/repositories/fx-rate-repository';
-// app.whenReady 内,appSettings 之后:
-const fxRateRepository = new SqliteFxRateRepository(appDatabase);
-const fxRateService = new FxRateService(fxRateRepository);
-void fxRateService.refresh().catch(() => { /* 离线时用缓存/默认 */ });
+// fxRateRepository / fxRateService 已在 Task 7 装配,此处仅追加 calculator。
 const netProfitCalculator = new NetProfitCalculator(appSettings, fxRateRepository);
 ```
 
@@ -1898,13 +1952,10 @@ const netProfitCalculator = new NetProfitCalculator(appSettings, fxRateRepositor
   );
 ```
 
-`registerHandlers` 依赖对象加:
+`registerHandlers` 依赖对象在 Task 7 已有的基础上再加:
 
 ```ts
       netProfitCalculator,
-      netProfitSettings: appSettings,
-      fxRates: fxRateRepository,
-      refreshRates: () => fxRateService.refresh(),
 ```
 
 - [ ] **Step 4: 运行测试,确认通过**
@@ -2017,9 +2068,12 @@ describe('NetProfitConfigModal', () => {
     const a = api();
     render(<NetProfitConfigModal api={a} onClose={vi.fn()} />);
 
-    await screen.findByDisplayValue('20'); // 目标利润率
-    expect(screen.getByText('CNY')).toBeTruthy();
-    expect(await screen.findByText(/2026-08-29T00:00:00.000Z/)).toBeTruthy();
+    // 目标利润率输入框(带 label 定位,避免匹配到同值的铂金佣金输入框)。
+    await screen.findByLabelText('目标利润率（%）');
+    expect((screen.getByLabelText('目标利润率（%）') as HTMLInputElement).value).toBe('20');
+    // 汇率区块四个货币 + 更新时间。
+    expect(screen.getByText(/CNY/)).toBeTruthy();
+    expect(screen.getByText(/2026-08-29T00:00:00.000Z/)).toBeTruthy();
   });
 
   it('saves a new target margin and closes', async () => {
@@ -2027,7 +2081,7 @@ describe('NetProfitConfigModal', () => {
     const onClose = vi.fn();
     render(<NetProfitConfigModal api={a} onClose={onClose} />);
 
-    const margin = await screen.findByDisplayValue('20');
+    const margin = await screen.findByLabelText('目标利润率（%）');
     fireEvent.change(margin, { target: { value: '30' } });
     fireEvent.click(screen.getByText('保存'));
 
@@ -2419,7 +2473,8 @@ describe('EditPanel net profit display', () => {
     fireEvent.click(await screen.findByText('AI 编辑详情'));
 
     expect(screen.getByText('全球净收益')).toBeTruthy();
-    expect(screen.getByText('$11.5')).toBeTruthy();
+    // 全球净收益渲染为 '$11.5 USD'(整段文本,不拆开)。
+    expect(screen.getByText('$11.5 USD')).toBeTruthy();
     // 站点行:墨西哥(铂金, 9)+ 阿根廷(经典, 11.5)
     expect(screen.getByText('墨西哥')).toBeTruthy();
     expect(screen.getByText('阿根廷')).toBeTruthy();

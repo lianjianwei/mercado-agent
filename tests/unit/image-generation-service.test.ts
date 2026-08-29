@@ -1,0 +1,49 @@
+import { describe, expect, it, vi } from 'vitest';
+import { ImageGenerationService, buildMainImagePrompt } from '../../src/main/services/image-generation-service';
+import type { ProductDetail } from '../../src/domain/product';
+import type { EditDraft } from '../../src/domain/edit';
+import type { ImageModelProvider, TextModelProvider } from '../../src/domain/providers';
+
+const detail = { productId: 'p1', title: 'T', description: 'D', category: '猫咪用品',
+  skuList: [
+    { skuKey: ';a;', name: 'A', imageUrls: ['https://ref/a.png'], weight: null, length: null, width: null, height: null, stock: null, sourcePrice: null, netProfit: null, dimensionUnit: null, weightUnit: null, siteAndPriceMap: {}, siteAndListingTypeInfoMap: {}, imageUrl: null },
+  ] } as unknown as ProductDetail;
+
+const draft = { title: { value: 'T' }, description: { value: 'D' } } as unknown as EditDraft;
+
+describe('ImageGenerationService', () => {
+  it('builds a white-bg main-image prompt without logo or text', () => {
+    const prompt = buildMainImagePrompt({ title: '按摩仪', description: 'x', category: '健康' });
+    expect(prompt).toContain('白底');
+    expect(prompt).toContain('无 logo');
+  });
+
+  it('emits one main image per SKU with a local file and a snapshot record', async () => {
+    const appendImages = vi.fn();
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn(async () => [{ url: '', dataBase64: 'AAAA' }]) } as unknown as ImageModelProvider;
+    const textProvider = {
+      testConnection: vi.fn(),
+      // 规划返回 plans;自检(提示词含「质检」)返回 ok:true,否则每张图都会按失败处理。
+      generate: vi.fn(async (request: { prompt?: string }) =>
+        String(request.prompt ?? '').includes('质检')
+          ? { ok: true, issues: [] }
+          : { plans: [{ id: 'd1', kind: '功能图', subject: 's', textEs: '', textPt: '', hasPerson: false, referenceNote: '' }] },
+      ),
+    } as unknown as TextModelProvider;
+    const service = new ImageGenerationService({
+      readDetail: () => detail,
+      readDraft: () => draft,
+      imageProvider: () => imageProvider,
+      textProvider: () => textProvider,
+      appendImages,
+      imagesDir: '/tmp/imgs',
+      now: () => '2026-08-29T00:00:00.000Z',
+    });
+    const result = await service.generate('p1');
+    expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
+    expect(result.mainImages).toHaveLength(1);
+    expect(result.mainImages[0].localPath).toMatch(/\/tmp\/imgs\/p1\/.+\.png$/);
+    expect(result.mainImages[0].plannedPath).toMatch(/^mercado\/p1\/.+\.png$/);
+    expect(result.mainImages[0].localPath.endsWith('.png')).toBe(true);
+  });
+});

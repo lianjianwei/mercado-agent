@@ -1,0 +1,119 @@
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import type { ProductDetail } from '../../domain/product';
+import type { EditDraft } from '../../domain/edit';
+import type { GeneratedImage, AiImagesResult, DetailPlanItem } from '../../domain/images';
+import type { ImageModelProvider, ImageResult, TextModelProvider } from '../../domain/providers';
+import { ImagePlanner } from './image-planner';
+import { ImageReviser, shouldRegenerate } from './image-reviser';
+
+export type ImageGenerationDeps = {
+  readDetail: (productId: string) => ProductDetail | null;
+  readDraft: (productId: string) => EditDraft | null;
+  imageProvider: () => ImageModelProvider;
+  textProvider: () => TextModelProvider;
+  appendImages: (productId: string, result: AiImagesResult) => void;
+  imagesDir: string;
+  now?: () => string;
+};
+
+export function buildMainImagePrompt(input: { title: string; description: string; category: string }): string {
+  return `以参考图为准生成一张美客多主图：白底，只展示产品本身，无 logo、无文字，
+不得虚构参考图中不存在的部件，产品外观/配色/结构保持一致。产品「${input.title}」。
+类目：${input.category || '未知'}。描述：${input.description}`;
+}
+
+export function buildDetailImagePrompt(item: DetailPlanItem, title: string): string {
+  const language = item.textPt && item.textPt.length > 0 ? `文本使用西班牙语与葡萄牙语：西语「${item.textEs}」，葡语「${item.textPt}」` : `文本使用西班牙语：「${item.textEs || ''}」`;
+  return `依据参考图制作详情图「${item.kind}」。主题：${item.subject}。${language}。
+${item.hasPerson ? '人物使用拉美裔模特。' : '不要出现人物。'}
+以参考图为准，真实呈现产品，不虚构参考图中没有的内容，保持产品外观/配色/结构一致。产品「${title}」。`;
+}
+
+export async function saveImageBytes(imagesDir: string, productId: string, imageId: string, result: ImageResult): Promise<string> {
+  const dir = path.join(imagesDir, productId);
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${imageId}.png`);
+  let buffer: Buffer;
+  if (result.dataBase64) buffer = Buffer.from(result.dataBase64, 'base64');
+  else {
+    const res = await fetch(result.url);
+    if (!res.ok) throw new Error('生图结果下载失败。');
+    buffer = Buffer.from(await res.arrayBuffer());
+  }
+  writeFileSync(file, buffer);
+  return file;
+}
+
+export class ImageGenerationService {
+  constructor(private readonly deps: ImageGenerationDeps) {}
+
+  async generate(productId: string): Promise<AiImagesResult> {
+    const detail = this.deps.readDetail(productId);
+    if (!detail) throw new Error('暂无可用的妙手详情，无法生图。');
+    const draft = this.deps.readDraft(productId);
+    const title = draft?.title.value ?? detail.title ?? '';
+    const description = draft?.description.value ?? detail.description ?? '';
+    const skus = detail.skuList ?? [];
+    const planner = new ImagePlanner(this.deps.textProvider);
+    const reviser = new ImageReviser(this.deps.textProvider);
+    const provider = this.deps.imageProvider();
+
+    const sku0Refs = skus[0]?.imageUrls ?? [];
+    const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs });
+
+    const mainImages: GeneratedImage[] = [];
+    for (const sku of skus) {
+      const ref = sku.imageUrls[0];
+      if (!ref) continue;
+      const prompt = buildMainImagePrompt({ title, description, category: detail.category ?? '' });
+      mainImages.push(await this.generateOne({ provider, reviser, prompt, refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId }));
+    }
+
+    const detailImages: GeneratedImage[] = [];
+    for (const item of plan) {
+      const prompt = buildDetailImagePrompt(item, title);
+      detailImages.push(await this.generateOne({ provider, reviser, prompt, refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId }));
+    }
+
+    const failed = [...mainImages, ...detailImages].filter((i) => i.status === 'failed');
+    const status: AiImagesResult['status'] = failed.length === 0 ? 'done' : (failed.length === [...mainImages, ...detailImages].length ? 'failed' : 'partial');
+
+    const result: AiImagesResult = {
+      version: 1, productId, mainImages, detailImages, plan, status, createdAt: this.deps.now?.() ?? new Date().toISOString(),
+    };
+    this.deps.appendImages(productId, result);
+    return result;
+  }
+
+  private async generateOne(args: {
+    provider: ImageModelProvider; reviser: ImageReviser; prompt: string; refs: string[];
+    kind: 'main' | 'detail'; skuKey?: string; detail?: GeneratedImage['detail']; productId: string;
+  }): Promise<GeneratedImage> {
+    const imageId = randomUUID();
+    let attempts = 1;
+    let render: ImageResult = { url: '' };
+    try {
+      const result = await args.provider.generate({ prompt: args.prompt, referenceImageUrls: args.refs }, new AbortController().signal);
+      render = result[0] ?? { url: '' };
+    } catch {
+      return { imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath: '', plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt, attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString() };
+    }
+    let review = await args.reviser.review({ imageUrl: render.url || '', context: { title: '', description: '', kind: args.kind } });
+    while (shouldRegenerate(review) && attempts < 3) {
+      attempts += 1;
+      try {
+        const result = await args.provider.generate({ prompt: `${args.prompt}\n（上一版未过质检：${review.issues.join('；')} 请修改后重出。）`, referenceImageUrls: args.refs }, new AbortController().signal);
+        render = result[0] ?? render;
+      } catch { break; }
+      review = await args.reviser.review({ imageUrl: render.url || '', context: { title: '', description: '', kind: args.kind } });
+    }
+    const localPath = render.dataBase64 || render.url ? await saveImageBytes(this.deps.imagesDir, args.productId, imageId, render) : '';
+    return {
+      imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath,
+      plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt,
+      attempts, review, status: review.ok ? 'ok' : (attempts >= 3 ? 'failed' : 'retried'), createdAt: this.deps.now?.() ?? new Date().toISOString(),
+    };
+  }
+}

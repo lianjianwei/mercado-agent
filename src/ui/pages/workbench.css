@@ -1171,3 +1171,82 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* ---- net profit config modal ---- */
+.net-profit-config-modal {
+  width: min(560px, 92vw);
+}
+
+.net-profit-config-modal .net-profit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 20px 20px 0;
+}
+
+.net-profit-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.net-profit-mode-label {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+.net-profit-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.net-profit-commissions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.net-profit-rates {
+  margin: 4px 20px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.net-profit-rates h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.net-profit-rates-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  font-size: 13px;
+}
+
+.net-profit-rates-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.net-profit-config-modal .edit-actions {
+  padding: 16px 20px 20px;
+}
+
+@media (max-width: 640px) {
+  .net-profit-rates-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

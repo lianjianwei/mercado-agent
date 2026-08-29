@@ -8,9 +8,11 @@ import type {
   ProductSyncSummary,
 } from '../../domain/product';
 import type { InfringementRun } from '../../domain/infringement';
-import type { EditApi, InfringementApi, ProductApi } from '../../shared/ipc-contract';
+import type { EditApi, InfringementApi, NetProfitApi, ProductApi } from '../../shared/ipc-contract';
+import { DEFAULT_FX_RATES, DEFAULT_NET_PROFIT_CONFIG } from '../../domain/net-profit';
 import { ProductDetailModal } from '../components/ProductDetailModal';
 import { EditDraftModal } from '../features/editor/EditDraftModal';
+import { NetProfitConfigModal } from '../features/netprofit/NetProfitConfigModal';
 import {
   RiskReviewPanel,
   levelLabels,
@@ -25,6 +27,7 @@ type WorkbenchPageProps = {
     products: ProductApi;
     infringement: InfringementApi;
     edit: EditApi;
+    netProfit?: NetProfitApi;
   };
 };
 
@@ -176,6 +179,18 @@ const ssrEditApi: EditApi = {
   },
 };
 
+const ssrNetProfitApi: NetProfitApi = {
+  async getConfig() {
+    return { config: { ...DEFAULT_NET_PROFIT_CONFIG }, fxRates: { ...DEFAULT_FX_RATES } };
+  },
+  async saveConfig(config) {
+    return config;
+  },
+  async refreshRates() {
+    return { ...DEFAULT_FX_RATES };
+  },
+};
+
 const ssrInfringementApi: InfringementApi = {
   async analyze() {
     throw new Error('侵权检测服务未配置');
@@ -205,6 +220,9 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   const editApi =
     api?.edit ??
     (typeof window === 'undefined' ? ssrEditApi : window.mercado.edit);
+  const netProfitApi =
+    api?.netProfit ??
+    (typeof window === 'undefined' ? ssrNetProfitApi : window.mercado?.netProfit ?? ssrNetProfitApi);
 
   const [filter, setFilter] = useState<ProductFilter>('notPublished');
   const [offset, setOffset] = useState(0);
@@ -242,6 +260,7 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
   });
   const [activeLogTab, setActiveLogTab] = useState<LogKind>('sync');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [netProfitConfigOpen, setNetProfitConfigOpen] = useState(false);
 
   const selectedProduct = useMemo(
     () => page?.items.find((item) => item.id === selectedId) ?? page?.items[0] ?? null,
@@ -584,6 +603,13 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           ))}
         </div>
         <div className="toolbar-actions">
+          <button
+            className="secondary-button"
+            onClick={() => setNetProfitConfigOpen(true)}
+            type="button"
+          >
+            利润率配置
+          </button>
           <button
             className="risk-button"
             disabled={syncing || analyzingBatch}
@@ -931,6 +957,13 @@ export function WorkbenchPage({ api }: WorkbenchPageProps) {
           loadDetail={productApi.detail}
           onClose={() => setEditDraftId(null)}
           product={editDraftProduct}
+        />
+      )}
+
+      {netProfitConfigOpen && (
+        <NetProfitConfigModal
+          api={netProfitApi}
+          onClose={() => setNetProfitConfigOpen(false)}
         />
       )}
     </section>

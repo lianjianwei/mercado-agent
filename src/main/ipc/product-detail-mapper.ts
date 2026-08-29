@@ -1,3 +1,4 @@
+import { normalizeSiteKey } from '../../domain/net-profit';
 import type { Product, ProductDetail, ProductDetailSku } from '../../domain/product';
 import type { CollectBoxDetailDto } from '../../shared/miaoshou-schemas';
 
@@ -43,6 +44,20 @@ function listingTypeMap(
 // suffix so they match the bare codes the list API and the workbench use.
 function normalizeSites(sites: string[] | undefined): string[] {
   return (sites ?? []).map((site) => site.replace(/\s*\([^)]*\)$/, ''));
+}
+
+// 妙手把「产品类型」放在产品级 siteAndListingTypeList([{ site, listingType }]),
+// 不在每个 SKU 上。映射成 裸站点码 → listingType 的字典,供站点净收益表取「类型」。
+function listingTypeBySite(
+  list: { site?: string; listingType?: string }[] | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const item of list ?? []) {
+    if (item?.site && item.listingType) {
+      out[normalizeSiteKey(item.site)] = item.listingType;
+    }
+  }
+  return out;
 }
 
 function collectImages(
@@ -141,6 +156,7 @@ export function productDetailFromSources(
     siteAndPriceMap: info?.siteAndPriceMap
       ? recordToStrings(info.siteAndPriceMap)
       : {},
+    listingTypeBySite: listingTypeBySite(info?.siteAndListingTypeList),
   };
 }
 

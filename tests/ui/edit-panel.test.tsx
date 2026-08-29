@@ -128,6 +128,36 @@ describe('EditPanel', () => {
     expect(screen.getByText('$52.40 USD')).toBeTruthy();
   });
 
+  it('shows the Miaoshou site net profit rows with type from the product level', async () => {
+    // 妙手真实数据把站点价/产品类型放在产品级(顶层),per-SKU 为空;类型缺失时默认「经典」。
+    const miaoshou: ProductDetail = {
+      ...detail,
+      siteAndPriceMap: { 'MX(Up)': '11.5', 'BR(Up)': '9' },
+      listingTypeBySite: { MX: 'gold_pro' }, // BR 缺失 → 默认 经典
+      skuList: [
+        { ...detail.skuList[0], siteAndPriceMap: {}, siteAndListingTypeInfoMap: {} },
+      ],
+    };
+    const loadDetail = vi.fn(async () => miaoshou);
+    render(
+      <EditPanel
+        api={{
+          generate: vi.fn(async () => draft()),
+          draft: vi.fn(async () => null),
+          saveDraft: vi.fn(async (_id, value) => value),
+        }}
+        loadDetail={loadDetail}
+        product={product}
+      />,
+    );
+
+    // 站点净收益表:类型取自产品级(铂金)与默认(经典),净值取自产品级价。
+    expect(await screen.findByText('铂金')).toBeTruthy();
+    expect(screen.getByText('经典')).toBeTruthy();
+    expect(screen.getByText('$11.5')).toBeTruthy();
+    expect(screen.getByText('$9')).toBeTruthy();
+  });
+
   it('shows every SKU with name, stock, source price, dimensions and weight in the Miaoshou view', async () => {
     renderPanel();
 

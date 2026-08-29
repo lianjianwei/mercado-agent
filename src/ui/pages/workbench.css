@@ -909,7 +909,10 @@
 }
 
 .edit-draft-field textarea {
-  resize: vertical;
+  /* 描述固定高度,内容超出滚动。 */
+  height: 160px;
+  overflow-y: auto;
+  resize: none;
 }
 
 .edit-readonly-value {
@@ -925,6 +928,13 @@
   overflow-wrap: anywhere;
   /* 描述换行:保留多行文本的换行;单行值渲染不受影响。 */
   white-space: pre-wrap;
+}
+
+/* 描述只读值:固定高度 + 超出滚动,与 AI 编辑的 textarea(同高)对齐,两视图一致。 */
+.edit-readonly-value.multiline {
+  display: block;
+  height: 160px;
+  overflow-y: auto;
 }
 
 .edit-package-grid {

@@ -47,7 +47,7 @@ export type PreviewSiteNetProfitRow = {
   skuKey: string;
   skuLabel: string;
   siteLabel: string;
-  listingTypeLabel: string; // '经典' | '铂金' | '—'
+  listingTypeLabel: string; // '经典' | '铂金'(找不到时回退默认「经典」)
   netProfit: string; // e.g. '9'
 };
 
@@ -377,18 +377,33 @@ function ImagesSection({ skus }: { skus: PreviewSku[] }) {
 }
 
 // Re-export a small helper for site row building shared by both wrappers.
+// `product` 可选:妙手把站点价/产品类型放在产品级(顶层 siteAndPriceMap /
+// siteAndListingTypeList),per-SKU 可能为空。行取数优先 per-SKU,回退产品级;
+// 类型取值:per-SKU → 产品级 → 默认「经典」(妙手默认类型)。
 export function buildSiteNetProfitRows(
   skus: PreviewSku[],
   siteAndPriceMaps: Record<string, string>[],
   siteAndListingTypeInfoMaps: Record<string, { listingType: string }>[],
+  product?: {
+    siteAndPriceMap?: Record<string, string>;
+    listingTypeBySite?: Record<string, string>;
+  },
 ): PreviewSiteNetProfitRow[] {
   const rows: PreviewSiteNetProfitRow[] = [];
+  const productPriceMap = product?.siteAndPriceMap ?? {};
+  const productListingBySite = product?.listingTypeBySite ?? {};
   skus.forEach((sku, index) => {
-    const siteAndPriceMap = siteAndPriceMaps[index] ?? {};
+    const perSkuPriceMap = siteAndPriceMaps[index] ?? {};
     const listingTypeInfoMap = siteAndListingTypeInfoMaps[index] ?? {};
-    for (const [siteKey, value] of Object.entries(siteAndPriceMap)) {
+    // 站点价:per-SKU 有值用它,为空则回退产品级(摊到该 SKU),保证表格非空。
+    const effectivePriceMap =
+      Object.keys(perSkuPriceMap).length > 0 ? perSkuPriceMap : productPriceMap;
+    for (const [siteKey, value] of Object.entries(effectivePriceMap)) {
       const code = normalizeSiteKey(siteKey);
-      const listingType = listingTypeInfoMap[code]?.listingType;
+      const listingType =
+        listingTypeInfoMap[code]?.listingType
+        ?? productListingBySite[code]
+        ?? 'gold_special';
       rows.push({
         skuKey: sku.skuKey,
         skuLabel: sku.name.value,

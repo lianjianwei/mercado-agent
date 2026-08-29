@@ -161,4 +161,8 @@ export type ProductDetail = {
   // 产品级全球净收益(对齐 siteCollectItemInfo.siteAndPriceMap)。妙手原本的值,
   // 可能为空;AI 草稿则始终用计算器写入的值。
   siteAndPriceMap: Record<string, string>;
+  // 产品级「产品类型」:妙手真实数据把类型放在产品级 siteAndListingTypeList
+  // ([{ site, listingType }]),不在每个 SKU 上。按裸站点码索引(如
+  // { MX: 'gold_special' }),供站点净收益表取「类型」;缺失时展示默认「经典」。
+  listingTypeBySite?: Record<string, string>;
 };

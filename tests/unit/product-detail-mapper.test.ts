@@ -107,6 +107,31 @@ describe('product detail mapper', () => {
     });
   });
 
+  it('builds the product-level listingTypeBySite from siteAndListingTypeList', () => {
+    const result = productDetailFromSources(
+      product(),
+      {
+        siteCollectItemInfo: {
+          collectBoxDetailId: '90001',
+          title: 'Detail title',
+          sites: ['BR', 'MX'],
+          // 妙手把产品类型放在产品级列表(裸站点码),不在每个 SKU 上。
+          siteAndListingTypeList: [
+            { site: 'MX', listingType: 'gold_special' },
+            { site: 'BR(Up)', listingType: 'gold_pro' },
+          ],
+          skuMap: {},
+        },
+      } as CollectBoxDetailDto,
+    );
+    expect(result.listingTypeBySite).toEqual({ MX: 'gold_special', BR: 'gold_pro' });
+  });
+
+  it('leaves listingTypeBySite empty when the detail has no listing type list', () => {
+    const result = productDetailFromSources(product(), detail({}));
+    expect(result.listingTypeBySite).toEqual({});
+  });
+
   it('surfaces the product-level siteAndPriceMap (empty when absent)', () => {
     const result = productDetailFromSources(
       product(),

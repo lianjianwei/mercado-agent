@@ -61,6 +61,9 @@ export const editDraftSchema = z.strictObject({
   // 发布站点(原始键,如 'MX(Up)')与产品级全球净收益(对齐妙手顶层 siteAndPriceMap)。
   sites: z.array(z.string()).default([]),
   siteAndPriceMap: z.record(z.string(), z.string()).default({}),
+  // 产品图片(镜像妙手 product 级):旧草稿可能缺失,默认空。
+  mainImage: z.string().nullish().default(null),
+  images: z.array(z.string()).default([]),
   skus: z.array(
     z.strictObject({
       skuKey: z.string().min(1),
@@ -75,6 +78,9 @@ export const editDraftSchema = z.strictObject({
         weight: draftFieldSchema,
         weightUnit: z.literal('g'),
       }),
+      // 该 SKU 的主图列表与首图(镜像妙手 skuMap[key].imgUrls);旧草稿默认空。
+      imageUrl: z.string().nullish().default(null),
+      imageUrls: z.array(z.string()).default([]),
       // 对齐妙手 skuMap[key].siteAndPriceMap / siteAndListingTypeInfoMap。
       siteAndPriceMap: z.record(z.string(), z.string()).default({}),
       siteAndListingTypeInfoMap: z

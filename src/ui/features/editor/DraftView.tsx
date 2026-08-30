@@ -57,9 +57,16 @@ function toViewModel(
   // 全球净收益:AI 用计算器写入的权威值(草稿 siteAndPriceMap 首个非空值)。
   const globalNetProfit = deriveGlobalNetProfit(draft.siteAndPriceMap);
 
-  const imagesBySku = new Map<string, string[]>();
+  // AI 生成并上传的图(草稿镜像妙手结构,存于草稿 sku.imageUrls)优先展示;
+  // 没有时回退妙手原图。
+  const draftImagesBySku = new Map<string, string[]>();
+  for (const sku of draft.skus) {
+    const urls = sku.imageUrls ?? [];
+    if (urls.length > 0) draftImagesBySku.set(sku.skuKey, urls);
+  }
+  const miaoshouImagesBySku = new Map<string, string[]>();
   for (const sku of detail?.skuList ?? []) {
-    imagesBySku.set(sku.skuKey, sku.imageUrls.length > 0 ? sku.imageUrls : sku.imageUrl ? [sku.imageUrl] : []);
+    miaoshouImagesBySku.set(sku.skuKey, sku.imageUrls.length > 0 ? sku.imageUrls : sku.imageUrl ? [sku.imageUrl] : []);
   }
 
   const skus = draft.skus.map((sku) => ({
@@ -85,7 +92,7 @@ function toViewModel(
       dimensionUnit: 'cm',
       weightUnit: 'g',
     },
-    images: imagesBySku.get(sku.skuKey) ?? [],
+    images: draftImagesBySku.get(sku.skuKey) ?? miaoshouImagesBySku.get(sku.skuKey) ?? [],
   }));
 
   const siteAndPriceMaps = draft.skus.map((sku) => sku.siteAndPriceMap);
@@ -140,7 +147,7 @@ function ImageProgress({
               className={`image-progress-item image-status-${image.status}`}
               key={image.imageId}
             >
-              <img alt="" className="image-progress-thumb" src={image.localPath} />
+              <img alt="" className="image-progress-thumb" src={image.publicUrl ?? image.localPath} />
               <span className="image-progress-kind">
                 {image.kind === 'main' ? '主图' : '详情图'}
               </span>

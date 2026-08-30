@@ -22,12 +22,16 @@ function makeDraft(version: number): EditDraft {
     model: { value: 'CM-100', source: 'ai', confidence: 0.6 },
     sites: [],
     siteAndPriceMap: {},
+    mainImage: null,
+    images: [],
     skus: [
       {
         skuKey: ';white;',
         name: { value: 'Blanco', source: 'ai', confidence: 0.9 },
         stock: { value: '2', source: 'ai', confidence: 1 },
         sourcePrice: { value: '66', source: 'remote', confidence: 1 },
+        imageUrl: null,
+        imageUrls: [],
         package: {
           length: { value: '20', source: 'ai', confidence: 0.7 },
           width: { value: '10', source: 'ai', confidence: 0.7 },

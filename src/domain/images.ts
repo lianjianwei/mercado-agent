@@ -20,6 +20,8 @@ export type GeneratedImage = {
   detail?: { slug: string; title: string; hasPerson: boolean };
   localPath: string;
   plannedPath: string;
+  // 上传七牛后的公网 URL;未上传(缺失凭证/失败)时为空。
+  publicUrl?: string;
   sourceRefImages: string[];
   prompt: string;
   attempts: number;

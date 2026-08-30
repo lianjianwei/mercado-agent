@@ -284,6 +284,9 @@ export class EditGenerationService {
         package: modelSku
           ? this.skuPackage(modelSku.package)
           : this.originalPackage(original),
+        // 生成阶段尚无上传后的图片,SKU 图片字段先留空;上传后由 publish 写回。
+        imageUrl: null,
+        imageUrls: [],
         // Net-profit maps are filled by NetProfitCalculator after generation;
         // until then they are empty so the draft shape is always complete.
         siteAndPriceMap: {},
@@ -305,6 +308,9 @@ export class EditGenerationService {
       // the product-level global net-profit map is filled by the calculator.
       sites: [],
       siteAndPriceMap: {},
+      // 图片先留空,上传后由 publish 写回「产品图片」。
+      mainImage: null,
+      images: [],
       skus: skuFields,
     };
   }

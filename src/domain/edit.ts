@@ -50,6 +50,10 @@ export type SkuEditField = {
   stock: EditField;
   sourcePrice: EditField;
   package: PackageEditField;
+  // 对齐妙手 skuMap[key].imgUrls:该 SKU 的主图列表与首图。AI 生成的图上传后写回,
+  // 妙手原本的图保留在妙手快照中,不在此处。旧草稿可能缺失,故可选。
+  imageUrl?: string | null;
+  imageUrls?: string[];
   // 对齐妙手 skuMap[key].siteAndPriceMap / siteAndListingTypeInfoMap。由
   // NetProfitCalculator 在生成/保存时写入,始终必填。
   siteAndPriceMap: SkuSiteAndPriceMap;
@@ -71,6 +75,10 @@ export type EditDraft = {
   // 产品级全球净收益(对齐 siteCollectItemInfo.siteAndPriceMap),由
   // NetProfitCalculator 写入,始终必填。
   siteAndPriceMap: Record<string, string>;
+  // 对齐妙手 product 级 mainImage/images:AI 生成的图上传后写回,作为「产品图片」。
+  // 旧草稿可能缺失,故可选。
+  mainImage?: string | null;
+  images?: string[];
   skus: SkuEditField[];
 };
 

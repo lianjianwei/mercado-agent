@@ -31,6 +31,8 @@ export const generatedImageSchema = z.strictObject({
   detail: z.strictObject({ slug: z.string(), title: z.string(), hasPerson: z.boolean() }).optional(),
   localPath: z.string(),
   plannedPath: z.string(),
+  // 上传七牛后的公网 URL;旧记录无此字段,故可选。
+  publicUrl: z.string().optional(),
   sourceRefImages: z.array(z.string()),
   prompt: z.string(),
   attempts: z.number().int().min(1),

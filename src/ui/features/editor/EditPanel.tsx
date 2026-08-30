@@ -72,6 +72,10 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     try {
       const result = await api.images.generateImages(product.id);
       setImageResult(result);
+      // 生图会把公网 URL 写回草稿的产品图片字段;重取草稿让「产品图片」区显示 AI 图。
+      // 仅当草稿存在时替换,避免把当前草稿覆盖成 null。
+      const refreshed = await api.draft(product.id);
+      if (refreshed) setDraft(refreshed);
     } catch (reason) {
       // 独立于共享 error 横幅(在弹窗内会被遮住):在「图片生成」区就地展示。
       setImageError(reason instanceof Error ? reason.message : '图片生成失败。');

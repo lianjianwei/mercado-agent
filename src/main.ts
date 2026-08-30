@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { openAppDatabase, resolveDatabasePath } from './main/db/database';
@@ -29,6 +30,9 @@ import { InfringementService } from './main/services/infringement-service';
 import { InfringementEngine } from './main/risk/infringement-engine';
 import { EditGenerationService } from './main/services/edit-generation-service';
 import { ImageGenerationService } from './main/services/image-generation-service';
+import { QiniuUploadService } from './main/services/qiniu-upload-service';
+import { compressPng } from './main/services/image-compressor';
+import type { GeneratedImage } from './domain/images';
 import { NetProfitCalculator } from './main/services/net-profit-calculator';
 import { FxRateService } from './main/services/fx-rate-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
@@ -161,6 +165,7 @@ app.whenReady().then(async () => {
     },
     { netProfit: netProfitCalculator, onProgress: (line) => sendProgress(IPC_CHANNELS.editLog, line) },
   );
+  const qiniuUploadService = new QiniuUploadService();
   const imageService = new ImageGenerationService({
     onProgress: (line) => sendProgress(IPC_CHANNELS.editLog, line),
     // 与 product-handlers 的 productDetail 同款取数:product + 最新 miaoshou 快照。
@@ -179,6 +184,50 @@ app.whenReady().then(async () => {
     },
     appendImages: (productId, result) => snapshots.append({ id: `${productId}:aiImages:${randomUUID()}`, productId, kind: 'aiImages', capturedAt: result.createdAt, payload: result }),
     imagesDir: path.join(app.getPath('userData'), 'images'),
+    // 生成后自动压缩 + 上传七牛,拿到公网 URL。
+    publish: async (productId: string, images: GeneratedImage[]) => {
+      const creds = credentials.getQiniu();
+      if (!creds) throw new Error('未配置七牛云凭证,无法上传。');
+      const out: GeneratedImage[] = [];
+      for (const image of images) {
+        // 只有已保存且非失败图才上传;失败/无本地图保留原样(publicUrl 空)。
+        if (!image.localPath || image.status === 'failed') {
+          out.push(image);
+          continue;
+        }
+        const buf = compressPng(readFileSync(image.localPath));
+        const url = await qiniuUploadService.upload(creds, image.plannedPath, buf);
+        out.push({ ...image, publicUrl: url });
+      }
+      return out;
+    },
+    // 把公网 URL 写回最新 AI 草稿的产品图片字段(妙手快照不改)。
+    writeDraftImages: (productId: string, mainImages: GeneratedImage[], detailImages: GeneratedImage[]) => {
+      const draft = readLatestDraft(snapshots, productId);
+      if (!draft) return;
+      const mainBySku = new Map<string, string[]>();
+      for (const image of mainImages) {
+        if (!image.publicUrl || !image.skuKey) continue;
+        const list = mainBySku.get(image.skuKey) ?? [];
+        list.push(image.publicUrl);
+        mainBySku.set(image.skuKey, list);
+      }
+      const allUrls = [...mainImages, ...detailImages]
+        .map((image) => image.publicUrl)
+        .filter((url): url is string => Boolean(url));
+      if (allUrls.length === 0) return;
+      const skus = draft.skus.map((sku) => {
+        const urls = mainBySku.get(sku.skuKey) ?? [];
+        return { ...sku, imageUrl: urls[0] ?? null, imageUrls: urls };
+      });
+      snapshots.append({
+        id: `${productId}:aiDraft:${randomUUID()}`,
+        productId,
+        kind: 'aiDraft',
+        capturedAt: new Date().toISOString(),
+        payload: { ...draft, mainImage: allUrls[0] ?? null, images: allUrls, skus, version: draft.version + 1 },
+      });
+    },
   });
   registerHandlers(
     {

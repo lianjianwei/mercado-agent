@@ -32,6 +32,10 @@ export type ImageGenerationDeps = {
   imagesDir: string;
   // 生图过程中的进度回调,由渲染层 log 面板展示(主进程直播进度 + 耗时)。
   onProgress?: (line: string) => void;
+  // 生成后的发布步骤:压缩 + 上传七牛,给每张图补 publicUrl。缺省不做(测试/未配置)。
+  publish?: (productId: string, images: GeneratedImage[]) => Promise<GeneratedImage[]>;
+  // 发布后把公网 URL 写回 AI 草稿的产品图片字段。缺省不写(测试/未配置)。
+  writeDraftImages?: (productId: string, mainImages: GeneratedImage[], detailImages: GeneratedImage[]) => void;
   now?: () => string;
 };
 
@@ -149,13 +153,32 @@ export class ImageGenerationService {
       }
     }
 
-    const failed = [...mainImages, ...detailImages].filter((i) => i.status === 'failed');
-    const status: AiImagesResult['status'] = failed.length === 0 ? 'done' : (failed.length === [...mainImages, ...detailImages].length ? 'failed' : 'partial');
+    // 生成完毕后,若配置了发布步骤(压缩+上传七牛),则自动执行并写回公网 URL。
+    let finalMain = mainImages;
+    let finalDetail = detailImages;
+    if (this.deps.publish) {
+      this.onProgress(`正在压缩并上传到七牛…`);
+      try {
+        const published = await this.deps.publish(productId, [...mainImages, ...detailImages]);
+        finalMain = published.filter((image) => image.kind === 'main');
+        finalDetail = published.filter((image) => image.kind === 'detail');
+        const urls = published.filter((image) => image.publicUrl);
+        this.onProgress(`已上传 ${urls.length}/${published.length} 张图到七牛。`);
+      } catch (error) {
+        // 上传失败不阻断返回:保留本地图,publicUrl 缺省为空,由渲染层回退本地路径展示。
+        this.onProgress(`上传七牛失败：${error instanceof Error ? error.message : '未知错误'}（保留本地图片）`);
+      }
+    }
+
+    const failed = [...finalMain, ...finalDetail].filter((i) => i.status === 'failed');
+    const status: AiImagesResult['status'] = failed.length === 0 ? 'done' : (failed.length === [...finalMain, ...finalDetail].length ? 'failed' : 'partial');
 
     const result: AiImagesResult = {
-      version: 1, productId, mainImages, detailImages, plan, status, createdAt: this.deps.now?.() ?? new Date().toISOString(),
+      version: 1, productId, mainImages: finalMain, detailImages: finalDetail, plan, status, createdAt: this.deps.now?.() ?? new Date().toISOString(),
     };
     this.deps.appendImages(productId, result);
+    // 把公网 URL 写回 AI 草稿的产品图片字段,供 AI 编辑详情「产品图片」展示。
+    this.deps.writeDraftImages?.(productId, finalMain, finalDetail);
     return result;
   }
 

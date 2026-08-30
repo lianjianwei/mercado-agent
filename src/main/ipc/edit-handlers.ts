@@ -67,6 +67,9 @@ function normalizeDraft(draft: EditDraft): EditDraft {
     // price maps; default them so the renderer never reads undefined.
     sites: draft.sites ?? [],
     siteAndPriceMap: draft.siteAndPriceMap ?? {},
+    // 图片字段在镜像妙手结构前不存在于旧草稿;补默认值,避免渲染读 undefined。
+    mainImage: draft.mainImage ?? null,
+    images: draft.images ?? [],
     skus: (legacy.skus ?? []).map((sku) => ({
       ...sku,
       // Old drafts stored only skuKey + name (no per-SKU stock/sourcePrice/
@@ -75,6 +78,8 @@ function normalizeDraft(draft: EditDraft): EditDraft {
       stock: sku.stock ?? emptyField,
       sourcePrice: sku.sourcePrice ?? emptyField,
       package: normalizePackage(sku.package),
+      imageUrl: sku.imageUrl ?? null,
+      imageUrls: sku.imageUrls ?? [],
       siteAndPriceMap: sku.siteAndPriceMap ?? {},
       siteAndListingTypeInfoMap: sku.siteAndListingTypeInfoMap ?? {},
     })),

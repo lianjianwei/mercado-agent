@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ImageGenerationService, buildDetailImagePrompt, buildMainImagePrompt } from '../../src/main/services/image-generation-service';
 import type { ProductDetail } from '../../src/domain/product';
 import type { EditDraft } from '../../src/domain/edit';
-import type { DetailPlanItem } from '../../src/domain/images';
+import type { DetailPlanItem, GeneratedImage } from '../../src/domain/images';
 import type { ImageModelProvider, TextModelProvider } from '../../src/domain/providers';
 
 const detail = { productId: 'p1', title: 'T', description: 'D', category: '猫咪用品',
@@ -112,6 +112,36 @@ describe('ImageGenerationService', () => {
       now: () => '2026-08-29T00:00:00.000Z',
     });
     await expect(service.generate('p1')).rejects.toThrow(/暂无|无法生图/);
+  });
+
+  it('publishes (compress+upload) images after generation and writes back the draft', async () => {
+    const appendImages = vi.fn();
+    const writeDraftImages = vi.fn();
+    const publish = vi.fn(async (_productId: string, images: GeneratedImage[]) =>
+      images.map((image) => ({ ...image, publicUrl: `https://cdn/x/${image.imageId}.png` })),
+    );
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn(async () => [{ url: '', dataBase64: 'AAAA' }]) } as unknown as ImageModelProvider;
+    const textProvider = {
+      testConnection: vi.fn(),
+      generate: vi.fn(async (request: { prompt?: string }) =>
+        String(request.prompt ?? '').includes('质检')
+          ? { ok: true, issues: [] }
+          : { plans: [{ id: 'd1', kind: '功能图', subject: 's', textEs: '', textPt: '', hasPerson: false, referenceNote: '' }] },
+      ),
+    } as unknown as TextModelProvider;
+
+    const service = new ImageGenerationService({
+      readDetail: () => detail, readDraft: () => draft,
+      imageProvider: () => imageProvider, textProvider: () => textProvider,
+      appendImages, imagesDir: '/tmp/imgs', now: () => '2026-08-29T00:00:00.000Z',
+      publish, writeDraftImages,
+    });
+    const result = await service.generate('p1');
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(result.mainImages[0].publicUrl).toBe('https://cdn/x/main-1.png');
+    expect(result.detailImages[0].publicUrl).toBe('https://cdn/x/detail-1.png');
+    expect(writeDraftImages).toHaveBeenCalledWith('p1', expect.any(Array), expect.any(Array));
   });
 
   it('uses generateBatch once when available and retries only the failing image', async () => {

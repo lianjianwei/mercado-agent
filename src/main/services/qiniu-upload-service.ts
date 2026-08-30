@@ -14,7 +14,7 @@ export function base64urlUtf8(value: string | Buffer): string {
 }
 
 // 生成上传凭证:putPolicy(scope=bucket:key, deadline=now+1h) → 签名字符串 = b64policy+'\n',
-// 用 secretKey 做 HMAC-SHA1,结果为 token = b64policy.b64sig。
+// 用 secretKey 做 HMAC-SHA1,结果为 token = b64policy : b64sig(冒号分隔,不能用点)。
 export function makeUploadToken(
   creds: QiniuCredential,
   key: string,
@@ -25,7 +25,7 @@ export function makeUploadToken(
   const signature = base64urlUtf8(
     createHmac('sha1', creds.secretKey).update(`${b64Policy}\n`).digest(),
   );
-  return `${b64Policy}.${signature}`;
+  return `${b64Policy}:${signature}`;
 }
 
 export type QiniuFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

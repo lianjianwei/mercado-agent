@@ -23,9 +23,9 @@ function fakeFetch(over: { ok?: boolean; status?: number; body?: string } = {}) 
 describe('makeUploadToken', () => {
   it('builds a base64url token with the bucket:key scope and a 1h deadline', () => {
     const token = makeUploadToken(creds, 'mercado/p1/main-1.png', 1700000000);
-    // token = b64policy.b64signature,均为 URL-safe base64(无 +/ 与 =)。
-    expect(token).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
-    const [policy] = token.split('.');
+    // token = b64policy:b64signature,均为 URL-safe base64(无 +/ 与 =),冒号分隔。
+    expect(token).toMatch(/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/);
+    const [policy] = token.split(':');
     const decoded = JSON.parse(Buffer.from(policy, 'base64').toString('utf8'));
     expect(decoded.scope).toBe('bkt:mercado/p1/main-1.png');
     expect(decoded.deadline).toBe(1700000000 + 3600);

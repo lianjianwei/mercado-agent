@@ -1,61 +1,79 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { QiniuUploadService, makeUploadToken, type QiniuFetch } from '../../src/main/services/qiniu-upload-service';
-import { QINIU_UPLOAD_HOSTS } from '../../src/main/qiniu/qiniu-hosts';
+import { QiniuUploadService } from '../../src/main/services/qiniu-upload-service';
 import type { QiniuCredential } from '../../src/domain/config';
 
-const creds: QiniuCredential = {
-  accessKey: 'ak',
-  secretKey: 'sk',
-  bucket: 'bkt',
-  domain: 'https://cdn.example.com/',
-  region: 'z0',
-};
+// 用普通构造函数 mock qiniu SDK,并记录调用,便于断言服务是否正确接线。
+const { calls, Mac, PutPolicy, Config, FormUploader, PutExtra } = vi.hoisted(() => {
+  const calls: Record<string, unknown> = {};
+  type Cb = (err?: unknown, body?: unknown, info?: { statusCode: number }) => void;
 
-function fakeFetch(over: { ok?: boolean; status?: number; body?: string } = {}) {
-  return vi.fn(async () => ({
-    ok: over.ok ?? true,
-    status: over.status ?? 200,
-    text: async () => over.body ?? JSON.stringify({ key: 'mercado/p1/main-1.png', hash: 'h1' }),
-  }));
-}
+  function Mac(this: unknown, ak: string, sk: string) {
+    calls.mac = [ak, sk];
+  }
+  function PutPolicy(this: { uploadToken: () => string }, opts: unknown) {
+    calls.putPolicy = opts;
+    this.uploadToken = () => 'mock:token';
+  }
+  function Config(this: { zone: unknown; useHttpsDomain: boolean }) {
+    this.zone = null;
+    this.useHttpsDomain = false;
+    calls.config = this;
+  }
+  function FormUploader(this: unknown, cfg: unknown) {
+    (this as { cfg: unknown }).cfg = cfg;
+    (this as { put: (t: string, k: string, f: Buffer, e: unknown, cb: Cb) => void }).put = (t, k, f, _e, cb) => {
+      calls.put = [t, k, f];
+      const status = (calls.putStatus as number | undefined) ?? 200;
+      cb(undefined, {}, { statusCode: status });
+    };
+  }
+  function PutExtra(this: unknown) {
+    return {};
+  }
 
-describe('makeUploadToken', () => {
-  it('builds a base64url token with the bucket:key scope and a 1h deadline', () => {
-    const token = makeUploadToken(creds, 'mercado/p1/main-1.png', 1700000000);
-    // token = b64policy:b64signature,均为 URL-safe base64(无 +/ 与 =),冒号分隔。
-    expect(token).toMatch(/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/);
-    const [policy] = token.split(':');
-    const decoded = JSON.parse(Buffer.from(policy, 'base64').toString('utf8'));
-    expect(decoded.scope).toBe('bkt:mercado/p1/main-1.png');
-    expect(decoded.deadline).toBe(1700000000 + 3600);
-  });
+  return { calls, Mac, PutPolicy, Config, FormUploader, PutExtra };
 });
 
-describe('QiniuUploadService', () => {
-  const svc = (fetcher: ReturnType<typeof vi.fn>) => new QiniuUploadService(fetcher as unknown as QiniuFetch, () => 1700000000);
+vi.mock('qiniu', () => ({
+  auth: { digest: { Mac } },
+  rs: { PutPolicy },
+  conf: { Config },
+  form_up: { FormUploader, PutExtra },
+  zone: {
+    Zone_z0: { id: 'z0' },
+    Zone_cn_east_2: { id: 'cn-east-2' },
+    Zone_z1: { id: 'z1' },
+    Zone_z2: { id: 'z2' },
+    Zone_na0: { id: 'na0' },
+    Zone_as0: { id: 'as0' },
+  },
+}));
 
-  it('posts a multipart form to the region upload host and returns domain/key', async () => {
-    const fetcher = fakeFetch();
-    const service = svc(fetcher);
-    const url = await service.upload(creds, 'mercado/p1/main-1.png', Buffer.from('img'));
+const creds: QiniuCredential = {
+  accessKey: 'ak', secretKey: 'sk', bucket: 'bkt',
+  domain: 'https://cdn.example.com/', region: 'z0',
+};
+
+describe('QiniuUploadService', () => {
+  it('uploads via the qiniu SDK and returns the domain/key URL', async () => {
+    const url = await new QiniuUploadService().upload(creds, 'mercado/p1/main-1.png', Buffer.from('img'));
 
     expect(url).toBe('https://cdn.example.com/mercado/p1/main-1.png');
-    const [input, init] = fetcher.mock.calls[0] as unknown as [string, { method: string; body: unknown }];
-    expect(input).toBe('https://upload.qiniup.com/');
-    expect(init.method).toBe('POST');
-    expect(init.body).toBeInstanceOf(FormData);
+    expect(calls.mac).toEqual(['ak', 'sk']);
+    expect(calls.putPolicy).toEqual({ scope: 'bkt:mercado/p1/main-1.png', expires: 3600 });
+    expect((calls.config as { zone: unknown }).zone).toEqual({ id: 'z0' });
+    expect((calls.config as { useHttpsDomain: boolean }).useHttpsDomain).toBe(true);
+    expect(calls.put).toEqual(['mock:token', 'mercado/p1/main-1.png', expect.any(Buffer)]);
   });
 
-  it('maps region to the correct upload host', async () => {
-    const fetcher = fakeFetch();
-    await svc(fetcher).upload({ ...creds, region: 'z2' }, 'k', Buffer.from('img'));
-    const [input] = fetcher.mock.calls[0] as unknown as [string];
-    expect(input).toBe(`https://${QINIU_UPLOAD_HOSTS.z2}/`);
+  it('maps the region to the SDK zone', async () => {
+    await new QiniuUploadService().upload({ ...creds, region: 'z2' }, 'k', Buffer.from('x'));
+    expect((calls.config as { zone: unknown }).zone).toEqual({ id: 'z2' });
   });
 
-  it('throws when the upload response is not ok or returns an error', async () => {
-    const failing = fakeFetch({ ok: false, status: 403, body: '{"error":"bad token"}' });
-    await expect(svc(failing).upload(creds, 'k', Buffer.from('x'))).rejects.toThrow(/七牛/);
+  it('throws when the upload status code is not 200', async () => {
+    calls.putStatus = 401;
+    await expect(new QiniuUploadService().upload(creds, 'k', Buffer.from('x'))).rejects.toThrow(/七牛上传失败\(401\)/);
   });
 });

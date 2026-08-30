@@ -75,6 +75,7 @@ export class OpenAiCompatibleTextProvider implements TextModelProvider {
       });
     }
 
+    const startedAt = Date.now();
     let response: Response;
     try {
       response = await this.network.fetch(this.chatUrl(), {
@@ -103,6 +104,8 @@ export class OpenAiCompatibleTextProvider implements TextModelProvider {
     if (!response.ok) throw new ProviderUnavailableError();
 
     const text = await response.text();
+    // ModelNetworkClient 已在响应头到达时打点(看起来很快);这里补上「读完 body」的真实总耗时。
+    console.log(`[model] ${this.chatUrl()} response body done in ${Date.now() - startedAt}ms total`);
     return this.parseStructuredContent(text);
   }
 

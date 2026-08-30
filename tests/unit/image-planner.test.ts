@@ -23,4 +23,19 @@ describe('ImagePlanner', () => {
     expect(plans.length).toBeGreaterThanOrEqual(4);
     expect(plans.length).toBeLessThanOrEqual(6);
   });
+
+  it('accepts a model plan without id (real deepseek output) and assigns slugs', async () => {
+    // 模型按提示省略 id,正是之前抛「方案无法解析」的原因。
+    const noId = { plans: [
+      { kind: '尺寸图', subject: 's1', textEs: 'Es', textPt: 'Pt', hasPerson: false, referenceNote: 'ref' },
+      { kind: '功能图', subject: 's2', textEs: '', textPt: '', hasPerson: true, referenceNote: '' },
+      // 模型偶发多出的未知 key 也应被容忍(剥离),不导致解析失败。
+      { kind: '场景图', subject: 's3', textEs: '', textPt: '', hasPerson: false, referenceNote: '', extra: 'ignore' },
+    ] };
+    const planner = new ImagePlanner(() => fakeText(noId));
+    const plans = await planner.plan({ title: 'T', description: 'D', category: 'C', referenceImageUrls: [] });
+    expect(plans).toHaveLength(3);
+    expect(plans.map((item) => item.id)).toEqual(['detail-1', 'detail-2', 'detail-3']);
+    expect(plans[2].kind).toBe('场景图');
+  });
 });

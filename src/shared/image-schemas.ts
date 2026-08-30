@@ -2,8 +2,11 @@ import { z } from 'zod';
 
 export const imagePlanKindSchema = z.enum(['尺寸图', '功能图', '场景图', '包装清单', '安装步骤', '使用流程图', '收纳尺寸对比']);
 
-export const detailPlanItemSchema = z.strictObject({
-  id: z.string().min(1),
+// 模型输出的规划不保证有 id,也不保证没有额外 key。
+// 用 z.object(剥离未知 key)+ id 可选,避免「模型按提示省略 id 就解析失败」。
+// id 由 ImagePlanner 在解析后补齐(见 image-planner.ts)。
+export const detailPlanItemSchema = z.object({
+  id: z.string().optional(),
   kind: imagePlanKindSchema,
   subject: z.string(),
   textEs: z.string(),
@@ -12,7 +15,7 @@ export const detailPlanItemSchema = z.strictObject({
   referenceNote: z.string(),
 });
 
-export const detailPlanSchema = z.strictObject({ plans: z.array(detailPlanItemSchema) });
+export const detailPlanSchema = z.object({ plans: z.array(detailPlanItemSchema) });
 export type DetailPlan = z.infer<typeof detailPlanSchema>;
 
 export const imageReviewSchema = z.strictObject({

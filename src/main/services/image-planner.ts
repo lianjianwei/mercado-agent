@@ -1,4 +1,4 @@
-import { detailPlanSchema, type DetailPlan } from '../../shared/image-schemas';
+import { detailPlanSchema } from '../../shared/image-schemas';
 import type { DetailPlanItem } from '../../domain/images';
 import type { TextModelProvider } from '../../domain/providers';
 
@@ -29,10 +29,9 @@ export class ImagePlanner {
       prompt: `${SYSTEM_PROMPT}\n\n标题：${input.title}\n描述：${input.description}\n类目：${input.category||'未知'}\n参考图：\n${input.referenceImageUrls.map((u,i)=>`${i+1}. ${u}`).join('\n')}`,
       imageUrls: input.referenceImageUrls.slice(0, 4),
     }, new AbortController().signal);
-    const parsed: DetailPlan | undefined = detailPlanSchema.safeParse(payload).success
-      ? detailPlanSchema.parse(payload)
-      : undefined;
-    if (!parsed) throw new ImagePlanError();
-    return parsed.plans.slice(0, 6);
+    const parsed = detailPlanSchema.safeParse(payload);
+    if (!parsed.success) throw new ImagePlanError();
+    // 模型通常不输出 id(提示里也没要求),解析后按序号补齐,保证详情图记录有稳定 slug。
+    return parsed.data.plans.map((item, index) => ({ id: item.id ?? `detail-${index + 1}`, ...item })).slice(0, 6);
   }
 }

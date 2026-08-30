@@ -5,7 +5,6 @@
 // carries no images.
 
 import type { EditDraft, EditField } from '../../../domain/edit';
-import type { AiImagesResult } from '../../../domain/images';
 import type { ProductDetail } from '../../../domain/product';
 import {
   DetailPreview,
@@ -27,14 +26,8 @@ type DraftViewProps = {
   onUpdateSkuField: (skuKey: string, path: SkuFieldPath, value: string) => void;
   onUpdateSkuPackage: (skuKey: string, field: SkuPackagePath, value: string) => void;
   onGenerate: () => void;
-  onRetryImages: () => void;
-  onUploadImages: () => void;
   onSave: () => void;
   generating: boolean;
-  generatingImages: boolean;
-  uploadingImages: boolean;
-  imageError: string;
-  imageResult: AiImagesResult | null;
   saving: boolean;
 };
 
@@ -120,77 +113,6 @@ function toViewModel(
   };
 }
 
-// 图片生成进度区:主图 + 详情图缩略图,带生成状态。生成后可重试。
-// error 就地展示(不与弹窗后方的 page-error 横幅混淆),方便排查接口返回的错误。
-function ImageProgress({
-  result,
-  generating,
-  error,
-  onRetry,
-  onUpload,
-  uploading,
-}: {
-  result: AiImagesResult | null;
-  generating: boolean;
-  error: string;
-  onRetry: () => void;
-  onUpload: () => void;
-  uploading: boolean;
-}) {
-  const images = result ? [...result.mainImages, ...result.detailImages] : [];
-  const uploadedCount = images.filter((image) => image.publicUrl).length;
-  return (
-    <section className="image-progress">
-      <h3>图片生成</h3>
-      {generating && <p className="image-progress-line">图片生成中…</p>}
-      {!generating && images.length === 0 && !error && (
-        <p className="empty-risk">暂无生成图片。</p>
-      )}
-      {error && <p className="image-progress-error">{error}</p>}
-      {images.length > 0 && (
-        <div className="image-progress-grid">
-          {images.map((image) => (
-            <div
-              className={`image-progress-item image-status-${image.status}`}
-              key={image.imageId}
-            >
-              <img
-                alt=""
-                className="image-progress-thumb"
-                src={image.publicUrl ?? (image.localPath ? `file://${image.localPath}` : '')}
-              />
-              <span className="image-progress-kind">
-                {image.kind === 'main' ? '主图' : '详情图'}
-              </span>
-              <span className="image-progress-status">
-                {image.status === 'ok' ? '成功' : image.status === 'retried' ? '重试' : '失败'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="image-progress-actions">
-        <button
-          className="secondary-button"
-          disabled={generating || uploading}
-          onClick={onUpload}
-          type="button"
-        >
-          {uploading ? '上传中…' : uploadedCount === images.length && images.length > 0 ? '已上传七牛' : '上传到七牛(不重新生成)'}
-        </button>
-        <button
-          className="secondary-button"
-          disabled={generating || uploading}
-          onClick={onRetry}
-          type="button"
-        >
-          {generating ? '生成中…' : '重新生成图片'}
-        </button>
-      </div>
-    </section>
-  );
-}
-
 export function DraftView({
   draft,
   detail,
@@ -198,14 +120,8 @@ export function DraftView({
   onUpdateSkuField,
   onUpdateSkuPackage,
   onGenerate,
-  onRetryImages,
-  onUploadImages,
   onSave,
   generating,
-  generatingImages,
-  uploadingImages,
-  imageError,
-  imageResult,
   saving,
 }: DraftViewProps) {
   const vm = toViewModel(draft, detail, {
@@ -217,8 +133,6 @@ export function DraftView({
   return (
     <div className="edit-draft-view" aria-label="AI 编辑详情">
       <DetailPreview vm={vm} />
-
-      <ImageProgress error={imageError} result={imageResult} generating={generatingImages} onRetry={onRetryImages} onUpload={onUploadImages} uploading={uploadingImages} />
 
       <div className="edit-actions">
         <button

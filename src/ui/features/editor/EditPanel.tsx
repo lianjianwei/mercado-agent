@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import type { EditDraft, EditField } from '../../../domain/edit';
-import type { AiImagesResult } from '../../../domain/images';
 import type { Product, ProductDetail } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
 import { DraftView } from './DraftView';
@@ -21,10 +20,6 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [generatingImages, setGeneratingImages] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [imageResult, setImageResult] = useState<AiImagesResult | null>(null);
-  const [imageError, setImageError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,28 +46,13 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     };
   }, [product.id, api, loadDetail]);
 
-  // 打开弹窗时若有已生成的图(未上传/已上传),先把它们显示出来,供「上传到七牛」使用。
-  useEffect(() => {
-    if (typeof api.images.getImages !== 'function') return;
-    let cancelled = false;
-    void api.images
-      .getImages(product.id)
-      .then((images) => {
-        if (!cancelled && images) setImageResult(images);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [product.id, api]);
-
   async function runGenerate() {
     setGenerating(true);
     setError('');
     try {
       const generated = await api.generate(product.id);
       setDraft(generated);
-      // 草稿生成后同一动作接着触发图片生成。
+      // 草稿生成后同一动作接着触发生成图片,生成完会自动写回草稿的产品图片(公网 URL)。
       void runGenerateImages();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'AI 编辑草稿生成失败。');
@@ -83,37 +63,13 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
 
   async function runGenerateImages() {
     if (!product) return;
-    setGeneratingImages(true);
-    setImageError('');
     try {
-      const result = await api.images.generateImages(product.id);
-      setImageResult(result);
-      // 生图会把公网 URL 写回草稿的产品图片字段;重取草稿让「产品图片」区显示 AI 图。
-      // 仅当草稿存在时替换,避免把当前草稿覆盖成 null。
+      await api.images.generateImages(product.id);
+      // 生图会把公网 URL 写回草稿的产品图片字段;重取草稿让「产品图片」区显示。
       const refreshed = await api.draft(product.id);
       if (refreshed) setDraft(refreshed);
     } catch (reason) {
-      // 独立于共享 error 横幅(在弹窗内会被遮住):在「图片生成」区就地展示。
-      setImageError(reason instanceof Error ? reason.message : '图片生成失败。');
-    } finally {
-      setGeneratingImages(false);
-    }
-  }
-
-  async function runUpload() {
-    if (!product) return;
-    setUploading(true);
-    setImageError('');
-    try {
-      const result = await api.images.uploadImages(product.id);
-      setImageResult(result);
-      // 上传后公网 URL 已写回 AI 草稿;重取草稿让「产品图片」区显示。
-      const refreshed = await api.draft(product.id);
-      if (refreshed) setDraft(refreshed);
-    } catch (reason) {
-      setImageError(reason instanceof Error ? reason.message : '已有图片上传到七牛失败。');
-    } finally {
-      setUploading(false);
+      setError(reason instanceof Error ? reason.message : '图片生成失败。');
     }
   }
 
@@ -239,13 +195,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
           detail={detail}
           draft={draft}
           generating={generating}
-          generatingImages={generatingImages}
-          uploadingImages={uploading}
-          imageError={imageError}
-          imageResult={imageResult}
           onGenerate={() => void runGenerate()}
-          onRetryImages={() => void runGenerateImages()}
-          onUploadImages={() => void runUpload()}
           onSave={() => void runSave()}
           onUpdateField={updateDraftField}
           onUpdateSkuField={updateSkuField}

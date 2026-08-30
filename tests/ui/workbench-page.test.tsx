@@ -183,6 +183,7 @@ function createApi(allProducts: Product[] = products) {
         generate,
         draft,
         saveDraft,
+        onEditLog: () => () => undefined,
         images: {
           generateImages: vi.fn(async () => ({
             version: 1,
@@ -201,6 +202,7 @@ function createApi(allProducts: Product[] = products) {
       generate,
       draft,
       saveDraft,
+      onEditLog: () => () => undefined,
       images: {
         generateImages: vi.fn(async () => ({
           version: 1,

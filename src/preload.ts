@@ -83,6 +83,20 @@ const desktopApi: DesktopApi = {
       invoke(IPC_CHANNELS.editDraft, { productId }),
     saveDraft: (productId, draft) =>
       invoke(IPC_CHANNELS.editSaveDraft, { productId, draft }),
+    onEditLog: (listener) => {
+      const onEvent = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        if (
+          payload
+          && typeof payload === 'object'
+          && 'line' in payload
+          && typeof (payload as { line: unknown }).line === 'string'
+        ) {
+          listener((payload as { line: string }).line);
+        }
+      };
+      ipcRenderer.on(IPC_CHANNELS.editLog, onEvent);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.editLog, onEvent);
+    },
     images: {
       generateImages: (productId) =>
         invoke(IPC_CHANNELS.imagesGenerate, { productId }),

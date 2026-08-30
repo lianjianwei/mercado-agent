@@ -37,6 +37,8 @@ import { selectModelImages } from '../risk/risk-relevant-mapper';
 export type EditGenerationServiceOptions = {
   now?: () => string;
   netProfit?: Pick<NetProfitCalculator, 'computeForDraft'>;
+  // 生成过程中的进度回调,由渲染层 log 面板展示(主进程直播进度 + 耗时)。
+  onProgress?: (line: string) => void;
 };
 
 // Brand is always Generic — it is never AI-generated. A missing/empty model
@@ -59,6 +61,7 @@ type DraftSku = {
 export class EditGenerationService {
   private readonly now: () => string;
   private readonly netProfit?: Pick<NetProfitCalculator, 'computeForDraft'>;
+  private readonly onProgress: (line: string) => void;
 
   constructor(
     private readonly products: Pick<ProductRepository, 'getById'>,
@@ -68,6 +71,7 @@ export class EditGenerationService {
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.netProfit = options.netProfit;
+    this.onProgress = options.onProgress ?? (() => undefined);
   }
 
   async generate(
@@ -78,10 +82,20 @@ export class EditGenerationService {
     const skus = this.selectSkus(detail);
     const provider = this.providerFactory();
     const prompt = this.buildPrompt(detail, skus);
-    const raw = await provider.generate(
-      { prompt, imageUrls: skus.flatMap((sku) => sku.imageUrls) },
-      signal ?? new AbortController().signal,
-    );
+    this.onProgress(`正在生成标题、描述、SKU 尺寸与重量…`);
+    let raw: unknown;
+    try {
+      const startedAt = Date.now();
+      raw = await provider.generate(
+        { prompt, imageUrls: skus.flatMap((sku) => sku.imageUrls) },
+        signal ?? new AbortController().signal,
+      );
+      const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+      this.onProgress(`标题、描述、SKU 尺寸与重量生成完成（耗时 ${seconds}s）。`);
+    } catch (error) {
+      this.onProgress(`标题、描述、SKU 尺寸与重量生成失败。`);
+      throw error;
+    }
     const parsed = aiEditOutputSchema.safeParse(raw);
     if (!parsed.success) {
       throw new ModelStructuredOutputError('模型结构化输出不符合编辑草稿 schema。');

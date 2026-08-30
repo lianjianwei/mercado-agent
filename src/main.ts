@@ -5,6 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { openAppDatabase, resolveDatabasePath } from './main/db/database';
 import { registerHandlers } from './main/ipc/register-handlers';
+import { IPC_CHANNELS } from './shared/ipc-contract';
 import { readLatestDraft } from './main/ipc/edit-handlers';
 import { productDetailFromSources } from './main/ipc/product-detail-mapper';
 import type { CollectBoxDetailDto } from './shared/miaoshou-schemas';
@@ -140,6 +141,12 @@ app.whenReady().then(async () => {
     infringementRepository,
     createInfringementEngine,
   );
+  // 主进程直接把进度行广播到所有窗口(sync/infringement/edit 共用)。
+  const sendProgress = (channel: string, line: string) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(channel, { line });
+    }
+  };
   const editService = new EditGenerationService(
     products,
     snapshots,
@@ -152,9 +159,10 @@ app.whenReady().then(async () => {
       }
       return provider;
     },
-    { netProfit: netProfitCalculator },
+    { netProfit: netProfitCalculator, onProgress: (line) => sendProgress(IPC_CHANNELS.editLog, line) },
   );
   const imageService = new ImageGenerationService({
+    onProgress: (line) => sendProgress(IPC_CHANNELS.editLog, line),
     // 与 product-handlers 的 productDetail 同款取数:product + 最新 miaoshou 快照。
     readDetail: (productId: string) => {
       const latest = [...snapshots.listForProduct(productId)].reverse()
@@ -194,11 +202,7 @@ app.whenReady().then(async () => {
       refreshRates: () => fxRateService.refresh(),
       modelProxy,
       getAppInfo,
-      sendProgress: (channel, line) => {
-        for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send(channel, { line });
-        }
-      },
+      sendProgress,
       connectionTests: new ConnectionTestService(
         providerRegistry,
         undefined,

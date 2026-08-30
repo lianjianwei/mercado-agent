@@ -177,6 +177,9 @@ const ssrEditApi: EditApi = {
   async saveDraft() {
     throw new Error('AI 编辑服务未配置');
   },
+  onEditLog() {
+    return () => undefined;
+  },
   images: {
     async generateImages() {
       throw new Error('AI 生图服务未配置');

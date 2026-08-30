@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
   editGenerate: 'edit:generate',
   editDraft: 'edit:draft',
   editSaveDraft: 'edit:save-draft',
+  editLog: 'edit:log',
   infringementAnalyze: 'infringement:analyze',
   infringementAnalyzeBatch: 'infringement:analyze-batch',
   infringementBatchLog: 'infringement:batch-log',
@@ -126,6 +127,7 @@ export interface EditApi {
   generate(productId: string): Promise<EditDraft>;
   draft(productId: string): Promise<EditDraft | null>;
   saveDraft(productId: string, draft: EditDraft): Promise<EditDraft>;
+  onEditLog(listener: (line: string) => void): () => void;
   images: ImageApi;
 }
 

@@ -140,14 +140,21 @@ function fakeProvider(returnValue: unknown): TextModelProvider {
 describe('EditGenerationService', () => {
   it('builds a draft from a structured model response', async () => {
     const provider = fakeProvider(validOutput());
+    const onProgress = vi.fn();
     const service = new EditGenerationService(
       { getById: vi.fn() },
       fakeSnapshots(detail()),
       () => provider,
-      { now: () => '2026-08-28T01:00:00.000Z' },
+      { now: () => '2026-08-28T01:00:00.000Z', onProgress },
     );
 
     const draft = await service.generate('90001');
+
+    // 进度回调先报「生成中」再报「完成(含耗时)」。
+    const lines = onProgress.mock.calls.map((call) => String(call[0]));
+    expect(lines[0]).toContain('正在生成');
+    expect(lines[1]).toContain('生成完成');
+    expect(lines[1]).toMatch(/耗时 [\d.]+s/);
 
     expect(draft).toEqual({
       version: 1,

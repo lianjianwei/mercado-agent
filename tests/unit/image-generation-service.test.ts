@@ -20,6 +20,7 @@ describe('ImageGenerationService', () => {
 
   it('emits one main image per SKU with a local file and a snapshot record', async () => {
     const appendImages = vi.fn();
+    const onProgress = vi.fn();
     const imageProvider = { testConnection: vi.fn(), generate: vi.fn(async () => [{ url: '', dataBase64: 'AAAA' }]) } as unknown as ImageModelProvider;
     const textProvider = {
       testConnection: vi.fn(),
@@ -38,6 +39,7 @@ describe('ImageGenerationService', () => {
       appendImages,
       imagesDir: '/tmp/imgs',
       now: () => '2026-08-29T00:00:00.000Z',
+      onProgress,
     });
     const result = await service.generate('p1');
     expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
@@ -45,6 +47,11 @@ describe('ImageGenerationService', () => {
     expect(result.mainImages[0].localPath).toMatch(/\/tmp\/imgs\/p1\/.+\.png$/);
     expect(result.mainImages[0].plannedPath).toMatch(/^mercado\/p1\/.+\.png$/);
     expect(result.mainImages[0].localPath.endsWith('.png')).toBe(true);
+    // 进度回调覆盖规划、主图与详情图,并带耗时。
+    const lines = onProgress.mock.calls.map((call) => String(call[0]));
+    expect(lines.some((line) => line.includes('规划详情图'))).toBe(true);
+    expect(lines.some((line) => line.includes('生成') && line.includes('主图'))).toBe(true);
+    expect(lines.some((line) => line.includes('详情图') && line.includes('耗时'))).toBe(true);
   });
 
   it('isolates a self-check failure and still appends a snapshot', async () => {

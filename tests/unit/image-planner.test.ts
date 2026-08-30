@@ -16,12 +16,11 @@ describe('ImagePlanner', () => {
     expect(plans).toHaveLength(1);
     expect(plans[0].kind).toBe('功能图');
   });
-  it('caps the plan at 6 images', async () => {
+  it('caps the plan at 4 images', async () => {
     const many = { plans: Array.from({ length: 9 }, (_, i) => ({ id: `d${i}`, kind: '功能图', subject: 'x', textEs: '', textPt: '', hasPerson: false, referenceNote: '' })) };
     const planner = new ImagePlanner(() => fakeText(many));
     const plans = await planner.plan({ title: 'T', description: 'D', category: 'C', referenceImageUrls: [] });
-    expect(plans.length).toBeGreaterThanOrEqual(4);
-    expect(plans.length).toBeLessThanOrEqual(6);
+    expect(plans).toHaveLength(4);
   });
 
   it('accepts a model plan without id (real deepseek output) and assigns slugs', async () => {

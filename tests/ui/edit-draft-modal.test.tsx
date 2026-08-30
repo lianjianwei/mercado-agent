@@ -67,6 +67,7 @@ function api(): EditApi {
     generate: vi.fn(async () => draft),
     draft: vi.fn(async () => null),
     saveDraft: vi.fn(async (_id, value) => value),
+    onEditLog: () => () => undefined,
     images: {
       generateImages: vi.fn(async () => ({
         version: 1,
@@ -96,6 +97,39 @@ function Harness({ onClose }: { onClose: () => void }) {
     />
   );
 }
+
+describe('EditDraftModal AI edit log', () => {
+  it('shows the AI edit log lines streamed via onEditLog', async () => {
+    let emit: ((line: string) => void) | undefined;
+    const editApi: EditApi = {
+      ...api(),
+      onEditLog: (listener) => {
+        emit = listener;
+        return () => undefined;
+      },
+    };
+    render(
+      <EditDraftModal
+        api={editApi}
+        loadDetail={vi.fn(async () => detail)}
+        onClose={() => undefined}
+        product={product}
+      />,
+    );
+    await screen.findByText('SKU 信息');
+
+    // 尚无日志行时不显示。
+    expect(screen.queryByLabelText('AI 编辑日志')).toBeNull();
+
+    // 主进程推流首行 → 日志区出现,并停在固定高度滚动区里。
+    emit!('正在生成标题、描述、SKU 尺寸与重量…');
+    expect(await screen.findByLabelText('AI 编辑日志')).toBeTruthy();
+    expect(await screen.findByText('正在生成标题、描述、SKU 尺寸与重量…')).toBeTruthy();
+
+    emit!('标题、描述、SKU 尺寸与重量生成完成（耗时 30.2s）。');
+    expect(await screen.findByText(/生成完成（耗时 30.2s）。/)).toBeTruthy();
+  });
+});
 
 describe('EditDraftModal escape-key handling', () => {
   it('closes only the lightbox on Esc when it is open, then closes the modal on the next Esc', async () => {

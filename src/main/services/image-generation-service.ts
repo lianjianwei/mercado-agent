@@ -16,6 +16,8 @@ export type ImageGenerationDeps = {
   textProvider: () => TextModelProvider;
   appendImages: (productId: string, result: AiImagesResult) => void;
   imagesDir: string;
+  // 生图过程中的进度回调,由渲染层 log 面板展示(主进程直播进度 + 耗时)。
+  onProgress?: (line: string) => void;
   now?: () => string;
 };
 
@@ -48,7 +50,11 @@ export async function saveImageBytes(imagesDir: string, productId: string, image
 }
 
 export class ImageGenerationService {
-  constructor(private readonly deps: ImageGenerationDeps) {}
+  private readonly onProgress: (line: string) => void;
+
+  constructor(private readonly deps: ImageGenerationDeps) {
+    this.onProgress = deps.onProgress ?? (() => undefined);
+  }
 
   async generate(productId: string): Promise<AiImagesResult> {
     const detail = this.deps.readDetail(productId);
@@ -62,20 +68,30 @@ export class ImageGenerationService {
     const provider = this.deps.imageProvider();
 
     const sku0Refs = skus[0]?.imageUrls ?? [];
+    const planStartedAt = Date.now();
+    this.onProgress(`正在规划详情图…`);
     const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs });
+    this.onProgress(`详情图规划完成（耗时 ${((Date.now() - planStartedAt) / 1000).toFixed(1)}s）。`);
 
     const mainImages: GeneratedImage[] = [];
-    for (const sku of skus) {
+    const mainSkus = skus.filter((sku) => sku.imageUrls.length > 0);
+    for (const [mainIndex, sku] of mainSkus.entries()) {
       const ref = sku.imageUrls[0];
-      if (!ref) continue;
-      const prompt = buildMainImagePrompt({ title, description, category: detail.category ?? '' });
-      mainImages.push(await this.generateOne({ provider, reviser, prompt, refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description }));
+      this.onProgress(`正在生成 ${sku.name ?? `SKU ${sku.skuKey}`} 主图（${mainIndex + 1}/${mainSkus.length}）…`);
+      const startedAt = Date.now();
+      const image = await this.generateOne({ provider, reviser, prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description });
+      this.onProgress(`主图 ${mainIndex + 1}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
+      mainImages.push(image);
     }
 
     const detailImages: GeneratedImage[] = [];
-    for (const item of plan) {
-      const prompt = buildDetailImagePrompt(item, title);
-      detailImages.push(await this.generateOne({ provider, reviser, prompt, refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description }));
+    for (let index = 0; index < plan.length; index += 1) {
+      const item = plan[index];
+      this.onProgress(`正在生成详情图 ${index + 1}/${plan.length}（${item.kind}）…`);
+      const startedAt = Date.now();
+      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description });
+      this.onProgress(`详情图 ${index + 1}/${plan.length}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
+      detailImages.push(image);
     }
 
     const failed = [...mainImages, ...detailImages].filter((i) => i.status === 'failed');

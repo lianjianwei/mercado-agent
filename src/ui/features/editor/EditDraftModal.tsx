@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { Product } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
+import { AiEditLog } from './AiEditLog';
 import { EditPanel } from './EditPanel';
 
 type EditDraftModalProps = {
@@ -17,6 +18,20 @@ export function EditDraftModal({
   loadDetail,
   onClose,
 }: EditDraftModalProps) {
+  // 编辑/生图进度行:主进程通过 edit:log 广播,这里累积并固定展示在弹窗底部。
+  const [logLines, setLogLines] = useState<string[]>([]);
+
+  // 切换商品时清空日志,避免上一个商品的进度串到当前商品。
+  useEffect(() => {
+    setLogLines([]);
+  }, [product.id]);
+
+  useEffect(() => {
+    return api.onEditLog((line) => {
+      setLogLines((current) => [...current, line]);
+    });
+  }, [api]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
@@ -57,6 +72,7 @@ export function EditDraftModal({
           </button>
         </div>
         <EditPanel api={api} loadDetail={loadDetail} product={product} />
+        <AiEditLog lines={logLines} />
       </div>
     </div>
   );

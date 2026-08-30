@@ -1134,6 +1134,71 @@
   line-height: 1.6;
 }
 
+/* ---- 重新生成弹窗(文本生成 / 图片生成 多选) ---- */
+.regenerate-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(7 29 51 / 45%);
+}
+
+.regenerate-dialog {
+  width: min(420px, 92vw);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 18px 50px rgb(7 29 51 / 35%);
+}
+
+.regenerate-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.regenerate-dialog-header h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.regenerate-dialog-hint {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.regenerate-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.regenerate-option strong {
+  color: var(--text);
+}
+
+.regenerate-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue-600);
+  cursor: pointer;
+}
+
+.regenerate-dialog .edit-actions {
+  margin-top: 16px;
+}
+
 /* ---- net profit config modal ---- */
 .net-profit-config-modal {
   width: min(560px, 92vw);

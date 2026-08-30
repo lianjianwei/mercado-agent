@@ -15,9 +15,6 @@ import {
 
 type MiaoshouViewProps = {
   detail: ProductDetail | null;
-  hasDraft: boolean;
-  generating: boolean;
-  onGenerate: () => void;
 };
 
 const readonly = (value: string | null | undefined): PreviewField => ({
@@ -68,12 +65,7 @@ function toViewModel(detail: ProductDetail): PreviewViewModel {
   };
 }
 
-export function MiaoshouView({
-  detail,
-  hasDraft,
-  generating,
-  onGenerate,
-}: MiaoshouViewProps) {
+export function MiaoshouView({ detail }: MiaoshouViewProps) {
   const vm = detail ? toViewModel(detail) : null;
 
   return (
@@ -82,22 +74,6 @@ export function MiaoshouView({
         <DetailPreview vm={vm} />
       ) : (
         <p className="detail-loading">暂无可显示的妙手详情。</p>
-      )}
-
-      {!hasDraft && !generating && (
-        <div className="edit-generate-prompt">
-          <p>
-            该商品尚无 AI 编辑草稿。可先查看上方妙手原数据，或点击「生成 AI 草稿」创建标题、描述、品牌、型号与 SKU 信息。草稿不会写入妙手。
-          </p>
-          <button
-            className="primary-button"
-            disabled={generating}
-            onClick={onGenerate}
-            type="button"
-          >
-            {generating ? '生成中…' : '生成 AI 草稿'}
-          </button>
-        </div>
       )}
 
       <p className="edit-note">

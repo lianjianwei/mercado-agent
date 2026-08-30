@@ -35,10 +35,11 @@ export function EditDraftModal({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
-      // 图片灯箱/净收益计算详情浮层打开时,Esc 只关它们,不关本弹窗
+      // 图片灯箱/净收益计算详情浮层/重新生成弹窗打开时,Esc 只关它们,不关本弹窗
       // (避免按一下 Esc 两处都关)。
       if (document.querySelector('.lightbox-overlay')) return;
       if (document.querySelector('.np-breakdown-popover')) return;
+      if (document.querySelector('.regenerate-dialog-overlay')) return;
       onClose();
     }
     window.addEventListener('keydown', onKeyDown);

@@ -29,12 +29,7 @@ type DraftViewProps = {
   onUpdateSkuNetProfit?: (skuKey: string, siteCode: string, value: string) => void;
   onUpdateSkuListingType?: (skuKey: string, siteCode: string, value: string) => void;
   onUpdateGlobalNetProfit?: (value: string) => void;
-  onGenerate: () => void;
-  // 只重新生成图片,标题/描述等草稿字段不动。
-  onRegenerateImages?: () => void;
   onSave: () => void;
-  generating: boolean;
-  regeneratingImages: boolean;
   saving: boolean;
 };
 
@@ -135,11 +130,7 @@ export function DraftView({
   onUpdateSkuNetProfit,
   onUpdateSkuListingType,
   onUpdateGlobalNetProfit,
-  onGenerate,
-  onRegenerateImages,
   onSave,
-  generating,
-  regeneratingImages,
   saving,
 }: DraftViewProps) {
   const vm = toViewModel(draft, detail, {
@@ -158,23 +149,6 @@ export function DraftView({
       />
 
       <div className="edit-actions">
-        <button
-          className="secondary-button"
-          disabled={generating}
-          onClick={onGenerate}
-          type="button"
-        >
-          {generating ? '生成中…' : '重新生成'}
-        </button>
-        <button
-          className="secondary-button"
-          disabled={regeneratingImages}
-          onClick={onRegenerateImages}
-          title="仅重新生成主图与详情图,标题/描述等草稿字段不动"
-          type="button"
-        >
-          {regeneratingImages ? '生成中…' : '重新生成图片'}
-        </button>
         <button
           className="primary-button"
           disabled={saving}

@@ -43,6 +43,10 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [regeneratingImages, setRegeneratingImages] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // 重新生成弹窗:选择只重生成文本 / 只重生成图片 / 两者。
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [regenText, setRegenText] = useState(true);
+  const [regenImages, setRegenImages] = useState(true);
 
   // Load any existing draft plus the Miaoshou detail when the panel opens for
   // a product. The two views compare the miaoshou snapshot with the draft.
@@ -67,14 +71,26 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     };
   }, [product.id, api, loadDetail]);
 
-  async function runGenerate() {
+  // 重新生成弹窗打开时,Esc 只关弹窗(外层 EditDraftModal 的 Esc 已对
+  // .regenerate-dialog-overlay 放行,不关整个编辑弹窗)。
+  useEffect(() => {
+    if (!regenerateDialogOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRegenerateDialogOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [regenerateDialogOpen]);
+
+  // 重新生成草稿文本(标题/描述/SKU 等)。withImages=true 时随后自动重新生图。
+  async function runGenerate(withImages: boolean) {
     setGenerating(true);
     setError('');
     try {
       const generated = await api.generate(product.id);
       setDraft(generated);
-      // 草稿生成后同一动作接着触发生成图片,生成完会自动写回草稿的产品图片(公网 URL)。
-      void runGenerateImages();
+      // 选「文本+图片」时,文本生成完接着重新生图(写回新的公网 URL)。
+      if (withImages) void runGenerateImages();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'AI 编辑草稿生成失败。');
     } finally {
@@ -82,32 +98,27 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     }
   }
 
+  // 只重新生成图片(标题/描述等草稿字段不动),把新的公网 URL 写回草稿。
   async function runGenerateImages() {
     if (!product) return;
+    setRegeneratingImages(true);
     try {
       await api.images.generateImages(product.id);
-      // 生图会把公网 URL 写回草稿的产品图片字段;重取草稿让「产品图片」区显示。
       const refreshed = await api.draft(product.id);
       if (refreshed) setDraft(refreshed);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '图片生成失败。');
-    }
-  }
-
-  // 只重新生成图片,标题/描述等草稿字段不动。生成会写回新的公网 URL 到草稿。
-  async function runRegenerateImages() {
-    if (!product) return;
-    setRegeneratingImages(true);
-    setError('');
-    try {
-      await api.images.generateImages(product.id);
-      const refreshed = await api.draft(product.id);
-      if (refreshed) setDraft(refreshed);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '图片重新生成失败。');
     } finally {
       setRegeneratingImages(false);
     }
+  }
+
+  // 按弹窗选择执行重新生成:文本 / 图片 / 两者。
+  async function confirmRegenerate(text: boolean, images: boolean) {
+    setRegenerateDialogOpen(false);
+    if (text && images) await runGenerate(true);
+    else if (text) await runGenerate(false);
+    else if (images) await runGenerateImages();
   }
 
   async function runSave() {
@@ -230,6 +241,19 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             <h2>{product.title ?? '未命名商品'}</h2>
             <code className="product-id" title="产品 ID">{product.id}</code>
           </div>
+          {/* 生成/重新生成按钮:无草稿时生成 AI 草稿;有草稿时打开「文本/图片」选择弹窗。 */}
+          {!loading && (
+            <button
+              className={draft ? 'secondary-button' : 'primary-button'}
+              disabled={generating || regeneratingImages}
+              onClick={() =>
+                draft ? setRegenerateDialogOpen(true) : void runGenerate(true)
+              }
+              type="button"
+            >
+              {generating ? '生成中…' : draft ? '重新生成' : '生成 AI 草稿'}
+            </button>
+          )}
         </div>
 
         {error && <div className="page-error">{error}</div>}
@@ -265,21 +289,13 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
         {loading && <p className="detail-loading">正在读取妙手详情…</p>}
 
         {!loading && view === 'miaoshou' && (
-          <MiaoshouView
-            detail={detail}
-            generating={generating}
-            hasDraft={!!draft}
-            onGenerate={() => void runGenerate()}
-          />
+          <MiaoshouView detail={detail} />
         )}
 
         {!loading && draft && view === 'aiDraft' && (
           <DraftView
             detail={detail}
             draft={draft}
-            generating={generating}
-            onGenerate={() => void runGenerate()}
-            onRegenerateImages={() => void runRegenerateImages()}
             onSave={() => void runSave()}
             onUpdateField={updateDraftField}
             onUpdateSkuField={updateSkuField}
@@ -287,11 +303,69 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             onUpdateSkuNetProfit={updateSkuNetProfit}
             onUpdateSkuListingType={updateSkuListingType}
             onUpdateGlobalNetProfit={updateGlobalNetProfit}
-            regeneratingImages={regeneratingImages}
             saving={saving}
           />
         )}
       </div>
+
+      {/* 重新生成弹窗:选择 文本生成 / 图片生成(可多选或单选)。 */}
+      {regenerateDialogOpen && (
+        <div className="regenerate-dialog-overlay" onClick={() => setRegenerateDialogOpen(false)}>
+          <div
+            aria-label="重新生成"
+            aria-modal="true"
+            className="regenerate-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="regenerate-dialog-header">
+              <h3>重新生成</h3>
+              <button
+                aria-label="关闭"
+                className="np-close"
+                onClick={() => setRegenerateDialogOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <p className="regenerate-dialog-hint">选择要重新生成的内容:</p>
+            <label className="regenerate-option">
+              <input
+                checked={regenText}
+                onChange={(event) => setRegenText(event.target.checked)}
+                type="checkbox"
+              />
+              <span><strong>文本生成</strong>（标题、描述、SKU 等）</span>
+            </label>
+            <label className="regenerate-option">
+              <input
+                checked={regenImages}
+                onChange={(event) => setRegenImages(event.target.checked)}
+                type="checkbox"
+              />
+              <span><strong>图片生成</strong>（主图、详情图）</span>
+            </label>
+            <div className="edit-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setRegenerateDialogOpen(false)}
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                className="primary-button"
+                disabled={!regenText && !regenImages}
+                onClick={() => void confirmRegenerate(regenText, regenImages)}
+                type="button"
+              >
+                生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

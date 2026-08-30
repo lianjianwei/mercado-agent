@@ -53,12 +53,15 @@ function toViewModel(
   const globalNetProfit = deriveGlobalNetProfit(draft.siteAndPriceMap);
 
   // AI 生成并上传的图(草稿镜像妙手结构,存于草稿 sku.imageUrls)优先展示;
-  // 没有时回退妙手原图。
+  // 没有时回退妙手原图。生成的多张「共用详情图」存于草稿产品级 images,
+  // 这里一并并进每个 SKU 的图片块(单 SKU 商品即显示全部)。
   const draftImagesBySku = new Map<string, string[]>();
   for (const sku of draft.skus) {
     const urls = sku.imageUrls ?? [];
     if (urls.length > 0) draftImagesBySku.set(sku.skuKey, urls);
   }
+  const skuMains = new Set(draft.skus.flatMap((sku) => sku.imageUrls ?? []));
+  const sharedDetailUrls = (draft.images ?? []).filter((url) => !skuMains.has(url));
   const miaoshouImagesBySku = new Map<string, string[]>();
   for (const sku of detail?.skuList ?? []) {
     miaoshouImagesBySku.set(sku.skuKey, sku.imageUrls.length > 0 ? sku.imageUrls : sku.imageUrl ? [sku.imageUrl] : []);
@@ -87,7 +90,10 @@ function toViewModel(
       dimensionUnit: 'cm',
       weightUnit: 'g',
     },
-    images: draftImagesBySku.get(sku.skuKey) ?? miaoshouImagesBySku.get(sku.skuKey) ?? [],
+    images: [
+      ...(draftImagesBySku.get(sku.skuKey) ?? miaoshouImagesBySku.get(sku.skuKey) ?? []),
+      ...sharedDetailUrls,
+    ],
   }));
 
   const siteAndPriceMaps = draft.skus.map((sku) => sku.siteAndPriceMap);
@@ -108,7 +114,6 @@ function toViewModel(
       { label: '型号', field: editable(draft.model, (value) => handlers.onUpdateField('model', value)) },
     ],
     skus,
-    productImages: draft.images ?? [],
     siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps, undefined, detailMaps, draft.sites),
     globalNetProfit,
   };

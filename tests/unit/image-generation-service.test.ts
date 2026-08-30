@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ImageGenerationService, buildDetailImagePrompt, buildMainImagePrompt } from '../../src/main/services/image-generation-service';
+import { ImageGenerationService, buildDetailImagePrompt, buildMainImagePrompt, detectQuantity } from '../../src/main/services/image-generation-service';
 import type { ProductDetail } from '../../src/domain/product';
 import type { EditDraft } from '../../src/domain/edit';
 import type { DetailPlanItem, GeneratedImage } from '../../src/domain/images';
@@ -17,6 +17,20 @@ describe('ImageGenerationService', () => {
     const prompt = buildMainImagePrompt({ title: '按摩仪', description: 'x', category: '健康' });
     expect(prompt).toContain('白底');
     expect(prompt).toContain('无 logo');
+  });
+
+  it('adds a stacking rule to the main-image prompt for a multi-unit product', () => {
+    const prompt = buildMainImagePrompt({ title: '10个装 一次性碗筷', description: 'x', category: '餐具', quantity: '10 个' });
+    expect(prompt).toContain('多件装');
+    expect(prompt).toContain('堆叠');
+    expect(prompt).toContain('不必精确画出');
+  });
+
+  it('detectQuantity reads a multi-unit count from the title or description', () => {
+    expect(detectQuantity('10个装 派对发箍', '一次性用品')).toBe('10 个');
+    expect(detectQuantity('一次性碗筷 100只装', 'x')).toBe('100 只');
+    expect(detectQuantity('普通单品 发箍')).toBeNull(); // 无数量
+    expect(detectQuantity('2个装 小套件')).toBeNull(); // 少量不触发
   });
 
   it('builds a detail prompt in a single target language (no mixed languages)', () => {

@@ -39,10 +39,30 @@ export type ImageGenerationDeps = {
   now?: () => string;
 };
 
-export function buildMainImagePrompt(input: { title: string; description: string; category: string }): string {
+export function buildMainImagePrompt(input: { title: string; description: string; category: string; quantity?: string | null }): string {
+  // 多件装(如 10/20/50/100 个一次性碗筷、发箍):主图不要逐个整齐排开,
+  // 建议堆叠/错落/局部重叠摆放,做出层次,体现「数量多」即可,不必精确画出件数。
+  const quantityRule = input.quantity
+    ? `\n该产品为多件装（约 ${input.quantity}）。若是样式完全相同的物品（一次性用品、同款发箍等），请用堆叠/错落/局部重叠的摆放方式，做出层次感，体现数量多即可，不必精确画出 ${input.quantity} 件；若是几种不同物品的组合装，则按组合内容呈现。`
+    : '';
   return `以参考图为准生成一张美客多主图：白底，只展示产品本身，无 logo、无文字，
 不得虚构参考图中不存在的部件，产品外观/配色/结构保持一致。产品「${input.title}」。
-类目：${input.category || '未知'}。描述：${input.description}`;
+类目：${input.category || '未知'}。描述：${input.description}${quantityRule}`;
+}
+
+// 从标题/描述里识别「多件装数量」。匹配 数字 + 计数单位(个/件/支/…),如
+// 「10个装」「20件套」「100支」;数量 < 10 视为少量,不触发堆叠处理。
+const QUANTITY_UNIT = '个|件|支|根|片|只|张|条|套|包|瓶|对|双|块|袋|盒|罐|颗|枚|粒|卷|组';
+const QUANTITY_RE = new RegExp(`(\\d+)\\s*(${QUANTITY_UNIT})\\s*(?:装|入|件套|支装|只装)?`);
+
+export function detectQuantity(...texts: string[]): string | null {
+  for (const text of texts) {
+    const match = QUANTITY_RE.exec(text ?? '');
+    if (!match) continue;
+    const count = Number(match[1]);
+    if (count >= 10) return `${count} ${match[2]}`;
+  }
+  return null;
 }
 
 export function buildDetailImagePrompt(item: DetailPlanItem, title: string, language: DetailImageLanguage = 'es'): string {
@@ -96,13 +116,17 @@ export class ImageGenerationService {
     const reviser = new ImageReviser(this.deps.textProvider);
     const provider = this.deps.imageProvider();
 
+    // 多件装数量(如 10/20/50/100 个):命中时主图用堆叠呈现,详情图说明数量+包装内容。
+    const quantity = detectQuantity(title, description);
+    if (quantity) this.onProgress(`多件装约 ${quantity}:主图采用堆叠呈现,不逐件摆齐。`);
+
     // 详情图文字语言由商品发布的站点决定(站点含 MX/AR→西语;只有 BR→葡语)。
     const language = resolveDetailImageLanguage(detail.sites ?? draft?.sites ?? []);
     this.onProgress(`详情图文字语言：${DETAIL_LANGUAGE_LABEL[language]}`);
     const sku0Refs = skus[0]?.imageUrls ?? [];
     const planStartedAt = Date.now();
     this.onProgress(`正在规划详情图…`);
-    const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs, language });
+    const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs, language, quantity });
     this.onProgress(`详情图规划完成（耗时 ${((Date.now() - planStartedAt) / 1000).toFixed(1)}s）。`);
 
     // 收集全部图的生成规格(主图 + 详情图),便于 codex 一次批量产出。
@@ -112,7 +136,7 @@ export class ImageGenerationService {
       const ref = sku.imageUrls[0];
       if (!ref) continue;
       specs.push({
-        request: { prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), referenceImageUrls: [ref] },
+        request: { prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '', quantity }), referenceImageUrls: [ref] },
         kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description,
         name: imageFileName('main', skuIndex + 1),
         label: `SKU ${skuIndex + 1} 主图`,

@@ -29,10 +29,14 @@ export function resolveDetailImageLanguage(sites: string[]): DetailImageLanguage
   return 'es';
 }
 
-function systemPrompt(language: DetailImageLanguage): string {
+function systemPrompt(language: DetailImageLanguage, quantity?: string | null): string {
   const label = DETAIL_LANGUAGE_LABEL[language];
   // textEs 存西语文字、textPt 存葡语文字;本次只让模型填目标语言那个字段,另一个留空字符串。
   const textField = language === 'es' ? 'textEs 填西语文字，textPt 留空字符串' : 'textPt 填葡语文字，textEs 留空字符串';
+  // 多件装:安排一张详情图说明卖多少个、包装含哪些;数量按约数表达,不逐一罗列。
+  const quantityRule = quantity
+    ? `\n- 该产品为多件装（约 ${quantity}）。请安排一张详情图说明这个卖的是多少个、包装里面包含哪些（用 包装清单/数量说明），数量按约数表达即可。`
+    : '';
   return `你是一名资深跨境电商美工与运营。根据商品的标题、描述、类目与参考图，
 为美客多详情页规划 4 张详情图。每张图输出一件具体要做的事。
 约束：
@@ -42,7 +46,7 @@ function systemPrompt(language: DetailImageLanguage): string {
 - 图上文字只用 ${label}，不要出现其他语言；${textField}。
 - hasPerson 是否需要人物(服饰/发饰/包/场景图优先，人物用拉美裔)。
 - referenceNote 说明依据哪张参考图。
-- 参考图中没有安装/使用流程的，不要生成安装步骤/使用流程图；不得虚构参考图中没有的内容。`;
+- 参考图中没有安装/使用流程的，不要生成安装步骤/使用流程图；不得虚构参考图中没有的内容。${quantityRule}`;
 }
 
 export type PlanInput = {
@@ -52,6 +56,8 @@ export type PlanInput = {
   referenceImageUrls: string[];
   // 详情图文字语言,由商品站点决定;缺省按西语。
   language?: DetailImageLanguage;
+  // 多件装数量说明,如「10 个」;命中时详情图说明数量与包装内容。
+  quantity?: string | null;
 };
 
 export class ImagePlanner {
@@ -60,7 +66,7 @@ export class ImagePlanner {
   async plan(input: PlanInput): Promise<DetailPlanItem[]> {
     const language = input.language ?? 'es';
     const payload = await this.text().generate({
-      prompt: `${systemPrompt(language)}\n\n标题：${input.title}\n描述：${input.description}\n类目：${input.category||'未知'}\n参考图：\n${input.referenceImageUrls.map((u,i)=>`${i+1}. ${u}`).join('\n')}`,
+      prompt: `${systemPrompt(language, input.quantity)}\n\n标题：${input.title}\n描述：${input.description}\n类目：${input.category||'未知'}\n参考图：\n${input.referenceImageUrls.map((u,i)=>`${i+1}. ${u}`).join('\n')}`,
       imageUrls: input.referenceImageUrls.slice(0, 4),
     }, new AbortController().signal);
     const parsed = detailPlanSchema.safeParse(payload);

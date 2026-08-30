@@ -155,6 +155,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
         <div>
           <span className="section-kicker">AI EDIT</span>
           <h2>{product.title ?? '未命名商品'}</h2>
+          <code className="product-id" title="产品 ID">{product.id}</code>
         </div>
       </div>
 

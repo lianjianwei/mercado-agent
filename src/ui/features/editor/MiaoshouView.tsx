@@ -63,7 +63,7 @@ function toViewModel(detail: ProductDetail): PreviewViewModel {
     siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps, {
       siteAndPriceMap: detail.siteAndPriceMap,
       listingTypeBySite: detail.listingTypeBySite,
-    }),
+    }, undefined, detail.sites),
     globalNetProfit,
   };
 }

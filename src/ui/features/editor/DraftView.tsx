@@ -106,7 +106,7 @@ function toViewModel(
       { label: '型号', field: editable(draft.model, (value) => handlers.onUpdateField('model', value)) },
     ],
     skus,
-    siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps, undefined, detailMaps),
+    siteNetProfit: buildSiteNetProfit(skus, siteAndPriceMaps, listingTypeMaps, undefined, detailMaps, draft.sites),
     globalNetProfit,
   };
 }

@@ -505,6 +505,7 @@ export function buildSiteNetProfit(
     listingTypeBySite?: Record<string, string>;
   },
   siteNetProfitDetailMaps?: Record<string, NetProfitBreakdown>[],
+  sites?: string[],
 ): PreviewSiteNetProfit {
   const productPriceMap = product?.siteAndPriceMap ?? {};
   const productListingBySite = product?.listingTypeBySite ?? {};
@@ -516,12 +517,17 @@ export function buildSiteNetProfit(
   });
 
   // 列 = 所有 SKU 站点码的并集,按首次出现顺序;label 用首个引入该码的站点名。
+  // 若传入产品级 `sites`(用户实际选择发布的站点),则只保留这些站点列——
+  // 妙手 skuMap 的 per-SKU siteAndPriceMap 常带回未发布的站点(CL/CO/UY 等),
+  // 不把它们当列。
+  const restrict = sites ? new Set(sites.map((site) => normalizeSiteKey(site))) : null;
   const columns: PreviewSiteNetProfitColumn[] = [];
   const seen = new Set<string>();
   for (const map of effectiveMaps) {
     for (const rawSiteKey of Object.keys(map)) {
       const code = normalizeSiteKey(rawSiteKey);
       if (seen.has(code)) continue;
+      if (restrict && !restrict.has(code)) continue;
       seen.add(code);
       columns.push({ code, label: siteLabel(rawSiteKey) });
     }

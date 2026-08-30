@@ -34,8 +34,8 @@ describe('aiImages record contract', () => {
     expect(aiImagesSnapshotSchema.safeParse(result).success).toBe(true);
     expect(appended).toHaveLength(1);
     expect(appended[0].kind).toBe('aiImages');
-    // 命名规则:主图 main-{sku}.png,详情图 detail-{N}.png。
+    // 命名规则:主图 main-{SKU序号}.png,详情图 detail-{N}.png。
     const planned = [...result.mainImages, ...result.detailImages].map((image) => image.plannedPath).sort();
-    expect(planned).toEqual(['mercado/p1/detail-1.png', 'mercado/p1/main-;a;.png']);
+    expect(planned).toEqual(['mercado/p1/detail-1.png', 'mercado/p1/main-1.png']);
   });
 });

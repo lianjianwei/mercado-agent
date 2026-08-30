@@ -37,17 +37,11 @@ ${item.hasPerson ? '人物使用拉美裔模特。' : '不要出现人物。'}
 以参考图为准，真实呈现产品，不虚构参考图中没有的内容，保持产品外观/配色/结构一致。产品「${title}」。`;
 }
 
-// 生成可读的文件名字段,把文件系统里非法的字符替换成下划线(其余保留,
-// 让文件名一眼能对应到 SKU)。
-function fileKey(value: string): string {
-  // 只处理真正非法的文件名保留字符(Windows 的 < > : " / \\ | ? *),并去掉换行/制表。
-  return value.replace(/[<>:"/\\|?*\n\r\t]/g, '_');
-}
-
-// 图片文件名规则:主图按 SKU 命名(main-{sku}.png),详情图按序号命名
+// 图片文件名规则:主图按 SKU 序号命名(main-{序号}.png),详情图按序号命名
 // (detail-1.png … detail-4.png,详情图所有 SKU 共用,不带 SKU 信息)。
-export function imageFileName(kind: 'main' | 'detail', skuKey: string | undefined, detailIndex?: number): string {
-  return kind === 'main' ? `main-${fileKey(skuKey ?? 'sku')}` : `detail-${detailIndex ?? 1}`;
+// index 从 1 开始。
+export function imageFileName(kind: 'main' | 'detail', index: number): string {
+  return `${kind}-${index}`;
 }
 
 export async function saveImageBytes(imagesDir: string, productId: string, imageId: string, result: ImageResult): Promise<string> {
@@ -94,12 +88,16 @@ export class ImageGenerationService {
 
     const mainImages: GeneratedImage[] = [];
     const mainSkus = skus.filter((sku) => sku.imageUrls.length > 0);
-    for (const [mainIndex, sku] of mainSkus.entries()) {
+    let mainCount = 0;
+    for (const [skuIndex, sku] of skus.entries()) {
       const ref = sku.imageUrls[0];
-      this.onProgress(`正在生成 ${sku.name ?? `SKU ${sku.skuKey}`} 主图（${mainIndex + 1}/${mainSkus.length}）…`);
+      if (!ref) continue;
+      mainCount += 1;
+      // SKU 序号取该 SKU 在商品 SKU 列表里的位置,和编辑详情里「SKU 1/2/3」对齐。
+      this.onProgress(`正在生成 SKU ${skuIndex + 1} 主图（第 ${mainCount}/${mainSkus.length} 张）…`);
       const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description, name: imageFileName('main', sku.skuKey) });
-      this.onProgress(`主图 ${mainIndex + 1}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
+      const image = await this.generateOne({ provider, reviser, prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description, name: imageFileName('main', skuIndex + 1) });
+      this.onProgress(`主图 ${mainCount}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
       mainImages.push(image);
     }
 
@@ -108,7 +106,7 @@ export class ImageGenerationService {
       const item = plan[index];
       this.onProgress(`正在生成详情图 ${index + 1}/${plan.length}（${item.kind}）…`);
       const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title, language), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description, name: imageFileName('detail', undefined, index + 1) });
+      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title, language), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description, name: imageFileName('detail', index + 1) });
       this.onProgress(`详情图 ${index + 1}/${plan.length}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
       detailImages.push(image);
     }

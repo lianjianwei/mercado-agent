@@ -234,5 +234,13 @@ describe('ImageGenerationService', () => {
     expect(result.detailImages[0].status).toBe('ok');
     expect(result.detailImages[1].status).toBe('ok');
     expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
+
+    // 生图日志须给出批量生成总耗时,并标注每张图是「复用批量结果 / 补生成」,
+    // 否则多张图只有 1-2s 而某张几十秒会显得不合逻辑。
+    const lines = onProgress.mock.calls.map((call) => String(call[0]));
+    expect(lines.some((line) => line.startsWith('批量生成全部 3 张完成（耗时'))).toBe(true);
+    expect(lines.some((line) => line.includes('自检未过，补生成'))).toBe(true);
+    expect(lines.some((line) => line.includes('复用批量结果'))).toBe(true);
+    expect(lines.some((line) => line.startsWith('生图全部完成'))).toBe(true);
   });
 });

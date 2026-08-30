@@ -126,6 +126,9 @@ export class ImageGenerationService {
     const reviser = new ImageReviser(this.deps.textProvider);
     const provider = this.deps.imageProvider();
 
+    // 生图阶段总计时(含规划、生成、上传),用于最后给用户一个总的「生图耗时」。
+    const imagePhaseStartedAt = Date.now();
+
     // 多件装数量(如 10/20/50/100 个):命中时主图用堆叠呈现,详情图说明数量+包装内容。
     const quantity = detectQuantity(title, description);
     if (quantity) this.onProgress(`多件装约 ${quantity}:主图采用堆叠呈现,不逐件摆齐。`);
@@ -172,12 +175,25 @@ export class ImageGenerationService {
     if (typeof provider.generateBatch === 'function') {
       // codex 路径:一次批量产全部;某张自检不过只补跑那几张。
       this.onProgress(`正在用 codex 一次性生成全部 ${specs.length} 张图（参考图只下载一次）…`);
+      // 批量生成这一步(所有图都算在 codex 里)耗时最久,单独计时并汇报,
+      // 否则用户看到的只有每张图自检/补跑的时间,感知不到批量生成本身花了几分钟。
+      const batchStartedAt = Date.now();
       const batch = await provider.generateBatch(specs.map((spec) => spec.request), new AbortController().signal);
+      this.onProgress(`批量生成全部 ${specs.length} 张完成（耗时 ${((Date.now() - batchStartedAt) / 1000).toFixed(1)}s）。`);
       for (let index = 0; index < specs.length; index += 1) {
         const spec = specs[index];
         const startedAt = Date.now();
         const image = await this.generateOne(provider, reviser, spec, { initial: batch[index] });
-        this.onProgress(`完成 ${spec.label}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '补跑后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
+        // 说明这张图的时间到底是「复用批量结果(仅自检)」还是「单独补生成」,
+        // 否则批量结果缺失/自检未过的那张(例如 85s)会让其它 1-2s 的显得很奇怪。
+        const hadBatchResult = Boolean(batch[index]?.dataBase64 || batch[index]?.url);
+        const why = !hadBatchResult
+          ? '，批量结果缺失，单独补生成'
+          : image.attempts > 1
+            ? '，自检未过，补生成'
+            : '，复用批量结果';
+        const statusText = image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '补跑后成功' : '生成失败';
+        this.onProgress(`完成 ${spec.label}：${statusText}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s${why}）。`);
         (spec.kind === 'main' ? mainImages : detailImages).push(image);
       }
     } else {
@@ -216,6 +232,7 @@ export class ImageGenerationService {
     this.deps.appendImages(productId, result);
     // 把公网 URL 写回 AI 草稿的产品图片字段,供 AI 编辑详情「产品图片」展示。
     this.deps.writeDraftImages?.(productId, finalMain, finalDetail);
+    this.onProgress(`生图全部完成（含规划、生成、上传共耗时 ${((Date.now() - imagePhaseStartedAt) / 1000).toFixed(1)}s）。`);
     return result;
   }
 

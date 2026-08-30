@@ -144,65 +144,71 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
 
   return (
     <div className="edit-panel">
-      <div className="edit-header">
-        <div>
-          <span className="section-kicker">AI EDIT</span>
-          <h2>{product.title ?? '未命名商品'}</h2>
-          <code className="product-id" title="产品 ID">{product.id}</code>
+      {/* 顶部固定:商品标题 + 视图切换(妙手详情 / AI 编辑详情),切换时不随内容滚动。 */}
+      <div className="edit-panel-head">
+        <div className="edit-header">
+          <div>
+            <span className="section-kicker">AI EDIT</span>
+            <h2>{product.title ?? '未命名商品'}</h2>
+            <code className="product-id" title="产品 ID">{product.id}</code>
+          </div>
         </div>
-      </div>
 
-      {error && <div className="page-error">{error}</div>}
+        {error && <div className="page-error">{error}</div>}
 
-      {loading && <p className="detail-loading">正在读取妙手详情…</p>}
-
-      {!loading && (
-        <div className="edit-view-tabs" role="tablist" aria-label="编辑视图">
-          <button
-            aria-selected={view === 'miaoshou'}
-            className={view === 'miaoshou' ? 'edit-view-tab active' : 'edit-view-tab'}
-            onClick={() => setView('miaoshou')}
-            role="tab"
-            type="button"
-          >
-            妙手详情
-          </button>
-          {draft && (
+        {!loading && (
+          <div className="edit-view-tabs" role="tablist" aria-label="编辑视图">
             <button
-              aria-selected={view === 'aiDraft'}
-              className={view === 'aiDraft' ? 'edit-view-tab active' : 'edit-view-tab'}
-              onClick={() => setView('aiDraft')}
+              aria-selected={view === 'miaoshou'}
+              className={view === 'miaoshou' ? 'edit-view-tab active' : 'edit-view-tab'}
+              onClick={() => setView('miaoshou')}
               role="tab"
               type="button"
             >
-              AI 编辑详情
+              妙手详情
             </button>
-          )}
-        </div>
-      )}
+            {draft && (
+              <button
+                aria-selected={view === 'aiDraft'}
+                className={view === 'aiDraft' ? 'edit-view-tab active' : 'edit-view-tab'}
+                onClick={() => setView('aiDraft')}
+                role="tab"
+                type="button"
+              >
+                AI 编辑详情
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
-      {!loading && view === 'miaoshou' && (
-        <MiaoshouView
-          detail={detail}
-          generating={generating}
-          hasDraft={!!draft}
-          onGenerate={() => void runGenerate()}
-        />
-      )}
+      {/* 内容区:从「商品信息」开始,放不下时滚动。 */}
+      <div className="edit-panel-body">
+        {loading && <p className="detail-loading">正在读取妙手详情…</p>}
 
-      {!loading && draft && view === 'aiDraft' && (
-        <DraftView
-          detail={detail}
-          draft={draft}
-          generating={generating}
-          onGenerate={() => void runGenerate()}
-          onSave={() => void runSave()}
-          onUpdateField={updateDraftField}
-          onUpdateSkuField={updateSkuField}
-          onUpdateSkuPackage={updateSkuPackage}
-          saving={saving}
-        />
-      )}
+        {!loading && view === 'miaoshou' && (
+          <MiaoshouView
+            detail={detail}
+            generating={generating}
+            hasDraft={!!draft}
+            onGenerate={() => void runGenerate()}
+          />
+        )}
+
+        {!loading && draft && view === 'aiDraft' && (
+          <DraftView
+            detail={detail}
+            draft={draft}
+            generating={generating}
+            onGenerate={() => void runGenerate()}
+            onSave={() => void runSave()}
+            onUpdateField={updateDraftField}
+            onUpdateSkuField={updateSkuField}
+            onUpdateSkuPackage={updateSkuPackage}
+            saving={saving}
+          />
+        )}
+      </div>
     </div>
   );
 }

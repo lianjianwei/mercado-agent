@@ -233,8 +233,14 @@ app.whenReady().then(async () => {
         .map((image) => image.publicUrl)
         .filter((url): url is string => Boolean(url));
       if (allUrls.length === 0) return;
+      // 每 SKU 的图 = 该 SKU 主图 + 全部共用详情图(详情图所有 SKU 共用,同一 URL
+      // 都写进每份 SKU 的 imageUrls,便于后续回写妙手时每个 SKU 都带这 4 张详情图)。
+      const detailUrls = detailImages
+        .map((image) => image.publicUrl)
+        .filter((url): url is string => Boolean(url));
       const skus = draft.skus.map((sku) => {
-        const urls = mainBySku.get(sku.skuKey) ?? [];
+        const mainUrls = mainBySku.get(sku.skuKey) ?? [];
+        const urls = [...mainUrls, ...detailUrls];
         return { ...sku, imageUrl: urls[0] ?? null, imageUrls: urls };
       });
       snapshots.append({

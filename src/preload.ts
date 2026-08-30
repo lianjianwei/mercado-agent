@@ -143,6 +143,10 @@ const desktopApi: DesktopApi = {
     uploadImages: (productId) =>
       invoke(IPC_CHANNELS.imagesUpload, { productId }),
   },
+  clipboard: {
+    copyImage: (src) => invoke(IPC_CHANNELS.clipboardImage, { src }),
+    copyText: (text) => invoke(IPC_CHANNELS.clipboardText, { text }),
+  },
 };
 
 contextBridge.exposeInMainWorld('mercado', desktopApi);

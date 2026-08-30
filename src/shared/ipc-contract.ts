@@ -54,6 +54,8 @@ export const IPC_CHANNELS = {
   imagesGenerate: 'images:generate',
   imagesGet: 'images:get',
   imagesUpload: 'images:upload',
+  clipboardImage: 'clipboard:image',
+  clipboardText: 'clipboard:text',
 } as const;
 
 export type IpcErrorCode =
@@ -147,6 +149,14 @@ export interface ImageApi {
   uploadImages(productId: string): Promise<AiImagesResult>;
 }
 
+// 复制到系统剪贴板。主进程处理,避免渲染层跨域拉取图片被 CORS 拦截。
+export interface ClipboardApi {
+  // 把图片复制为图像(支持 http(s)/file:///本地绝对路径)。
+  copyImage(src: string): Promise<void>;
+  // 把文本(如图片地址)复制为纯文本。
+  copyText(text: string): Promise<void>;
+}
+
 export type InfringementBatchFailure = { productId: string; message: string };
 
 export type InfringementBatchSummary = {
@@ -186,4 +196,5 @@ export interface DesktopApi {
   netProfit: NetProfitApi;
   infringement: InfringementApi;
   images: ImageApi;
+  clipboard: ClipboardApi;
 }

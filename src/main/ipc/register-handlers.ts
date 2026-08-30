@@ -19,6 +19,7 @@ import { registerDiagnosticHandlers } from './diagnostic-handlers';
 import { registerInfringementHandlers } from './infringement-handlers';
 import { registerEditHandlers } from './edit-handlers';
 import { registerImageHandlers } from './image-handlers';
+import { registerClipboardHandlers } from './clipboard-handlers';
 import { registerNetProfitHandlers } from './net-profit-handlers';
 import { registerProductHandlers } from './product-handlers';
 import { registerProxyConfigHandlers } from './proxy-config-handlers';
@@ -88,6 +89,7 @@ export function registerHandlers(
     fxRates: dependencies.fxRates,
     refreshRates: dependencies.refreshRates,
   });
+  registerClipboardHandlers(registrar);
   registrar.handle(IPC_CHANNELS.appGetInfo, async () => ({
     ok: true,
     data: dependencies.getAppInfo(),

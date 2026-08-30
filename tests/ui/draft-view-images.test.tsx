@@ -75,6 +75,7 @@ describe('DraftView multi-SKU images', () => {
         onGenerate={() => undefined}
         onSave={() => undefined}
         generating={false}
+        regeneratingImages={false}
         saving={false}
       />,
     );

@@ -80,9 +80,17 @@ ${item.hasPerson ? '人物使用拉美裔模特。' : '不要出现人物。'}
 
 // 图片文件名规则:主图按 SKU 序号命名(main-{序号}.png),详情图按序号命名
 // (detail-1.png … detail-4.png,详情图所有 SKU 共用,不带 SKU 信息)。
-// index 从 1 开始。
-export function imageFileName(kind: 'main' | 'detail', index: number): string {
-  return `${kind}-${index}`;
+// 为避开七牛 CDN 缓存,文件名追加生成时间版本号(main-1-{yyyyMMddHHmm}.png),
+// 每次重新生成都会落到新的 URL,不会被旧缓存挡住。index 从 1 开始。
+export function imageFileName(kind: 'main' | 'detail', index: number, version?: string): string {
+  return version ? `${kind}-${index}-${version}` : `${kind}-${index}`;
+}
+
+// 生成时间版本号:yyyyMMddHHmm(本地时区)。同一次生成的所有图共用同一版本。
+export function imageVersionStamp(iso: string): string {
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}`;
 }
 
 export async function saveImageBytes(imagesDir: string, productId: string, imageId: string, result: ImageResult): Promise<string> {
@@ -131,6 +139,9 @@ export class ImageGenerationService {
     const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs, language, quantity });
     this.onProgress(`详情图规划完成（耗时 ${((Date.now() - planStartedAt) / 1000).toFixed(1)}s）。`);
 
+    // 生成时间版本号:同一次生成的所有图共用,避免七牛 CDN 缓存挡住新的重新生成。
+    const version = imageVersionStamp(this.deps.now?.() ?? new Date().toISOString());
+
     // 收集全部图的生成规格(主图 + 详情图),便于 codex 一次批量产出。
     // 每张携带:请求(prompt + 参考图)、命名、归属(main/detail)、SKU序号或详情序号。
     const specs: ImageSpec[] = [];
@@ -140,7 +151,7 @@ export class ImageGenerationService {
       specs.push({
         request: { prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '', quantity }), referenceImageUrls: [ref] },
         kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description,
-        name: imageFileName('main', skuIndex + 1),
+        name: imageFileName('main', skuIndex + 1, version),
         label: `SKU ${skuIndex + 1} 主图`,
       });
     }
@@ -150,7 +161,7 @@ export class ImageGenerationService {
         request: { prompt: buildDetailImagePrompt(item, title, language), referenceImageUrls: sku0Refs },
         kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson },
         productId, title, description,
-        name: imageFileName('detail', index + 1),
+        name: imageFileName('detail', index + 1, version),
         label: `详情图 ${index + 1}/${plan.length}（${item.kind}）`,
       });
     }

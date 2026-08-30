@@ -40,6 +40,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [regeneratingImages, setRegeneratingImages] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -90,6 +91,22 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
       if (refreshed) setDraft(refreshed);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '图片生成失败。');
+    }
+  }
+
+  // 只重新生成图片,标题/描述等草稿字段不动。生成会写回新的公网 URL 到草稿。
+  async function runRegenerateImages() {
+    if (!product) return;
+    setRegeneratingImages(true);
+    setError('');
+    try {
+      await api.images.generateImages(product.id);
+      const refreshed = await api.draft(product.id);
+      if (refreshed) setDraft(refreshed);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '图片重新生成失败。');
+    } finally {
+      setRegeneratingImages(false);
     }
   }
 
@@ -262,6 +279,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             draft={draft}
             generating={generating}
             onGenerate={() => void runGenerate()}
+            onRegenerateImages={() => void runRegenerateImages()}
             onSave={() => void runSave()}
             onUpdateField={updateDraftField}
             onUpdateSkuField={updateSkuField}
@@ -269,6 +287,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             onUpdateSkuNetProfit={updateSkuNetProfit}
             onUpdateSkuListingType={updateSkuListingType}
             onUpdateGlobalNetProfit={updateGlobalNetProfit}
+            regeneratingImages={regeneratingImages}
             saving={saving}
           />
         )}

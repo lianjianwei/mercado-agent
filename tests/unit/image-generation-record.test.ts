@@ -1,6 +1,6 @@
 // tests/unit/image-generation-record.test.ts
 import { describe, expect, it, vi } from 'vitest';
-import { ImageGenerationService } from '../../src/main/services/image-generation-service';
+import { ImageGenerationService, imageVersionStamp } from '../../src/main/services/image-generation-service';
 import { aiImagesSnapshotSchema } from '../../src/shared/image-schemas';
 import type { ProductDetail } from '../../src/domain/product';
 import type { EditDraft } from '../../src/domain/edit';
@@ -34,8 +34,9 @@ describe('aiImages record contract', () => {
     expect(aiImagesSnapshotSchema.safeParse(result).success).toBe(true);
     expect(appended).toHaveLength(1);
     expect(appended[0].kind).toBe('aiImages');
-    // 命名规则:主图 main-{SKU序号}.png,详情图 detail-{N}.png。
+    // 命名规则:主图 main-{SKU序号}-{版本号}.png,详情图 detail-{N}-{版本号}.png,避开 CDN 缓存。
+    const version = imageVersionStamp('2026-08-29T00:00:00.000Z');
     const planned = [...result.mainImages, ...result.detailImages].map((image) => image.plannedPath).sort();
-    expect(planned).toEqual(['mercado/p1/detail-1.png', 'mercado/p1/main-1.png']);
+    expect(planned).toEqual([`mercado/p1/detail-1-${version}.png`, `mercado/p1/main-1-${version}.png`]);
   });
 });

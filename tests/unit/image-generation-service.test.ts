@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ImageGenerationService, buildDetailImagePrompt, buildMainImagePrompt, detectQuantity } from '../../src/main/services/image-generation-service';
+import { ImageGenerationService, imageVersionStamp, buildDetailImagePrompt, buildMainImagePrompt, detectQuantity } from '../../src/main/services/image-generation-service';
 import type { ProductDetail } from '../../src/domain/product';
 import type { EditDraft } from '../../src/domain/edit';
 import type { AiImagesResult, DetailPlanItem, GeneratedImage } from '../../src/domain/images';
@@ -72,12 +72,13 @@ describe('ImageGenerationService', () => {
     const result = await service.generate('p1');
     expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
     expect(result.mainImages).toHaveLength(1);
-    // 主图按 SKU 序号命名(main-{序号}.png)。
-    expect(result.mainImages[0].imageId).toBe('main-1');
-    expect(result.mainImages[0].localPath).toBe('/tmp/imgs/p1/main-1.png');
-    expect(result.mainImages[0].plannedPath).toBe('mercado/p1/main-1.png');
-    // 详情图按序号命名(detail-{N}.png)。
-    expect(result.detailImages[0].plannedPath).toBe('mercado/p1/detail-1.png');
+    // 主图按 SKU 序号命名,并带生成时间版本号(main-{序号}-{yyyyMMddHHmm}.png)避开 CDN 缓存。
+    const version = imageVersionStamp('2026-08-29T00:00:00.000Z');
+    expect(result.mainImages[0].imageId).toBe(`main-1-${version}`);
+    expect(result.mainImages[0].localPath).toBe(`/tmp/imgs/p1/main-1-${version}.png`);
+    expect(result.mainImages[0].plannedPath).toBe(`mercado/p1/main-1-${version}.png`);
+    // 详情图按序号命名(detail-{N}.png),同样带版本号。
+    expect(result.detailImages[0].plannedPath).toBe(`mercado/p1/detail-1-${version}.png`);
     // 进度回调覆盖规划、主图与详情图,并带耗时。
     const lines = onProgress.mock.calls.map((call) => String(call[0]));
     expect(lines.some((line) => line.includes('规划详情图'))).toBe(true);
@@ -185,8 +186,9 @@ describe('ImageGenerationService', () => {
     const result = await service.generate('p1');
 
     expect(publish).toHaveBeenCalledTimes(1);
-    expect(result.mainImages[0].publicUrl).toBe('https://cdn/x/main-1.png');
-    expect(result.detailImages[0].publicUrl).toBe('https://cdn/x/detail-1.png');
+    const version = imageVersionStamp('2026-08-29T00:00:00.000Z');
+    expect(result.mainImages[0].publicUrl).toBe(`https://cdn/x/main-1-${version}.png`);
+    expect(result.detailImages[0].publicUrl).toBe(`https://cdn/x/detail-1-${version}.png`);
     expect(writeDraftImages).toHaveBeenCalledWith('p1', expect.any(Array), expect.any(Array));
   });
 

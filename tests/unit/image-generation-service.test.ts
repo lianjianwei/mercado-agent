@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ImageGenerationService, buildMainImagePrompt } from '../../src/main/services/image-generation-service';
+import { ImageGenerationService, buildDetailImagePrompt, buildMainImagePrompt } from '../../src/main/services/image-generation-service';
 import type { ProductDetail } from '../../src/domain/product';
 import type { EditDraft } from '../../src/domain/edit';
+import type { DetailPlanItem } from '../../src/domain/images';
 import type { ImageModelProvider, TextModelProvider } from '../../src/domain/providers';
 
 const detail = { productId: 'p1', title: 'T', description: 'D', category: '猫咪用品',
@@ -16,6 +17,19 @@ describe('ImageGenerationService', () => {
     const prompt = buildMainImagePrompt({ title: '按摩仪', description: 'x', category: '健康' });
     expect(prompt).toContain('白底');
     expect(prompt).toContain('无 logo');
+  });
+
+  it('builds a detail prompt in a single target language (no mixed languages)', () => {
+    const item: DetailPlanItem = { id: 'd1', kind: '功能图', subject: 's', textEs: 'Es Text', textPt: 'Pt Text', hasPerson: false, referenceNote: '' };
+    const es = buildDetailImagePrompt(item, 'T', 'es');
+    expect(es).toContain('西班牙语');
+    expect(es).toContain('Es Text');
+    expect(es).not.toContain('Pt Text');
+
+    const pt = buildDetailImagePrompt(item, 'T', 'pt');
+    expect(pt).toContain('葡萄牙语');
+    expect(pt).toContain('Pt Text');
+    expect(pt).not.toContain('Es Text');
   });
 
   it('emits one main image per SKU with a local file and a snapshot record', async () => {

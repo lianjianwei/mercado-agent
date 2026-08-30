@@ -6,7 +6,7 @@ import type { EditDraft } from '../../domain/edit';
 import type { GeneratedImage, AiImagesResult, DetailPlanItem } from '../../domain/images';
 import type { ImageReview } from '../../shared/image-schemas';
 import type { ImageModelProvider, ImageResult, TextModelProvider } from '../../domain/providers';
-import { ImagePlanner } from './image-planner';
+import { ImagePlanner, DETAIL_LANGUAGE_LABEL, resolveDetailImageLanguage, type DetailImageLanguage } from './image-planner';
 import { ImageReviser, shouldRegenerate } from './image-reviser';
 
 export type ImageGenerationDeps = {
@@ -27,9 +27,13 @@ export function buildMainImagePrompt(input: { title: string; description: string
 类目：${input.category || '未知'}。描述：${input.description}`;
 }
 
-export function buildDetailImagePrompt(item: DetailPlanItem, title: string): string {
-  const language = item.textPt && item.textPt.length > 0 ? `文本使用西班牙语与葡萄牙语：西语「${item.textEs}」，葡语「${item.textPt}」` : `文本使用西班牙语：「${item.textEs || ''}」`;
-  return `依据参考图制作详情图「${item.kind}」。主题：${item.subject}。${language}。
+export function buildDetailImagePrompt(item: DetailPlanItem, title: string, language: DetailImageLanguage = 'es'): string {
+  const label = DETAIL_LANGUAGE_LABEL[language];
+  const text = (language === 'pt' ? item.textPt : item.textEs) || '';
+  const languageInstruction = text
+    ? `图上文字只使用${label}：「${text}」`
+    : `图上文字只使用${label}。`;
+  return `依据参考图制作详情图「${item.kind}」。主题：${item.subject}。${languageInstruction}。
 ${item.hasPerson ? '人物使用拉美裔模特。' : '不要出现人物。'}
 以参考图为准，真实呈现产品，不虚构参考图中没有的内容，保持产品外观/配色/结构一致。产品「${title}」。`;
 }
@@ -67,10 +71,13 @@ export class ImageGenerationService {
     const reviser = new ImageReviser(this.deps.textProvider);
     const provider = this.deps.imageProvider();
 
+    // 详情图文字语言由商品发布的站点决定(站点含 MX/AR→西语;只有 BR→葡语)。
+    const language = resolveDetailImageLanguage(detail.sites ?? draft?.sites ?? []);
+    this.onProgress(`详情图文字语言：${DETAIL_LANGUAGE_LABEL[language]}`);
     const sku0Refs = skus[0]?.imageUrls ?? [];
     const planStartedAt = Date.now();
     this.onProgress(`正在规划详情图…`);
-    const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs });
+    const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs, language });
     this.onProgress(`详情图规划完成（耗时 ${((Date.now() - planStartedAt) / 1000).toFixed(1)}s）。`);
 
     const mainImages: GeneratedImage[] = [];
@@ -89,7 +96,7 @@ export class ImageGenerationService {
       const item = plan[index];
       this.onProgress(`正在生成详情图 ${index + 1}/${plan.length}（${item.kind}）…`);
       const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description });
+      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title, language), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description });
       this.onProgress(`详情图 ${index + 1}/${plan.length}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
       detailImages.push(image);
     }

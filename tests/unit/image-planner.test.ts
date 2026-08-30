@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ImagePlanner } from '../../src/main/services/image-planner';
+import { ImagePlanner, resolveDetailImageLanguage } from '../../src/main/services/image-planner';
 import type { TextModelProvider } from '../../src/domain/providers';
 
 const fakeText = (returnValue: unknown): TextModelProvider => ({
@@ -36,5 +36,31 @@ describe('ImagePlanner', () => {
     expect(plans).toHaveLength(3);
     expect(plans.map((item) => item.id)).toEqual(['detail-1', 'detail-2', 'detail-3']);
     expect(plans[2].kind).toBe('场景图');
+  });
+
+  it('instructs the model to plan detail text in the target language only', async () => {
+    const generate = vi.fn(async (_request: { prompt?: string }) => ({ plans: [{ kind: '功能图', subject: 'x', textEs: 'Texto', textPt: 'Texto', hasPerson: false, referenceNote: '' }] }));
+    const planner = new ImagePlanner(() => ({ testConnection: vi.fn(), generate }) as unknown as TextModelProvider);
+    await planner.plan({ title: 'T', description: 'D', category: 'C', referenceImageUrls: [], language: 'pt' });
+    const prompt = String(generate.mock.calls[0]?.[0]?.prompt ?? '');
+    expect(prompt).toContain('葡萄牙语');
+    expect(prompt).toContain('textPt 填葡语文字');
+    expect(prompt).toContain('不要出现其他语言');
+  });
+});
+
+describe('resolveDetailImageLanguage', () => {
+  it('uses Spanish when any MX/AR site is present, even mixed with BR', () => {
+    expect(resolveDetailImageLanguage(['MX(Up)', 'BR(Up)', 'AR(Up)'])).toBe('es');
+    expect(resolveDetailImageLanguage(['MX(Up)', 'BR(Up)'])).toBe('es');
+    expect(resolveDetailImageLanguage(['AR(Up)'])).toBe('es');
+  });
+
+  it('uses Portuguese only when the product is Brazil-only', () => {
+    expect(resolveDetailImageLanguage(['BR(Up)'])).toBe('pt');
+  });
+
+  it('defaults to Spanish when there are no sites or unknown sites', () => {
+    expect(resolveDetailImageLanguage([])).toBe('es');
   });
 });

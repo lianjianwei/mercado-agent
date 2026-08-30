@@ -128,9 +128,16 @@ export class CodexImageProvider implements ImageModelProvider {
 }
 
 // Reused by the app to decide whether to offer the codex provider in settings.
+// 必须继承 process.env:否则子进程没有 PATH,spawn 找不到 codex。
 export async function codexAvailable(): Promise<boolean> {
   try {
-    const { code } = await run('codex', ['--version'], {}, '', new AbortController().signal);
+    const { code } = await run(
+      'codex',
+      ['--version'],
+      { ...process.env },
+      '',
+      new AbortController().signal,
+    );
     return code === 0;
   } catch {
     return false;

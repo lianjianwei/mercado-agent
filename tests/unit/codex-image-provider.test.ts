@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CodexImageProvider } from '../../src/main/providers/image/codex';
+import { CodexImageProvider, codexAvailable } from '../../src/main/providers/image/codex';
 
 const PNG = Buffer.from('fake-png-bytes');
 
@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
 
 vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 
-function fakeChild(dir: string) {
+function fakeChild(args: string[]) {
   const child = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter;
     stderr: EventEmitter;
@@ -32,7 +32,8 @@ function fakeChild(dir: string) {
   child.stderr = new EventEmitter();
   child.stdin = { end: () => void 0 };
   process.nextTick(() => {
-    writeFileSync(path.join(dir, 'out.png'), PNG);
+    const cd = args.indexOf('-C');
+    if (cd >= 0) writeFileSync(path.join(args[cd + 1], 'out.png'), PNG);
     child.emit('close', 0);
   });
   return child;
@@ -43,9 +44,7 @@ describe('CodexImageProvider', () => {
 
   beforeEach(async () => {
     scratchDir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-test-'));
-    spawnMock.mockImplementation((command: string, args: string[]) =>
-      fakeChild(args[args.indexOf('-C') + 1] as string),
-    );
+    spawnMock.mockImplementation((command: string, args: string[]) => fakeChild(args));
   });
 
   afterEach(async () => {
@@ -85,5 +84,13 @@ describe('CodexImageProvider', () => {
     expect(args[args.indexOf('-m') + 1]).toBe('gpt-5');
     expect(opts.env.HTTPS_PROXY).toBeUndefined();
     expect(result.dataBase64).toBe(PNG.toString('base64'));
+  });
+
+  it('codexAvailable detects the CLI and inherits process.env (PATH)', async () => {
+    expect(await codexAvailable()).toBe(true);
+    const [, args, opts] = spawnMock.mock.calls[0] as unknown as [string, string[], { env: NodeJS.ProcessEnv }];
+    expect(args).toEqual(['--version']);
+    // 必须继承 process.env,否则子进程无 PATH,找不到 codex。
+    expect(opts.env.PATH).toBe(process.env.PATH);
   });
 });

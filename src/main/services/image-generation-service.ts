@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import type { ProductDetail } from '../../domain/product';
 import type { EditDraft } from '../../domain/edit';
@@ -36,6 +35,19 @@ export function buildDetailImagePrompt(item: DetailPlanItem, title: string, lang
   return `依据参考图制作详情图「${item.kind}」。主题：${item.subject}。${languageInstruction}。
 ${item.hasPerson ? '人物使用拉美裔模特。' : '不要出现人物。'}
 以参考图为准，真实呈现产品，不虚构参考图中没有的内容，保持产品外观/配色/结构一致。产品「${title}」。`;
+}
+
+// 生成可读的文件名字段,把文件系统里非法的字符替换成下划线(其余保留,
+// 让文件名一眼能对应到 SKU)。
+function fileKey(value: string): string {
+  // 只处理真正非法的文件名保留字符(Windows 的 < > : " / \\ | ? *),并去掉换行/制表。
+  return value.replace(/[<>:"/\\|?*\n\r\t]/g, '_');
+}
+
+// 图片文件名规则:主图按 SKU 命名(main-{sku}.png),详情图按序号命名
+// (detail-1.png … detail-4.png,详情图所有 SKU 共用,不带 SKU 信息)。
+export function imageFileName(kind: 'main' | 'detail', skuKey: string | undefined, detailIndex?: number): string {
+  return kind === 'main' ? `main-${fileKey(skuKey ?? 'sku')}` : `detail-${detailIndex ?? 1}`;
 }
 
 export async function saveImageBytes(imagesDir: string, productId: string, imageId: string, result: ImageResult): Promise<string> {
@@ -86,7 +98,7 @@ export class ImageGenerationService {
       const ref = sku.imageUrls[0];
       this.onProgress(`正在生成 ${sku.name ?? `SKU ${sku.skuKey}`} 主图（${mainIndex + 1}/${mainSkus.length}）…`);
       const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description });
+      const image = await this.generateOne({ provider, reviser, prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description, name: imageFileName('main', sku.skuKey) });
       this.onProgress(`主图 ${mainIndex + 1}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
       mainImages.push(image);
     }
@@ -96,7 +108,7 @@ export class ImageGenerationService {
       const item = plan[index];
       this.onProgress(`正在生成详情图 ${index + 1}/${plan.length}（${item.kind}）…`);
       const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title, language), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description });
+      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title, language), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description, name: imageFileName('detail', undefined, index + 1) });
       this.onProgress(`详情图 ${index + 1}/${plan.length}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
       detailImages.push(image);
     }
@@ -115,8 +127,10 @@ export class ImageGenerationService {
     provider: ImageModelProvider; reviser: ImageReviser; prompt: string; refs: string[];
     kind: 'main' | 'detail'; skuKey?: string; detail?: GeneratedImage['detail']; productId: string;
     title: string; description: string;
+    // 可读的文件名(不含扩展名):主图 main-{sku},详情图 detail-{N}。
+    name: string;
   }): Promise<GeneratedImage> {
-    const imageId = randomUUID();
+    const imageId = args.name;
     let attempts = 1;
     let render: ImageResult = { url: '' };
     // 自检必须能看到图:OpenAI 默认只回 base64(url 为空),用 data URL 喂给视觉自检。

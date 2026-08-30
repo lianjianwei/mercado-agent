@@ -58,9 +58,12 @@ describe('ImageGenerationService', () => {
     const result = await service.generate('p1');
     expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
     expect(result.mainImages).toHaveLength(1);
-    expect(result.mainImages[0].localPath).toMatch(/\/tmp\/imgs\/p1\/.+\.png$/);
-    expect(result.mainImages[0].plannedPath).toMatch(/^mercado\/p1\/.+\.png$/);
-    expect(result.mainImages[0].localPath.endsWith('.png')).toBe(true);
+    // 主图按 SKU 命名(main-{sku}.png)。
+    expect(result.mainImages[0].imageId).toBe('main-;a;');
+    expect(result.mainImages[0].localPath).toBe('/tmp/imgs/p1/main-;a;.png');
+    expect(result.mainImages[0].plannedPath).toBe('mercado/p1/main-;a;.png');
+    // 详情图按序号命名(detail-{N}.png)。
+    expect(result.detailImages[0].plannedPath).toBe('mercado/p1/detail-1.png');
     // 进度回调覆盖规划、主图与详情图,并带耗时。
     const lines = onProgress.mock.calls.map((call) => String(call[0]));
     expect(lines.some((line) => line.includes('规划详情图'))).toBe(true);

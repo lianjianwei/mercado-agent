@@ -102,7 +102,47 @@ export class EditGenerationService {
     }
     const draft = this.toDraft(detail, parsed.data, skus);
     const withSites = { ...draft, sites: detail.siteCollectItemInfo.sites ?? [] };
-    return this.netProfit ? this.netProfit.computeForDraft(withSites) : withSites;
+    // 重新生成文本时,保留上一份草稿的图片与净收益输入(只刷新标题/描述/型号/SKU名),
+    // 否则已生成并上传的图片会被清空,界面回退成妙手原图。
+    const merged = this.mergePreserved(this.latestDraft(productId), withSites);
+    return this.netProfit ? this.netProfit.computeForDraft(merged) : merged;
+  }
+
+  // 上一份 AI 草稿(用于文本重生成时保留图片与净收益输入);无则返回 null。
+  private latestDraft(productId: string): EditDraft | null {
+    const drafts = this.snapshots
+      .listForProduct(productId)
+      .filter((snapshot) => snapshot.kind === 'aiDraft');
+    const last = drafts[drafts.length - 1];
+    return last ? (last.payload as EditDraft) : null;
+  }
+
+  // 文本重生成只应刷新标题/描述/型号/SKU名 等文本字段;其余(图片、货源价、库存、
+  // 包装、净收益覆盖、发布站点)保留旧值,避免把用户已生成的图片和净收益清掉。
+  private mergePreserved(prev: EditDraft | null, fresh: EditDraft): EditDraft {
+    if (!prev) return fresh;
+    const prevSkuByKey = new Map(prev.skus.map((sku) => [sku.skuKey, sku]));
+    const skus = fresh.skus.map((sku) => {
+      const old = prevSkuByKey.get(sku.skuKey);
+      if (!old) return sku;
+      return {
+        ...sku,
+        stock: old.stock ?? sku.stock,
+        sourcePrice: old.sourcePrice ?? sku.sourcePrice,
+        package: old.package ?? sku.package,
+        imageUrl: old.imageUrl ?? null,
+        imageUrls: old.imageUrls ?? [],
+        siteNetProfitOverrides: old.siteNetProfitOverrides ?? {},
+      };
+    });
+    return {
+      ...fresh,
+      sites: prev.sites ?? fresh.sites,
+      mainImage: prev.mainImage ?? null,
+      images: prev.images ?? [],
+      globalNetProfitOverride: prev.globalNetProfitOverride ?? null,
+      skus,
+    };
   }
 
   private latestDetail(productId: string): CollectBoxDetailDto {

@@ -7,6 +7,7 @@ import { NetProfitCalculator } from '../../src/main/services/net-profit-calculat
 import { ModelStructuredOutputError } from '../../src/main/providers/openai-compatible-text-provider';
 import type { CollectBoxDetailDto } from '../../src/shared/miaoshou-schemas';
 import type { AiEditOutput } from '../../src/shared/edit-output-schema';
+import type { EditDraft } from '../../src/domain/edit';
 import {
   DEFAULT_FX_RATES,
   DEFAULT_NET_PROFIT_CONFIG,
@@ -388,6 +389,64 @@ describe('EditGenerationService', () => {
     expect(prompt).toMatch(/终端消费者|普通卖家|现货|只卖成品/);
     expect(prompt).toMatch(/定制|批发|工厂|跨境|加印.?logo|IP.?授权|专利/);
     expect(prompt).toMatch(/personalización|por mayor|mayorista|bajo pedido|fábrica/);
+  });
+
+  it('preserves previously generated images and net-profit inputs when regenerating text only', async () => {
+    const prevDraft: EditDraft = {
+      version: 1,
+      createdAt: 'x',
+      title: { value: 'OLD TITLE', source: 'ai', confidence: 0.9 },
+      description: { value: 'OLD DESC', source: 'ai', confidence: 0.9 },
+      brand: { value: 'Generic', source: 'fixed', confidence: 1 },
+      model: { value: 'M', source: 'ai', confidence: 0.6 },
+      sites: ['MX(Up)'],
+      siteAndPriceMap: { 'MX(Up)': '9' },
+      mainImage: 'https://cdn/main.png',
+      images: ['https://cdn/main.png', 'https://cdn/d1.png'],
+      skus: [
+        {
+          skuKey: ';white;',
+          name: { value: 'Blanco', source: 'ai', confidence: 0.9 },
+          stock: { value: '2', source: 'ai', confidence: 1 },
+          sourcePrice: { value: '66', source: 'remote', confidence: 1 },
+          package: {
+            length: { value: '20', source: 'ai', confidence: 0.7 },
+            width: { value: '10', source: 'ai', confidence: 0.7 },
+            height: { value: '8', source: 'ai', confidence: 0.7 },
+            dimensionUnit: 'cm',
+            weight: { value: '500', source: 'ai', confidence: 0.8 },
+            weightUnit: 'g',
+          },
+          imageUrl: 'https://cdn/main.png',
+          imageUrls: ['https://cdn/main.png'],
+          siteAndPriceMap: {},
+          siteAndListingTypeInfoMap: {},
+          siteNetProfitOverrides: { MX: { netProfit: '999' } },
+        },
+      ],
+    };
+    const snapshots: ProductSnapshotRepository = {
+      append: vi.fn(),
+      listForProduct: vi.fn(() => [
+        { id: 's1', productId: '90001', kind: 'miaoshou' as const, capturedAt: 'x', payload: detail() },
+        { id: 'a1', productId: '90001', kind: 'aiDraft' as const, capturedAt: 'y', payload: prevDraft },
+      ]),
+    };
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService({ getById: vi.fn() }, snapshots, () => provider);
+    const result = await service.generate('90001');
+
+    // 文本字段被刷新。
+    expect(result.title.value).toBe('Molinillo de café con muela de cerámica');
+    // 已生成的图片与净收益输入被保留,而非清空回退成妙手原图。
+    expect(result.mainImage).toBe('https://cdn/main.png');
+    expect(result.images).toContain('https://cdn/main.png');
+    const white = result.skus.find((sku) => sku.skuKey === ';white;')!;
+    expect(white.imageUrl).toBe('https://cdn/main.png');
+    expect(white.imageUrls).toEqual(['https://cdn/main.png']);
+    expect(white.sourcePrice.value).toBe('66');
+    expect(white.package.weight.value).toBe('500');
+    expect(white.siteNetProfitOverrides?.MX.netProfit).toBe('999');
   });
 
   it('drops SKUs whose original stock is missing or ≤1 and sets survivors to 2', async () => {

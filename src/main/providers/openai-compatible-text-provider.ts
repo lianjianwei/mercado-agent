@@ -15,6 +15,8 @@ export type TextProviderConfiguration = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  // OpenAI 推理强度(reasoning_effort);仅 OpenAI 文本模型配置,可选,不设置则不下发。
+  reasoningEffort?: string;
 };
 
 export class ModelStructuredOutputError extends Error {
@@ -87,6 +89,9 @@ export class OpenAiCompatibleTextProvider implements TextModelProvider {
         body: JSON.stringify({
           model: this.configuration.model,
           messages: [{ role: 'user', content }],
+          ...(this.configuration.reasoningEffort
+            ? { reasoning_effort: this.configuration.reasoningEffort }
+            : {}),
         }),
         signal,
       });

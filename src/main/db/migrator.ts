@@ -8,6 +8,7 @@ import localPublishStateMigration from './migrations/005_local_publish_state.sql
 import fxRatesMigration from './migrations/006_fx_rates.sql?raw';
 import aiImagesKindMigration from './migrations/007_ai_images_kind.sql?raw';
 import codexProviderMigration from './migrations/008_codex_provider.sql?raw';
+import reasoningEffortMigration from './migrations/009_reasoning_effort.sql?raw';
 
 type Migration = {
   version: number;
@@ -55,6 +56,11 @@ const migrations: Migration[] = [
     version: 8,
     name: 'codex_provider',
     sql: codexProviderMigration,
+  },
+  {
+    version: 9,
+    name: 'reasoning_effort',
+    sql: reasoningEffortMigration,
   },
 ];
 

@@ -48,6 +48,51 @@ describe('provider configuration input', () => {
     }
   });
 
+  it('accepts an OpenAI text reasoningEffort', () => {
+    const result = providerConfigInputSchema.safeParse({
+      kind: 'text',
+      provider: 'openai',
+      name: 'OpenAI',
+      apiKey: 'secret',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-5',
+      reasoningEffort: 'high',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({ reasoningEffort: 'high' });
+    }
+  });
+
+  it('rejects an invalid reasoningEffort', () => {
+    const result = providerConfigInputSchema.safeParse({
+      kind: 'text',
+      provider: 'openai',
+      name: 'OpenAI',
+      apiKey: 'secret',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-5',
+      reasoningEffort: 'ultra',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts configs without reasoningEffort (default)', () => {
+    const result = providerConfigInputSchema.safeParse({
+      kind: 'text',
+      provider: 'deepseek',
+      name: 'DeepSeek',
+      apiKey: 'secret',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+    });
+
+    expect(result.success).toBe(true);
+    expect((result.data as { reasoningEffort?: string }).reasoningEffort).toBeUndefined();
+  });
+
   it('accepts the codex image provider without baseUrl/apiKey/model', () => {
     const result = providerConfigInputSchema.safeParse({
       kind: 'image',

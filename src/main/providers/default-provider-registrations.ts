@@ -29,6 +29,7 @@ function createTextProvider(
       baseUrl: configuration.baseUrl,
       apiKey: configuration.apiKey,
       model: configuration.model,
+      reasoningEffort: configuration.reasoningEffort,
     },
     network,
   );

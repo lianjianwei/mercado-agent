@@ -5,6 +5,7 @@ import type {
   ProviderConfig,
   ProviderConfigInput,
   ProviderKind,
+  ReasoningEffort,
   TextProviderName,
 } from '../../../domain/config';
 
@@ -29,12 +30,22 @@ const providerOptions = {
   ],
 } as const;
 
+// OpenAI 推理强度(reasoning_effort)下拉选项;仅 OpenAI 文本模型显示。
+const reasoningEffortOptions = [
+  { value: '', label: '默认（不设置）' },
+  { value: 'minimal', label: '极低 (minimal)' },
+  { value: 'low', label: '低 (low)' },
+  { value: 'medium', label: '中 (medium)' },
+  { value: 'high', label: '高 (high)' },
+];
+
 const emptyForm = {
   provider: '',
   name: '',
   apiKey: '',
   baseUrl: '',
   model: '',
+  reasoningEffort: '',
 };
 
 function formFromConfiguration(editing: ProviderConfig | null) {
@@ -45,6 +56,7 @@ function formFromConfiguration(editing: ProviderConfig | null) {
         apiKey: editing.apiKey,
         baseUrl: editing.baseUrl,
         model: editing.model,
+        reasoningEffort: editing.reasoningEffort ?? '',
       }
     : emptyForm;
 }
@@ -74,6 +86,10 @@ export function ProviderConfigForm({
         next.baseUrl = '';
         next.model = '';
       }
+      // 推理强度仅 OpenAI 文本模型可用;切到其它提供商时清空。
+      if (field === 'provider' && value !== 'openai') {
+        next.reasoningEffort = '';
+      }
       return next;
     });
     onDirtyChange(true);
@@ -90,7 +106,11 @@ export function ProviderConfigForm({
       setError('请填写配置名称。');
       return;
     }
-    if (!isCodex && Object.values(form).some((value) => !value.trim())) {
+    // 推理强度可留空(默认),故不参与「必填」校验。
+    if (
+      !isCodex
+      && [form.name, form.apiKey, form.baseUrl, form.model].some((value) => !value.trim())
+    ) {
       setError('请填写全部模型配置字段。');
       return;
     }
@@ -103,6 +123,7 @@ export function ProviderConfigForm({
         apiKey: form.apiKey,
         baseUrl: form.baseUrl,
         model: form.model,
+        reasoningEffort: (form.reasoningEffort || undefined) as ReasoningEffort | undefined,
       };
       const input: ProviderConfigInput =
         kind === 'text'
@@ -212,6 +233,24 @@ export function ProviderConfigForm({
                 placeholder="填写接口实际模型名"
               />
             </label>
+            {kind === 'text' && form.provider === 'openai' && (
+              <label htmlFor={`${id}-reasoning-effort`}>
+                推理强度
+                <select
+                  id={`${id}-reasoning-effort`}
+                  value={form.reasoningEffort}
+                  onChange={(event) => update('reasoningEffort', event.target.value)}
+                  title="OpenAI reasoning_effort 参数，控制模型推理深度；默认不设置"
+                >
+                  {reasoningEffortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <small className="form-hint-inline">仅 OpenAI 文本模型生效</small>
+              </label>
+            )}
           </>
         )}
         {isCodex && (

@@ -215,6 +215,14 @@
   line-height: 1.5;
 }
 
+.form-hint-inline {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .config-list {
   display: grid;
   gap: 10px;

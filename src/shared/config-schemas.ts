@@ -41,6 +41,8 @@ const providerConfigFields = {
   apiKey: requiredText,
   baseUrl: requiredUrl,
   model: requiredText,
+  // OpenAI 推理强度(可选);未设置或为空时不下发。DeepSeek/豆包暂不启用。
+  reasoningEffort: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
 };
 
 export const providerKindSchema = z.enum(['text', 'image']);

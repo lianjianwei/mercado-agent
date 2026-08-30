@@ -7,6 +7,7 @@ import type {
   ProviderConfigInput,
   ProviderConfigRepository,
   ProviderKind,
+  ReasoningEffort,
 } from '../../domain/config';
 
 type ProviderConfigRow = {
@@ -17,6 +18,7 @@ type ProviderConfigRow = {
   api_key: string;
   base_url: string;
   model: string;
+  reasoning_effort: string | null;
   is_active: number;
   created_at: string;
   updated_at: string;
@@ -31,6 +33,7 @@ function mapProviderConfig(row: ProviderConfigRow): ProviderConfig {
     apiKey: row.api_key,
     baseUrl: row.base_url,
     model: row.model,
+    reasoningEffort: (row.reasoning_effort ?? undefined) as ReasoningEffort | undefined,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -47,7 +50,7 @@ export class SqliteProviderConfigRepository
       .prepare(
         `
           SELECT id, kind, provider, name, api_key, base_url, model,
-                 is_active, created_at, updated_at
+                 reasoning_effort, is_active, created_at, updated_at
           FROM provider_configs
           WHERE kind = ?
           ORDER BY created_at ASC, id ASC
@@ -71,14 +74,15 @@ export class SqliteProviderConfigRepository
         `
           INSERT INTO provider_configs (
             id, kind, provider, name, api_key, base_url, model,
-            is_active, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+            reasoning_effort, is_active, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             provider = excluded.provider,
             name = excluded.name,
             api_key = excluded.api_key,
             base_url = excluded.base_url,
             model = excluded.model,
+            reasoning_effort = excluded.reasoning_effort,
             updated_at = excluded.updated_at
         `,
       )
@@ -90,6 +94,7 @@ export class SqliteProviderConfigRepository
         input.apiKey,
         input.baseUrl,
         input.model,
+        input.reasoningEffort ?? null,
         now,
         now,
       );
@@ -131,7 +136,7 @@ export class SqliteProviderConfigRepository
       .prepare(
         `
           SELECT id, kind, provider, name, api_key, base_url, model,
-                 is_active, created_at, updated_at
+                 reasoning_effort, is_active, created_at, updated_at
           FROM provider_configs
           WHERE id = ?
         `,

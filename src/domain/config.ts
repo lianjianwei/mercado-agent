@@ -2,12 +2,17 @@ export type ProviderKind = 'text' | 'image';
 export type TextProviderName = 'doubao' | 'deepseek' | 'openai';
 export type ImageProviderName = 'doubao' | 'openai' | 'codex';
 
+// OpenAI 的推理强度参数(reasoning_effort)。仅 OpenAI 文本模型使用;DeepSeek/豆包目前
+// 未加(厂商是否支持不确定)。值为 OpenAI 官方枚举。
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
 type ProviderConfigInputBase = {
   id?: string;
   name: string;
   apiKey: string;
   baseUrl: string;
   model: string;
+  reasoningEffort?: ReasoningEffort;
 };
 
 export type ProviderConfigInput = ProviderConfigInputBase &
@@ -24,6 +29,7 @@ export type ProviderConfig = {
   apiKey: string;
   baseUrl: string;
   model: string;
+  reasoningEffort?: ReasoningEffort;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

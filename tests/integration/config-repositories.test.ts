@@ -96,6 +96,37 @@ describe('provider configuration repository', () => {
     expect(repository.list('text')).toEqual([]);
     database.close();
   });
+
+  it('persists and round-trips an OpenAI reasoningEffort', () => {
+    const database = openAppDatabase(createDatabasePath());
+    const repository = new SqliteProviderConfigRepository(database);
+    const saved = repository.save({
+      kind: 'text',
+      provider: 'openai',
+      name: 'OpenAI 推理',
+      apiKey: 'secret',
+      baseUrl: 'https://api.86gamestore.com/v1',
+      model: 'gpt-5.6-terra',
+      reasoningEffort: 'high',
+    });
+
+    expect(saved.reasoningEffort).toBe('high');
+    expect(repository.list('text')).toEqual([
+      expect.objectContaining({ id: saved.id, reasoningEffort: 'high' }),
+    ]);
+
+    // 未设置时保存为缺省(undefined)。
+    const noEffort = repository.save({
+      kind: 'text',
+      provider: 'deepseek',
+      name: 'DeepSeek',
+      apiKey: 'secret',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+    });
+    expect(noEffort.reasoningEffort).toBeUndefined();
+    database.close();
+  });
 });
 
 describe('credential repository', () => {

@@ -44,6 +44,14 @@ export type PackageEditField = {
 export type SkuSiteAndPriceMap = Record<string, string>;
 export type SkuSiteAndListingTypeInfoMap = Record<string, { listingType: string }>;
 
+// 用户手动覆盖某站点的净收益/产品类型(按裸站点码索引,如 'MX')。规则计算在
+// 产出后应用这些覆盖:有覆盖的站点用覆盖值,其余沿用计算值。「生成时按规则走,
+// 我编辑了按我编辑的」由此实现——编辑只标记覆盖,不直接改计算值。
+export type SiteNetProfitOverride = {
+  netProfit?: string | null;
+  listingType?: string | null;
+};
+
 export type SkuEditField = {
   skuKey: string;
   name: EditField;
@@ -61,6 +69,9 @@ export type SkuEditField = {
   // 每个站点的净收益计算明细(按裸站点码索引),供「查看计算详情」浮层展示。
   // 由 NetProfitCalculator 在生成/保存时写入;旧草稿可能缺失,视为无明细。
   siteNetProfitDetail?: Record<string, NetProfitBreakdown>;
+  // 用户手动覆盖的净收益/产品类型(按裸站点码索引)。计算器每次重算时优先采用,
+  // 其余站点仍按规则计算。旧草稿可能缺失。
+  siteNetProfitOverrides?: Record<string, SiteNetProfitOverride>;
 };
 
 export type EditDraft = {
@@ -79,6 +90,8 @@ export type EditDraft = {
   // 旧草稿可能缺失,故可选。
   mainImage?: string | null;
   images?: string[];
+  // 产品级全球净收益覆盖:非空时规则计算用此值(所有站点同一值)。旧草稿可能缺失。
+  globalNetProfitOverride?: string | null;
   skus: SkuEditField[];
 };
 

@@ -25,6 +25,10 @@ type DraftViewProps = {
   onUpdateField: (path: FieldPath, value: string) => void;
   onUpdateSkuField: (skuKey: string, path: SkuFieldPath, value: string) => void;
   onUpdateSkuPackage: (skuKey: string, field: SkuPackagePath, value: string) => void;
+  // 净收益/产品类型/全球净收益编辑(AI 编辑详情可改,妙手详情只读)。
+  onUpdateSkuNetProfit?: (skuKey: string, siteCode: string, value: string) => void;
+  onUpdateSkuListingType?: (skuKey: string, siteCode: string, value: string) => void;
+  onUpdateGlobalNetProfit?: (value: string) => void;
   onGenerate: () => void;
   onSave: () => void;
   generating: boolean;
@@ -125,6 +129,9 @@ export function DraftView({
   onUpdateField,
   onUpdateSkuField,
   onUpdateSkuPackage,
+  onUpdateSkuNetProfit,
+  onUpdateSkuListingType,
+  onUpdateGlobalNetProfit,
   onGenerate,
   onSave,
   generating,
@@ -138,7 +145,12 @@ export function DraftView({
 
   return (
     <div className="edit-draft-view" aria-label="AI 编辑详情">
-      <DetailPreview vm={vm} />
+      <DetailPreview
+        vm={vm}
+        onEditNetProfit={onUpdateSkuNetProfit}
+        onEditListingType={onUpdateSkuListingType}
+        onEditGlobalNetProfit={onUpdateGlobalNetProfit}
+      />
 
       <div className="edit-actions">
         <button

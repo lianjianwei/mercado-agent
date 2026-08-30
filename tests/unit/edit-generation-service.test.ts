@@ -363,13 +363,14 @@ describe('EditGenerationService', () => {
 
     const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
       .calls[0][0].prompt as string;
-    // Description should state what is included, the selectable options
-    // (SKU/colors), dimensions, use cases, and for accessories which models
-    // they fit.
-    expect(prompt).toMatch(/商品内容|包括|包含/);
-    expect(prompt).toMatch(/规格|SKU|颜色/);
-    expect(prompt).toMatch(/适用场景|使用场景/);
-    expect(prompt).toMatch(/型号|兼容/);
+    // Description should state what the product is / its hook, the selectable
+    // options (SKU/colors), dimensions, use cases, and for accessories which
+    // models they fit — structured into paragraphs + bullet lists.
+    expect(prompt).toMatch(/产品是什么|核心卖点/);
+    expect(prompt).toMatch(/可选规格|多 SKU|颜色/);
+    expect(prompt).toMatch(/尺寸|重量/);
+    expect(prompt).toMatch(/适用场景|适配哪些机型|配件/);
+    expect(prompt).toMatch(/换行|•|列表/);
   });
 
   it('drops SKUs whose original stock is missing or ≤1 and sets survivors to 2', async () => {

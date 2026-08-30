@@ -70,6 +70,7 @@ function normalizeDraft(draft: EditDraft): EditDraft {
     // 图片字段在镜像妙手结构前不存在于旧草稿;补默认值,避免渲染读 undefined。
     mainImage: draft.mainImage ?? null,
     images: draft.images ?? [],
+    globalNetProfitOverride: draft.globalNetProfitOverride ?? null,
     skus: (legacy.skus ?? []).map((sku) => ({
       ...sku,
       // Old drafts stored only skuKey + name (no per-SKU stock/sourcePrice/
@@ -82,6 +83,7 @@ function normalizeDraft(draft: EditDraft): EditDraft {
       imageUrls: sku.imageUrls ?? [],
       siteAndPriceMap: sku.siteAndPriceMap ?? {},
       siteAndListingTypeInfoMap: sku.siteAndListingTypeInfoMap ?? {},
+      siteNetProfitOverrides: sku.siteNetProfitOverrides ?? {},
     })),
   };
 }

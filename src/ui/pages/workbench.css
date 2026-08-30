@@ -1352,6 +1352,32 @@
   text-decoration: underline;
 }
 
+/* 站点净收益单元格里的可编辑净收益 / 产品类型(AI 编辑详情)。 */
+.sn-cell-input,
+.sn-cell-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+.sn-cell-select {
+  cursor: pointer;
+}
+
+/* 全球净收益数值框在 AI 编辑详情里可编辑,样式沿用只读框。 */
+.global-net-profit input.edit-readonly-value {
+  font-weight: 700;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* ---- 净收益计算详情浮层 ---- */
 .np-breakdown-backdrop {
   position: fixed;

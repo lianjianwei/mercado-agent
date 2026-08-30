@@ -94,6 +94,19 @@ export const editDraftSchema = z.strictObject({
           z.custom<NetProfitBreakdown>((value) => typeof value === 'object' && value !== null),
         )
         .optional(),
+      // 用户手动覆盖的净收益/产品类型(按裸站点码索引)。旧草稿可能缺失,默认空表;
+      // 若缺省,规则计算不覆盖任何站点。
+      siteNetProfitOverrides: z
+        .record(
+          z.string(),
+          z.strictObject({
+            netProfit: z.string().nullish(),
+            listingType: z.string().nullish(),
+          }),
+        )
+        .optional(),
     }),
   ),
+  // 产品级全球净收益覆盖:非空时规则计算用此值。旧草稿可能缺失,默认 null。
+  globalNetProfitOverride: z.string().nullish().default(null),
 });

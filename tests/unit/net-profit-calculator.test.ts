@@ -97,4 +97,36 @@ describe('NetProfitCalculator', () => {
 
     expect(result.skus[0].siteAndPriceMap?.['MX(Up)']).toBeTruthy();
   });
+
+  it('applies user net-profit / listing-type overrides on top of the computed values', () => {
+    const base = sku(';heavy;', '20', '2000', ['0', '0', '0']); // MX 8.33, AR 6.97
+    base.siteNetProfitOverrides = {
+      MX: { netProfit: '12.34', listingType: 'gold_special' },
+      AR: { listingType: 'gold_pro' },
+    };
+    const draft = draftWith([base]);
+    const calculator = new NetProfitCalculator(settings(), fxStore());
+
+    const result = calculator.computeForDraft(draft);
+
+    // 覆盖站点用覆盖值;未覆盖数目的站点仍按规则算。
+    expect(result.skus[0].siteAndPriceMap['MX(Up)']).toBe('12.34');
+    expect(result.skus[0].siteAndPriceMap['AR(Up)']).toBe('6.97');
+    expect(result.skus[0].siteAndListingTypeInfoMap).toEqual({
+      MX: { listingType: 'gold_special' },
+      AR: { listingType: 'gold_pro' },
+    });
+    // 全球净收益取覆盖后的最大值(12.34 > 6.97)。
+    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '12.34', 'AR(Up)': '12.34' });
+  });
+
+  it('uses the global net-profit override when set, instead of the computed max', () => {
+    const draft = draftWith([sku(';heavy;', '20', '2000', ['0', '0', '0'])]);
+    draft.globalNetProfitOverride = '999';
+    const calculator = new NetProfitCalculator(settings(), fxStore());
+
+    const result = calculator.computeForDraft(draft);
+
+    expect(result.siteAndPriceMap).toEqual({ 'MX(Up)': '999', 'AR(Up)': '999' });
+  });
 });

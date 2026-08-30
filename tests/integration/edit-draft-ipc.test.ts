@@ -24,6 +24,7 @@ function makeDraft(version: number): EditDraft {
     siteAndPriceMap: {},
     mainImage: null,
     images: [],
+    globalNetProfitOverride: null,
     skus: [
       {
         skuKey: ';white;',
@@ -42,6 +43,7 @@ function makeDraft(version: number): EditDraft {
         },
         siteAndPriceMap: {},
         siteAndListingTypeInfoMap: {},
+        siteNetProfitOverrides: {},
       },
     ],
   };

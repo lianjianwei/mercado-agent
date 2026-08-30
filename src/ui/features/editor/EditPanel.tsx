@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import type { EditDraft, EditField } from '../../../domain/edit';
+import type { EditDraft, EditField, SkuEditField } from '../../../domain/edit';
+import { normalizeSiteKey } from '../../../domain/net-profit';
 import type { Product, ProductDetail } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
 import { DraftView } from './DraftView';
@@ -13,6 +14,25 @@ type EditPanelProps = {
 };
 
 type View = 'miaoshou' | 'aiDraft';
+
+// 找到该 SKU 站点净收益表里对应裸站点码(如 'MX')的完整站点 key(如 'MX(Up)')。
+function rawSiteKeyFor(sku: SkuEditField, siteCode: string): string | null {
+  for (const key of Object.keys(sku.siteAndPriceMap)) {
+    if (normalizeSiteKey(key) === siteCode) return key;
+  }
+  return null;
+}
+
+// 在 SKU 的覆盖表里登记某个站点的编辑,保留该站点已有的 netProfit/listingType。
+function withOverride(
+  sku: SkuEditField,
+  siteCode: string,
+  patch: { netProfit?: string; listingType?: string },
+): Record<string, { netProfit?: string | null; listingType?: string | null }> {
+  const overrides = { ...(sku.siteNetProfitOverrides ?? {}) };
+  overrides[siteCode] = { ...(overrides[siteCode] ?? {}), ...patch };
+  return overrides;
+}
 
 export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [view, setView] = useState<View>('miaoshou');
@@ -142,6 +162,47 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     });
   }
 
+  // 站点净收益编辑:写进该 SKU 的 siteAndPriceMap(立即显示),并登记覆盖,
+  // 保存重算时沿用覆盖值(「生成按规则,我编辑按我编辑」)。
+  function updateSkuNetProfit(skuKey: string, siteCode: string, value: string) {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      skus: draft.skus.map((sku) => {
+        if (sku.skuKey !== skuKey) return sku;
+        const rawKey = rawSiteKeyFor(sku, siteCode);
+        if (!rawKey) return sku;
+        const overrides = withOverride(sku, siteCode, { netProfit: value });
+        return { ...sku, siteAndPriceMap: { ...sku.siteAndPriceMap, [rawKey]: value }, siteNetProfitOverrides: overrides };
+      }),
+    });
+  }
+
+  // 产品类型编辑:写进该 SKU 的 siteAndListingTypeInfoMap 并登记覆盖。
+  function updateSkuListingType(skuKey: string, siteCode: string, value: string) {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      skus: draft.skus.map((sku) =>
+        sku.skuKey === skuKey
+          ? {
+              ...sku,
+              siteAndListingTypeInfoMap: { ...sku.siteAndListingTypeInfoMap, [siteCode]: { listingType: value } },
+              siteNetProfitOverrides: withOverride(sku, siteCode, { listingType: value }),
+            }
+          : sku,
+      ),
+    });
+  }
+
+  // 全球净收益编辑:更新产品级 siteAndPriceMap(所有站点同值)并登记覆盖。
+  function updateGlobalNetProfit(value: string) {
+    if (!draft) return;
+    const sites = draft.sites ?? [];
+    const siteAndPriceMap = Object.fromEntries(sites.map((site) => [site, value]));
+    setDraft({ ...draft, globalNetProfitOverride: value, siteAndPriceMap });
+  }
+
   return (
     <div className="edit-panel">
       {/* 顶部固定:商品标题 + 视图切换(妙手详情 / AI 编辑详情),切换时不随内容滚动。 */}
@@ -205,6 +266,9 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             onUpdateField={updateDraftField}
             onUpdateSkuField={updateSkuField}
             onUpdateSkuPackage={updateSkuPackage}
+            onUpdateSkuNetProfit={updateSkuNetProfit}
+            onUpdateSkuListingType={updateSkuListingType}
+            onUpdateGlobalNetProfit={updateGlobalNetProfit}
             saving={saving}
           />
         )}

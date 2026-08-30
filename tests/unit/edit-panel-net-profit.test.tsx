@@ -151,17 +151,38 @@ describe('EditPanel net profit display', () => {
     // 草稿存在 → 出现「AI 编辑详情」页签
     fireEvent.click(await screen.findByText('AI 编辑详情'));
 
-    // 全球净收益:数值框 + 币种框并排。
+    // 全球净收益:数值框(AI 编辑里可编辑)+ 币种框并排。
     const globalSection = screen.getByText('全球净收益').closest('section')!;
-    expect(within(globalSection).getByText('11.5')).toBeTruthy();
+    expect((within(globalSection).getByLabelText('全球净收益') as HTMLInputElement).value).toBe('11.5');
     expect(within(globalSection).getByText('USD')).toBeTruthy();
-    // 站点净收益矩阵:列 = 站点(墨西哥/阿根廷),单元格 = 净收益 + 产品类型。
+    // 站点净收益矩阵:列 = 站点(墨西哥/阿根廷),单元格 = 可编辑净收益 + 产品类型下拉。
     const siteSection = screen.getByText('站点净收益 (USD)').closest('section')!;
     expect(within(siteSection).getByText('墨西哥')).toBeTruthy();
     expect(within(siteSection).getByText('阿根廷')).toBeTruthy();
-    expect(within(siteSection).getByText('铂金')).toBeTruthy();
-    expect(within(siteSection).getByText('经典')).toBeTruthy();
-    expect(within(siteSection).getByText('9')).toBeTruthy();
+    expect((within(siteSection).getByLabelText('Blanco MX 净收益') as HTMLInputElement).value).toBe('9');
+    expect((within(siteSection).getByLabelText('Blanco MX 产品类型') as HTMLSelectElement).value).toBe('gold_pro');
+    expect((within(siteSection).getByLabelText('Blanco AR 净收益') as HTMLInputElement).value).toBe('11.5');
+    expect((within(siteSection).getByLabelText('Blanco AR 产品类型') as HTMLSelectElement).value).toBe('gold_special');
+  });
+
+  it('lets the user edit net profit, product type and global net profit', async () => {
+    const saveDraft = vi.fn(async (_id: string, value: EditDraft) => value);
+    render(<EditPanel api={{ ...api(), saveDraft }} loadDetail={async () => detail()} product={product} />);
+
+    fireEvent.click(await screen.findByText('AI 编辑详情'));
+
+    fireEvent.change(screen.getByLabelText('Blanco MX 净收益'), { target: { value: '22.5' } });
+    fireEvent.change(screen.getByLabelText('Blanco MX 产品类型'), { target: { value: 'gold_special' } });
+    fireEvent.change(screen.getByLabelText('全球净收益'), { target: { value: '33.3' } });
+
+    fireEvent.click(screen.getByText('保存草稿'));
+    await vi.waitFor(() => expect(saveDraft).toHaveBeenCalled());
+    const sentDraft = saveDraft.mock.calls[0][1] as EditDraft;
+    expect(sentDraft.skus[0].siteAndPriceMap['MX(Up)']).toBe('22.5');
+    expect(sentDraft.skus[0].siteNetProfitOverrides?.MX.netProfit).toBe('22.5');
+    expect(sentDraft.skus[0].siteAndListingTypeInfoMap.MX.listingType).toBe('gold_special');
+    expect(sentDraft.globalNetProfitOverride).toBe('33.3');
+    expect(sentDraft.siteAndPriceMap).toEqual({ 'MX(Up)': '33.3', 'AR(Up)': '33.3' });
   });
 
   it('opens the compact breakdown popover from a cell with detail and shows the tier/shipping', async () => {

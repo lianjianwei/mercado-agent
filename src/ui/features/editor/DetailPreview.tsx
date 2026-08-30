@@ -50,6 +50,7 @@ export type PreviewAttribute = {
 
 export type PreviewSiteNetProfitCell = {
   netProfit: string; // e.g. '15.47'; '' 表示该站点无值
+  listingType: string; // 原始值,如 'gold_special' | 'gold_pro'
   listingTypeLabel: string; // '经典' | '铂金'(找不到时回退默认「经典」)
   detail: NetProfitBreakdown | null; // 计算明细,有值时单元格显示「计算详情」入口
 };
@@ -72,7 +73,7 @@ export type PreviewSiteNetProfit = {
   rows: PreviewSiteNetProfitRow[];
 };
 
-export type PreviewGlobalNetProfit = { value: string; currency: string };
+export type PreviewGlobalNetProfit = { value: string; currency: string; onChange?: (value: string) => void };
 
 export type PreviewViewModel = {
   editable: boolean;
@@ -107,7 +108,21 @@ export function deriveGlobalNetProfit(
   return first !== undefined && first !== '' ? { value: first, currency: 'USD' } : null;
 }
 
-export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
+// 编辑回调:AI 编辑详情里允许改站点净收益 / 产品类型 / 全球净收益;妙手详情不传。
+export type DetailPreviewHandlers = {
+  onEditNetProfit?: (skuKey: string, siteCode: string, value: string) => void;
+  onEditListingType?: (skuKey: string, siteCode: string, value: string) => void;
+  onEditGlobalNetProfit?: (value: string) => void;
+};
+
+export function DetailPreview({
+  vm,
+  onEditNetProfit,
+  onEditListingType,
+  onEditGlobalNetProfit,
+}: {
+  vm: PreviewViewModel;
+} & DetailPreviewHandlers) {
   // 所有缩略图共享一个灯箱:点击任意图片放大到正常尺寸查看。
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const zoom = (url: string) => setLightboxSrc(url);
@@ -122,13 +137,26 @@ export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
     anchor: { left: number; top: number; width: number; height: number },
   ) => setBreakdown({ detail, anchor });
 
+  const editable = vm.editable;
+  const siteHandlers = editable
+    ? {
+        onEditNetProfit,
+        onEditListingType,
+        onShowBreakdown: showBreakdown,
+      }
+    : { onShowBreakdown: showBreakdown };
+  // 全球净收益:有值时按需挂上编辑回调,避免对 null 展开产生无 value 的对象。
+  const globalNetProfit = vm.globalNetProfit
+    ? (editable ? { ...vm.globalNetProfit, onChange: onEditGlobalNetProfit } : vm.globalNetProfit)
+    : null;
+
   return (
     <div className="detail-preview">
       <ProductInfoSection vm={vm} />
       <AttributesSection attributes={vm.attributes} />
       <SkuSection vm={vm} onZoom={zoom} />
-      <GlobalNetProfitSection globalNetProfit={vm.globalNetProfit} />
-      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} onZoom={zoom} onShowBreakdown={showBreakdown} />
+      <GlobalNetProfitSection globalNetProfit={globalNetProfit} />
+      <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} onZoom={zoom} {...siteHandlers} />
       <ImagesSection skus={vm.skus} onZoom={zoom} />
       {breakdown && (
         <NetProfitBreakdownPopover
@@ -361,6 +389,7 @@ function SkuSection({
 }
 
 // 全球净收益独立成一块,置于「站点净收益」上方。数值框 + 币种框并排(参照妙手)。
+// AI 编辑详情里数值框可编辑;妙手详情只读。
 function GlobalNetProfitSection({
   globalNetProfit,
 }: {
@@ -371,7 +400,16 @@ function GlobalNetProfitSection({
     <section className="detail-section">
       <h3>全球净收益</h3>
       <div className="global-net-profit">
-        <span className="edit-readonly-value">{globalNetProfit.value}</span>
+        {globalNetProfit.onChange ? (
+          <input
+            aria-label="全球净收益"
+            className="edit-readonly-value"
+            onChange={(event) => globalNetProfit.onChange!(event.target.value)}
+            value={globalNetProfit.value}
+          />
+        ) : (
+          <span className="edit-readonly-value">{globalNetProfit.value}</span>
+        )}
         <span className="edit-readonly-value global-net-profit-unit">
           {globalNetProfit.currency}
         </span>
@@ -384,6 +422,8 @@ function SiteNetProfitSection({
   siteNetProfit,
   onZoom,
   onShowBreakdown,
+  onEditNetProfit,
+  onEditListingType,
 }: {
   siteNetProfit: PreviewSiteNetProfit;
   onZoom: (url: string) => void;
@@ -391,6 +431,9 @@ function SiteNetProfitSection({
     detail: NetProfitBreakdown,
     anchor: { left: number; top: number; width: number; height: number },
   ) => void;
+  // AI 编辑详情:单元格净收益 / 产品类型可编辑;妙手详情不传,保持只读。
+  onEditNetProfit?: (skuKey: string, siteCode: string, value: string) => void;
+  onEditListingType?: (skuKey: string, siteCode: string, value: string) => void;
 }) {
   const { columns, rows } = siteNetProfit;
   if (columns.length === 0 || rows.length === 0) {
@@ -425,15 +468,39 @@ function SiteNetProfitSection({
                 <td>{row.skuLabel || row.skuKey}</td>
                 {row.cells.map((cell, index) => {
                   const detail = cell.detail; // const 便于 TS 从谓词收窄到闭包内。
+                  const siteCode = columns[index]?.code ?? '';
+                  const cellLabel = `${row.skuLabel || row.skuKey} ${siteCode}`;
                   return (
                     <td key={`${row.skuKey}-${index}`} className="site-net-profit-cell">
                       <div className="sn-cell-box">
                         <span className="sn-cell-label">净收益:</span>
-                        {cell.netProfit || '—'}
+                        {onEditNetProfit ? (
+                          <input
+                            aria-label={`${cellLabel} 净收益`}
+                            className="sn-cell-input"
+                            onChange={(event) => onEditNetProfit(row.skuKey, siteCode, event.target.value)}
+                            value={cell.netProfit}
+                          />
+                        ) : (
+                          cell.netProfit || '—'
+                        )}
                       </div>
                       <div className="sn-cell-box">
                         <span className="sn-cell-label">产品类型:</span>
-                        {cell.listingTypeLabel}
+                        {onEditListingType ? (
+                          <select
+                            aria-label={`${cellLabel} 产品类型`}
+                            className="sn-cell-select"
+                            onChange={(event) => onEditListingType(row.skuKey, siteCode, event.target.value)}
+                            value={cell.listingType}
+                          >
+                            {Object.entries(LISTING_TYPE_LABELS).map(([key, label]) => (
+                              <option key={key} value={key}>{label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          cell.listingTypeLabel
+                        )}
                       </div>
                       {detail && (
                         <button
@@ -548,6 +615,7 @@ export function buildSiteNetProfit(
         ?? 'gold_special';
       return {
         netProfit: valueByCode.get(column.code) ?? '',
+        listingType,
         listingTypeLabel: listingTypeLabel(listingType),
         detail: siteNetProfitDetailMaps?.[index]?.[column.code] ?? null,
       };

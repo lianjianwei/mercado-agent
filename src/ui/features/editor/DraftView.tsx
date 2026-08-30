@@ -154,7 +154,11 @@ function ImageProgress({
               className={`image-progress-item image-status-${image.status}`}
               key={image.imageId}
             >
-              <img alt="" className="image-progress-thumb" src={image.publicUrl ?? image.localPath} />
+              <img
+                alt=""
+                className="image-progress-thumb"
+                src={image.publicUrl ?? (image.localPath ? `file://${image.localPath}` : '')}
+              />
               <span className="image-progress-kind">
                 {image.kind === 'main' ? '主图' : '详情图'}
               </span>

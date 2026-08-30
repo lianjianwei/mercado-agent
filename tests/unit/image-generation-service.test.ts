@@ -156,6 +156,8 @@ describe('ImageGenerationService', () => {
     expect(publish).toHaveBeenCalledTimes(1);
     expect(result.mainImages[0].publicUrl).toBe('https://cdn/x/main-1.png');
     expect(writeDraftImages).toHaveBeenCalledWith('p1', expect.any(Array), expect.any(Array));
+    // 上传后的快照用新时间戳,避免与最初生成那份撞 time 导致读回挑错。
+    expect(result.createdAt).toBe('x');
   });
 
   it('publishes (compress+upload) images after generation and writes back the draft', async () => {

@@ -230,7 +230,13 @@ export class ImageGenerationService {
         this.onProgress(`上传七牛失败：${error instanceof Error ? error.message : '未知错误'}（保留本地图片）`);
       }
     }
-    const result: AiImagesResult = { ...existing, mainImages: finalMain, detailImages: finalDetail };
+    // 落库时间戳用当前时间,避免与最初生成那份 aiImages 撞 time,导致读回挑错。
+    const result: AiImagesResult = {
+      ...existing,
+      mainImages: finalMain,
+      detailImages: finalDetail,
+      createdAt: this.deps.now?.() ?? new Date().toISOString(),
+    };
     this.deps.appendImages(productId, result);
     this.deps.writeDraftImages?.(productId, finalMain, finalDetail);
     return result;

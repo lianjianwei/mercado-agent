@@ -177,9 +177,21 @@ app.whenReady().then(async () => {
     },
     readDraft: (productId) => readLatestDraft(snapshots, productId),
     readImages: (productId: string) => {
-      const latest = [...snapshots.listForProduct(productId)].reverse()
-        .find((s) => s.kind === 'aiImages');
-      return latest ? (latest.payload as AiImagesResult) : null;
+      const list = snapshots.listForProduct(productId).filter((s) => s.kind === 'aiImages');
+      if (list.length === 0) return null;
+      // 同一商品会有多份 aiImages(多次生成/上传),它们的 captured_at 常相同(沿用
+      // 生成时间),导致按时间读回可能挑到「未上传、无公网 URL」的那份。这里按
+      // 公网 URL 数量多者优先(即已上传那份),再按时间新者优先,保证读到带 URL 的图。
+      const uploaded = (payload: AiImagesResult) =>
+        [...payload.mainImages, ...payload.detailImages].filter((i) => i.publicUrl).length;
+      const chosen = list
+        .slice()
+        .sort((a, b) => {
+          const diff = uploaded(b.payload as AiImagesResult) - uploaded(a.payload as AiImagesResult);
+          if (diff !== 0) return diff;
+          return (b.capturedAt ?? '').localeCompare(a.capturedAt ?? '');
+        })[0];
+      return chosen ? (chosen.payload as AiImagesResult) : null;
     },
     imageProvider: () => providerRegistry.createActive('image') as ImageModelProvider,
     textProvider: () => {

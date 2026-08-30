@@ -22,6 +22,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingImages, setGeneratingImages] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [imageResult, setImageResult] = useState<AiImagesResult | null>(null);
   const [imageError, setImageError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -49,6 +50,21 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
       cancelled = true;
     };
   }, [product.id, api, loadDetail]);
+
+  // 打开弹窗时若有已生成的图(未上传/已上传),先把它们显示出来,供「上传到七牛」使用。
+  useEffect(() => {
+    if (typeof api.images.getImages !== 'function') return;
+    let cancelled = false;
+    void api.images
+      .getImages(product.id)
+      .then((images) => {
+        if (!cancelled && images) setImageResult(images);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [product.id, api]);
 
   async function runGenerate() {
     setGenerating(true);
@@ -81,6 +97,23 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
       setImageError(reason instanceof Error ? reason.message : '图片生成失败。');
     } finally {
       setGeneratingImages(false);
+    }
+  }
+
+  async function runUpload() {
+    if (!product) return;
+    setUploading(true);
+    setImageError('');
+    try {
+      const result = await api.images.uploadImages(product.id);
+      setImageResult(result);
+      // 上传后公网 URL 已写回 AI 草稿;重取草稿让「产品图片」区显示。
+      const refreshed = await api.draft(product.id);
+      if (refreshed) setDraft(refreshed);
+    } catch (reason) {
+      setImageError(reason instanceof Error ? reason.message : '已有图片上传到七牛失败。');
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -207,10 +240,12 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
           draft={draft}
           generating={generating}
           generatingImages={generatingImages}
+          uploadingImages={uploading}
           imageError={imageError}
           imageResult={imageResult}
           onGenerate={() => void runGenerate()}
           onRetryImages={() => void runGenerateImages()}
+          onUploadImages={() => void runUpload()}
           onSave={() => void runSave()}
           onUpdateField={updateDraftField}
           onUpdateSkuField={updateSkuField}

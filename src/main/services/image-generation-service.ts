@@ -36,6 +36,8 @@ export type ImageGenerationDeps = {
   publish?: (productId: string, images: GeneratedImage[]) => Promise<GeneratedImage[]>;
   // 发布后把公网 URL 写回 AI 草稿的产品图片字段。缺省不写(测试/未配置)。
   writeDraftImages?: (productId: string, mainImages: GeneratedImage[], detailImages: GeneratedImage[]) => void;
+  // 读取已落盘的 aiImages 快照(已生成的图,未上传)。缺省返回 null(测试)。
+  readImages?: (productId: string) => AiImagesResult | null;
   now?: () => string;
 };
 
@@ -202,6 +204,34 @@ export class ImageGenerationService {
     };
     this.deps.appendImages(productId, result);
     // 把公网 URL 写回 AI 草稿的产品图片字段,供 AI 编辑详情「产品图片」展示。
+    this.deps.writeDraftImages?.(productId, finalMain, finalDetail);
+    return result;
+  }
+
+  // 读取已落盘的 aiImages 快照(已生成的图,不重新生成)。
+  getImages(productId: string): AiImagesResult | null {
+    return this.deps.readImages?.(productId) ?? null;
+  }
+
+  // 把「已生成的图」直接压缩 + 上传七牛,不重新生成;拿到公网 URL 写回 AI 产品图片。
+  async publishExisting(productId: string): Promise<AiImagesResult> {
+    const existing = this.deps.readImages?.(productId);
+    if (!existing) throw new Error('暂无已生成的图片,请先生成。');
+    let finalMain = existing.mainImages;
+    let finalDetail = existing.detailImages;
+    if (this.deps.publish) {
+      this.onProgress(`正在压缩并上传到七牛…`);
+      try {
+        const published = await this.deps.publish(productId, [...existing.mainImages, ...existing.detailImages]);
+        finalMain = published.filter((image) => image.kind === 'main');
+        finalDetail = published.filter((image) => image.kind === 'detail');
+        this.onProgress(`已上传 ${published.filter((image) => image.publicUrl).length}/${published.length} 张图到七牛。`);
+      } catch (error) {
+        this.onProgress(`上传七牛失败：${error instanceof Error ? error.message : '未知错误'}（保留本地图片）`);
+      }
+    }
+    const result: AiImagesResult = { ...existing, mainImages: finalMain, detailImages: finalDetail };
+    this.deps.appendImages(productId, result);
     this.deps.writeDraftImages?.(productId, finalMain, finalDetail);
     return result;
   }

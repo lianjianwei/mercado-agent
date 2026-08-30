@@ -100,6 +100,10 @@ const desktopApi: DesktopApi = {
     images: {
       generateImages: (productId) =>
         invoke(IPC_CHANNELS.imagesGenerate, { productId }),
+      getImages: (productId) =>
+        invoke(IPC_CHANNELS.imagesGet, { productId }),
+      uploadImages: (productId) =>
+        invoke(IPC_CHANNELS.imagesUpload, { productId }),
     },
   },
   netProfit: {
@@ -134,6 +138,10 @@ const desktopApi: DesktopApi = {
   images: {
     generateImages: (productId) =>
       invoke(IPC_CHANNELS.imagesGenerate, { productId }),
+    getImages: (productId) =>
+      invoke(IPC_CHANNELS.imagesGet, { productId }),
+    uploadImages: (productId) =>
+      invoke(IPC_CHANNELS.imagesUpload, { productId }),
   },
 };
 

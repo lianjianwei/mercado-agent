@@ -184,6 +184,12 @@ const ssrEditApi: EditApi = {
     async generateImages() {
       throw new Error('AI 生图服务未配置');
     },
+    async getImages() {
+      return null;
+    },
+    async uploadImages() {
+      throw new Error('AI 生图服务未配置');
+    },
   },
 };
 

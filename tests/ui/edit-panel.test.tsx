@@ -117,7 +117,11 @@ function renderPanel(overrides: {
     draft: vi.fn(async () => existing),
     saveDraft: vi.fn(async (_id, incoming) => incoming),
     onEditLog: () => () => undefined,
-    images: { generateImages: vi.fn(async () => emptyImagesResult()) },
+    images: {
+      generateImages: vi.fn(async () => emptyImagesResult()),
+      getImages: vi.fn(async () => null),
+      uploadImages: vi.fn(async () => emptyImagesResult()),
+    },
   };
   const loadDetail = vi.fn(async () => detail);
   const { container } = render(<EditPanel api={api} loadDetail={loadDetail} product={product} />);
@@ -161,7 +165,11 @@ describe('EditPanel', () => {
           draft: vi.fn(async () => null),
           saveDraft: vi.fn(async (_id, value) => value),
           onEditLog: () => () => undefined,
-    images: { generateImages: vi.fn(async () => emptyImagesResult()) },
+    images: {
+      generateImages: vi.fn(async () => emptyImagesResult()),
+      getImages: vi.fn(async () => null),
+      uploadImages: vi.fn(async () => emptyImagesResult()),
+    },
         }}
         loadDetail={loadDetail}
         product={product}
@@ -276,7 +284,11 @@ describe('EditPanel', () => {
       draft: vi.fn(async () => null),
       saveDraft: vi.fn(async (_id, incoming) => incoming),
       onEditLog: () => () => undefined,
-    images: { generateImages: vi.fn(async () => emptyImagesResult()) },
+    images: {
+      generateImages: vi.fn(async () => emptyImagesResult()),
+      getImages: vi.fn(async () => null),
+      uploadImages: vi.fn(async () => emptyImagesResult()),
+    },
     };
     const user = userEvent.setup();
     render(<EditPanel api={api} loadDetail={vi.fn(async () => detail)} product={product} />);

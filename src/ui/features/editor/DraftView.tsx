@@ -28,9 +28,11 @@ type DraftViewProps = {
   onUpdateSkuPackage: (skuKey: string, field: SkuPackagePath, value: string) => void;
   onGenerate: () => void;
   onRetryImages: () => void;
+  onUploadImages: () => void;
   onSave: () => void;
   generating: boolean;
   generatingImages: boolean;
+  uploadingImages: boolean;
   imageError: string;
   imageResult: AiImagesResult | null;
   saving: boolean;
@@ -125,13 +127,18 @@ function ImageProgress({
   generating,
   error,
   onRetry,
+  onUpload,
+  uploading,
 }: {
   result: AiImagesResult | null;
   generating: boolean;
   error: string;
   onRetry: () => void;
+  onUpload: () => void;
+  uploading: boolean;
 }) {
   const images = result ? [...result.mainImages, ...result.detailImages] : [];
+  const uploadedCount = images.filter((image) => image.publicUrl).length;
   return (
     <section className="image-progress">
       <h3>图片生成</h3>
@@ -158,14 +165,24 @@ function ImageProgress({
           ))}
         </div>
       )}
-      <button
-        className="secondary-button"
-        disabled={generating}
-        onClick={onRetry}
-        type="button"
-      >
-        {generating ? '生成中…' : '重新生成图片'}
-      </button>
+      <div className="image-progress-actions">
+        <button
+          className="secondary-button"
+          disabled={generating || uploading}
+          onClick={onUpload}
+          type="button"
+        >
+          {uploading ? '上传中…' : uploadedCount === images.length && images.length > 0 ? '已上传七牛' : '上传到七牛(不重新生成)'}
+        </button>
+        <button
+          className="secondary-button"
+          disabled={generating || uploading}
+          onClick={onRetry}
+          type="button"
+        >
+          {generating ? '生成中…' : '重新生成图片'}
+        </button>
+      </div>
     </section>
   );
 }
@@ -178,9 +195,11 @@ export function DraftView({
   onUpdateSkuPackage,
   onGenerate,
   onRetryImages,
+  onUploadImages,
   onSave,
   generating,
   generatingImages,
+  uploadingImages,
   imageError,
   imageResult,
   saving,
@@ -195,7 +214,7 @@ export function DraftView({
     <div className="edit-draft-view" aria-label="AI 编辑详情">
       <DetailPreview vm={vm} />
 
-      <ImageProgress error={imageError} result={imageResult} generating={generatingImages} onRetry={onRetryImages} />
+      <ImageProgress error={imageError} result={imageResult} generating={generatingImages} onRetry={onRetryImages} onUpload={onUploadImages} uploading={uploadingImages} />
 
       <div className="edit-actions">
         <button

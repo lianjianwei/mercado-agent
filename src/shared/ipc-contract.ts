@@ -52,6 +52,8 @@ export const IPC_CHANNELS = {
   netProfitSaveConfig: 'netProfit:save-config',
   netProfitRefreshRates: 'netProfit:refresh-rates',
   imagesGenerate: 'images:generate',
+  imagesGet: 'images:get',
+  imagesUpload: 'images:upload',
 } as const;
 
 export type IpcErrorCode =
@@ -139,6 +141,10 @@ export interface NetProfitApi {
 
 export interface ImageApi {
   generateImages(productId: string): Promise<AiImagesResult>;
+  // 读取已生成的图(不重新生成)。
+  getImages(productId: string): Promise<AiImagesResult | null>;
+  // 把已生成的图压缩 + 上传七牛,不重新生成,并写回 AI 产品图片。
+  uploadImages(productId: string): Promise<AiImagesResult>;
 }
 
 export type InfringementBatchFailure = { productId: string; message: string };

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ImageGenerationService, buildDetailImagePrompt, buildMainImagePrompt, detectQuantity } from '../../src/main/services/image-generation-service';
 import type { ProductDetail } from '../../src/domain/product';
 import type { EditDraft } from '../../src/domain/edit';
-import type { DetailPlanItem, GeneratedImage } from '../../src/domain/images';
+import type { AiImagesResult, DetailPlanItem, GeneratedImage } from '../../src/domain/images';
 import type { ImageModelProvider, TextModelProvider } from '../../src/domain/providers';
 
 const detail = { productId: 'p1', title: 'T', description: 'D', category: '猫咪用品',
@@ -126,6 +126,36 @@ describe('ImageGenerationService', () => {
       now: () => '2026-08-29T00:00:00.000Z',
     });
     await expect(service.generate('p1')).rejects.toThrow(/暂无|无法生图/);
+  });
+
+  it('publishExisting uploads already-generated images without regenerating', async () => {
+    const appendImages = vi.fn();
+    const writeDraftImages = vi.fn();
+    const existing: AiImagesResult = {
+      version: 1, productId: 'p1',
+      mainImages: [{ imageId: 'main-1', kind: 'main', skuKey: ';a;', localPath: '/tmp/imgs/p1/main-1.png', plannedPath: 'mercado/p1/main-1.png', sourceRefImages: [], prompt: 'p', attempts: 1, status: 'ok', createdAt: 'x' }],
+      detailImages: [], plan: [], status: 'done', createdAt: 'x',
+    };
+    const publish = vi.fn(async (_productId: string, images: GeneratedImage[]) =>
+      images.map((image) => ({ ...image, publicUrl: `https://cdn/x/${image.imageId}.png` })),
+    );
+    const readImages = vi.fn(() => existing);
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn() } as unknown as ImageModelProvider;
+    const textProvider = { testConnection: vi.fn(), generate: vi.fn() } as unknown as TextModelProvider;
+
+    const service = new ImageGenerationService({
+      readDetail: () => detail, readDraft: () => draft,
+      imageProvider: () => imageProvider, textProvider: () => textProvider,
+      appendImages, imagesDir: '/tmp/imgs', now: () => 'x',
+      publish, writeDraftImages, readImages,
+    });
+    const result = await service.publishExisting('p1');
+
+    // 不重新生成:只上传已存在的图,并写回草稿。
+    expect(imageProvider.generate).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(result.mainImages[0].publicUrl).toBe('https://cdn/x/main-1.png');
+    expect(writeDraftImages).toHaveBeenCalledWith('p1', expect.any(Array), expect.any(Array));
   });
 
   it('publishes (compress+upload) images after generation and writes back the draft', async () => {

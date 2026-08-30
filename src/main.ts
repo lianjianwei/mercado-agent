@@ -32,7 +32,7 @@ import { EditGenerationService } from './main/services/edit-generation-service';
 import { ImageGenerationService } from './main/services/image-generation-service';
 import { QiniuUploadService } from './main/services/qiniu-upload-service';
 import { compressPng } from './main/services/image-compressor';
-import type { GeneratedImage } from './domain/images';
+import type { AiImagesResult, GeneratedImage } from './domain/images';
 import { NetProfitCalculator } from './main/services/net-profit-calculator';
 import { FxRateService } from './main/services/fx-rate-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
@@ -176,6 +176,11 @@ app.whenReady().then(async () => {
       return productDetailFromSources(products.getById(productId), latest);
     },
     readDraft: (productId) => readLatestDraft(snapshots, productId),
+    readImages: (productId: string) => {
+      const latest = [...snapshots.listForProduct(productId)].reverse()
+        .find((s) => s.kind === 'aiImages');
+      return latest ? (latest.payload as AiImagesResult) : null;
+    },
     imageProvider: () => providerRegistry.createActive('image') as ImageModelProvider,
     textProvider: () => {
       const p = providerRegistry.createActive('text') as TextModelProvider;
@@ -190,8 +195,8 @@ app.whenReady().then(async () => {
       if (!creds) throw new Error('未配置七牛云凭证,无法上传。');
       const out: GeneratedImage[] = [];
       for (const image of images) {
-        // 只有已保存且非失败图才上传;失败/无本地图保留原样(publicUrl 空)。
-        if (!image.localPath || image.status === 'failed') {
+        // 已上传的跳过;只有已保存且非失败图才上传。
+        if (image.publicUrl || !image.localPath || image.status === 'failed') {
           out.push(image);
           continue;
         }

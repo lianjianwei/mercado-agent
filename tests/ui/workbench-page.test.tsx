@@ -194,6 +194,16 @@ function createApi(allProducts: Product[] = products) {
             status: 'done' as const,
             createdAt: 'x',
           })),
+          getImages: vi.fn(async () => null),
+          uploadImages: vi.fn(async () => ({
+            version: 1,
+            productId: 'p1',
+            mainImages: [],
+            detailImages: [],
+            plan: [],
+            status: 'done' as const,
+            createdAt: 'x',
+          })),
         },
       },
     },
@@ -205,6 +215,16 @@ function createApi(allProducts: Product[] = products) {
       onEditLog: () => () => undefined,
       images: {
         generateImages: vi.fn(async () => ({
+          version: 1,
+          productId: 'p1',
+          mainImages: [],
+          detailImages: [],
+          plan: [],
+          status: 'done' as const,
+          createdAt: 'x',
+        })),
+        getImages: vi.fn(async () => null),
+        uploadImages: vi.fn(async () => ({
           version: 1,
           productId: 'p1',
           mainImages: [],

@@ -86,6 +86,67 @@ describe('CodexImageProvider', () => {
     expect(result.dataBase64).toBe(PNG.toString('base64'));
   });
 
+  it('generateBatch downloads refs once, runs codex once, and returns results aligned to requests', async () => {
+    const provider = new CodexImageProvider(
+      { model: '', scratchDir, proxy: () => null },
+      async (url: string) => Buffer.from(`ref-${url}`),
+    );
+    // 让 codex 按 out-{i}.png 写出两张。
+    spawnMock.mockImplementation((_command: string, args: string[]) => {
+      const child = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; stdin: { end: (s: string) => void } };
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = { end: () => void 0 };
+      process.nextTick(() => {
+        const cd = args.indexOf('-C');
+        const dir = args[cd + 1];
+        writeFileSync(path.join(dir, 'out-1.png'), PNG);
+        writeFileSync(path.join(dir, 'out-2.png'), PNG);
+        child.emit('close', 0);
+      });
+      return child;
+    });
+
+    const results = await provider.generateBatch([
+      { prompt: '主图1', referenceImageUrls: ['https://x/ref-a.png'] },
+      { prompt: '主图2', referenceImageUrls: ['https://x/ref-a.png', 'https://x/ref-b.png'] },
+    ], new AbortController().signal);
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(results.map((r) => r.dataBase64)).toEqual([PNG.toString('base64'), PNG.toString('base64')]);
+    // 参考图只下载一次(ref-a 去重 + ref-b)→ 恰好 2 个 ref 文件。
+    const [, args] = spawnMock.mock.calls[0] as unknown as [string, string[]];
+    const refs = args.filter((a) => /ref-\d+\.png$/.test(String(a)));
+    expect(refs).toHaveLength(2);
+  });
+
+  it('generateBatch returns an empty result for a missing output file', async () => {
+    const provider = new CodexImageProvider(
+      { model: '', scratchDir, proxy: () => null },
+      async () => Buffer.from('ref'),
+    );
+    spawnMock.mockImplementation((_command: string, args: string[]) => {
+      const child = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; stdin: { end: (s: string) => void } };
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = { end: () => void 0 };
+      process.nextTick(() => {
+        const cd = args.indexOf('-C');
+        writeFileSync(path.join(args[cd + 1], 'out-1.png'), PNG); // 第二张缺失
+        child.emit('close', 0);
+      });
+      return child;
+    });
+
+    const results = await provider.generateBatch([
+      { prompt: 'a', referenceImageUrls: ['https://x/r.png'] },
+      { prompt: 'b', referenceImageUrls: ['https://x/r.png'] },
+    ], new AbortController().signal);
+
+    expect(results[0].dataBase64).toBe(PNG.toString('base64'));
+    expect(results[1]).toEqual({ url: '' });
+  });
+
   it('codexAvailable detects the CLI and inherits process.env (PATH)', async () => {
     expect(await codexAvailable()).toBe(true);
     const [, args, opts] = spawnMock.mock.calls[0] as unknown as [string, string[], { env: NodeJS.ProcessEnv }];

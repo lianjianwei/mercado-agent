@@ -42,6 +42,12 @@ export interface ImageModelProvider extends ModelConnectionProvider {
     request: ImageGenerationRequest,
     signal: AbortSignal,
   ): Promise<ImageResult[]>;
+  // 可选:一次产出多张(本地 codex 场景,避免每张调一次进程/重复下载参考图)。
+  // 返回与 requests 一一对应的结果;某张未生成返回无数据的 ImageResult。不实现则回退一张一调。
+  generateBatch?(
+    requests: ImageGenerationRequest[],
+    signal: AbortSignal,
+  ): Promise<ImageResult[]>;
 }
 
 export class ProviderAuthenticationError extends Error {

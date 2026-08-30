@@ -113,4 +113,48 @@ describe('ImageGenerationService', () => {
     });
     await expect(service.generate('p1')).rejects.toThrow(/暂无|无法生图/);
   });
+
+  it('uses generateBatch once when available and retries only the failing image', async () => {
+    const appendImages = vi.fn();
+    const onProgress = vi.fn();
+    // 自检文本:规划返回 2 张详情图;首次自检不过(触发补跑),后续都过。
+    const generateText = vi.fn(async (request: { prompt?: string }) => {
+      if (!String(request.prompt ?? '').includes('质检')) {
+        return { plans: [
+          { id: 'd1', kind: '功能图', subject: 's1', textEs: '', textPt: '', hasPerson: false, referenceNote: '' },
+          { id: 'd2', kind: '场景图', subject: 's2', textEs: '', textPt: '', hasPerson: false, referenceNote: '' },
+        ] };
+      }
+      const selfChecks = generateText.mock.calls.filter((c) => String(c[0].prompt).includes('质检'));
+      return selfChecks.length < 2 ? { ok: false, issues: ['主体不清晰'] } : { ok: true, issues: [] };
+    });
+    const textProvider = { testConnection: vi.fn(), generate: generateText as unknown as TextModelProvider['generate'] } as unknown as TextModelProvider;
+
+    const generate = vi.fn(async (_request: { prompt?: string }) => [{ url: '', dataBase64: 'RETRY' }]);
+    const generateBatch = vi.fn(async () => [{ url: '', dataBase64: 'AAAA' }, { url: '', dataBase64: 'BBBB' }, { url: '', dataBase64: 'CCCC' }]);
+    const imageProvider = { testConnection: vi.fn(), generate, generateBatch } as unknown as ImageModelProvider;
+
+    const service = new ImageGenerationService({
+      readDetail: () => detail, readDraft: () => draft,
+      imageProvider: () => imageProvider, textProvider: () => textProvider,
+      appendImages, imagesDir: '/tmp/imgs', now: () => '2026-08-29T00:00:00.000Z', onProgress,
+    });
+    const result = await service.generate('p1');
+
+    // 一次批量产出(主图 1 + 详情图 2)。
+    expect(generateBatch).toHaveBeenCalledTimes(1);
+    expect(result.mainImages).toHaveLength(1);
+    expect(result.detailImages).toHaveLength(2);
+
+    // 主图首次自检不过 → 只对这一张单独补跑一次;补跑后过检 → 状态 ok,attempts=2。
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(String(generate.mock.calls[0][0].prompt)).toContain('未过质检');
+    expect(result.mainImages[0].status).toBe('ok');
+    expect(result.mainImages[0].attempts).toBe(2);
+
+    // 详情图都过一次自检,无需补跑。
+    expect(result.detailImages[0].status).toBe('ok');
+    expect(result.detailImages[1].status).toBe('ok');
+    expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
+  });
 });

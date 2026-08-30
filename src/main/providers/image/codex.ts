@@ -114,6 +114,79 @@ export class CodexImageProvider implements ImageModelProvider {
     }
   }
 
+  // 一次 codex 调用批量产出多张图:参考图只下载一份,codex 把每张写到对应
+  // out-{i}.png。返回与 requests 对齐的结果;某张没生成出来则给空结果,
+  // 由生图服务按张单独补跑。
+  async generateBatch(
+    requests: ImageGenerationRequest[],
+    signal: AbortSignal,
+  ): Promise<ImageResult[]> {
+    const dir = await fs.mkdtemp(path.join(this.configuration.scratchDir, 'codex-'));
+    try {
+      // 1. 去重下载所有参考图,url → 本地文件。
+      const refByUrl = new Map<string, string>();
+      for (const request of requests) {
+        for (const url of request.referenceImageUrls ?? []) {
+          if (refByUrl.has(url)) continue;
+          const file = path.join(dir, `ref-${refByUrl.size}.png`);
+          await fs.writeFile(file, await this.download(url, signal));
+          refByUrl.set(url, file);
+        }
+      }
+      const refFiles = [...refByUrl.values()];
+      const outs = requests.map((_, i) => path.join(dir, `out-${i + 1}.png`));
+
+      // 2. 一次 codex exec:提示词列明每张的输出文件 + 参考图 + 各自要求。
+      const prompt = this.batchPrompt(requests, refByUrl, outs);
+      const args = ['exec', '--ephemeral', '--skip-git-repo-check', '-C', dir, '--approve-for-me'];
+      for (const file of refFiles) args.push('-i', file);
+      if (this.configuration.model) args.push('-m', this.configuration.model);
+      const { code, stderr } = await run('codex', args, this.proxyEnv(), prompt, signal);
+      if (code !== 0) {
+        throw new ProviderUnavailableError(`codex 生图失败:${stderr.trim() || `exit ${code}`}`);
+      }
+
+      // 3. 逐张读回、缩放;某张缺失 → 空结果(触发服务侧按张重试)。
+      const results: ImageResult[] = [];
+      for (const out of outs) {
+        try {
+          const buf = await fs.readFile(out);
+          const resized = fitWithin(nativeImage.createFromBuffer(buf), TARGET_SIZE);
+          results.push({ url: '', dataBase64: resized.toPNG().toString('base64') });
+        } catch {
+          results.push({ url: '' });
+        }
+      }
+      return results;
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  private batchPrompt(requests: ImageGenerationRequest[], refByUrl: Map<string, string>, outs: string[]): string {
+    const lines = [
+      `请根据提供的参考图，依次生成以下 ${requests.length} 张图，并把每张保存到对应的输出文件，一张都不要漏掉。`,
+      '',
+      '参考图文件：',
+      ...[...refByUrl.values()].map((file) => `- ${path.basename(file)}`),
+      '',
+    ];
+    requests.forEach((request, i) => {
+      const refs = (request.referenceImageUrls ?? [])
+        .map((url) => path.basename(refByUrl.get(url) ?? ''))
+        .filter(Boolean)
+        .join(', ');
+      lines.push(
+        `${i + 1}. 输出文件 ${path.basename(outs[i])}`,
+        `   要求：${request.prompt}`,
+        `   使用参考图：${refs || '无'}`,
+        '',
+      );
+    });
+    lines.push('请逐张生成并保存到上面的文件路径。每张图都基于它指定的参考图，不要混用参考图，不要虚构参考图中没有的内容。');
+    return lines.join('\n');
+  }
+
   private proxyEnv(): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = { ...process.env };
     const proxy = this.configuration.proxy();

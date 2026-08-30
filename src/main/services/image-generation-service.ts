@@ -4,9 +4,24 @@ import type { ProductDetail } from '../../domain/product';
 import type { EditDraft } from '../../domain/edit';
 import type { GeneratedImage, AiImagesResult, DetailPlanItem } from '../../domain/images';
 import type { ImageReview } from '../../shared/image-schemas';
-import type { ImageModelProvider, ImageResult, TextModelProvider } from '../../domain/providers';
+import type { ImageGenerationRequest, ImageModelProvider, ImageResult, TextModelProvider } from '../../domain/providers';
 import { ImagePlanner, DETAIL_LANGUAGE_LABEL, resolveDetailImageLanguage, type DetailImageLanguage } from './image-planner';
 import { ImageReviser, shouldRegenerate } from './image-reviser';
+
+// 一张图完整的生成规格:请求(prompt + 参考图)、命名、归属与定位信息。
+type ImageSpec = {
+  request: ImageGenerationRequest;
+  kind: 'main' | 'detail';
+  skuKey?: string;
+  detail?: GeneratedImage['detail'];
+  productId: string;
+  title: string;
+  description: string;
+  // 可读文件名(不含扩展名):主图 main-{序号},详情图 detail-{N}。
+  name: string;
+  // 进度日志标签,如「SKU 1 主图」「详情图 1/4(尺寸图)」。
+  label: string;
+};
 
 export type ImageGenerationDeps = {
   readDetail: (productId: string) => ProductDetail | null;
@@ -86,29 +101,52 @@ export class ImageGenerationService {
     const plan = await planner.plan({ title, description, category: detail.category ?? '', referenceImageUrls: sku0Refs, language });
     this.onProgress(`详情图规划完成（耗时 ${((Date.now() - planStartedAt) / 1000).toFixed(1)}s）。`);
 
-    const mainImages: GeneratedImage[] = [];
-    const mainSkus = skus.filter((sku) => sku.imageUrls.length > 0);
-    let mainCount = 0;
+    // 收集全部图的生成规格(主图 + 详情图),便于 codex 一次批量产出。
+    // 每张携带:请求(prompt + 参考图)、命名、归属(main/detail)、SKU序号或详情序号。
+    const specs: ImageSpec[] = [];
     for (const [skuIndex, sku] of skus.entries()) {
       const ref = sku.imageUrls[0];
       if (!ref) continue;
-      mainCount += 1;
-      // SKU 序号取该 SKU 在商品 SKU 列表里的位置,和编辑详情里「SKU 1/2/3」对齐。
-      this.onProgress(`正在生成 SKU ${skuIndex + 1} 主图（第 ${mainCount}/${mainSkus.length} 张）…`);
-      const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), refs: [ref], kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description, name: imageFileName('main', skuIndex + 1) });
-      this.onProgress(`主图 ${mainCount}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
-      mainImages.push(image);
+      specs.push({
+        request: { prompt: buildMainImagePrompt({ title, description, category: detail.category ?? '' }), referenceImageUrls: [ref] },
+        kind: 'main', skuKey: sku.skuKey, detail: undefined, productId, title, description,
+        name: imageFileName('main', skuIndex + 1),
+        label: `SKU ${skuIndex + 1} 主图`,
+      });
     }
-
-    const detailImages: GeneratedImage[] = [];
     for (let index = 0; index < plan.length; index += 1) {
       const item = plan[index];
-      this.onProgress(`正在生成详情图 ${index + 1}/${plan.length}（${item.kind}）…`);
-      const startedAt = Date.now();
-      const image = await this.generateOne({ provider, reviser, prompt: buildDetailImagePrompt(item, title, language), refs: sku0Refs, kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson }, productId, title, description, name: imageFileName('detail', index + 1) });
-      this.onProgress(`详情图 ${index + 1}/${plan.length}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '重试后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
-      detailImages.push(image);
+      specs.push({
+        request: { prompt: buildDetailImagePrompt(item, title, language), referenceImageUrls: sku0Refs },
+        kind: 'detail', skuKey: undefined, detail: { slug: item.id, title: item.subject, hasPerson: item.hasPerson },
+        productId, title, description,
+        name: imageFileName('detail', index + 1),
+        label: `详情图 ${index + 1}/${plan.length}（${item.kind}）`,
+      });
+    }
+
+    const mainImages: GeneratedImage[] = [];
+    const detailImages: GeneratedImage[] = [];
+
+    if (typeof provider.generateBatch === 'function') {
+      // codex 路径:一次批量产全部;某张自检不过只补跑那几张。
+      this.onProgress(`正在用 codex 一次性生成全部 ${specs.length} 张图（参考图只下载一次）…`);
+      const batch = await provider.generateBatch(specs.map((spec) => spec.request), new AbortController().signal);
+      for (let index = 0; index < specs.length; index += 1) {
+        const spec = specs[index];
+        const startedAt = Date.now();
+        const image = await this.generateOne(provider, reviser, spec, { initial: batch[index] });
+        this.onProgress(`完成 ${spec.label}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '补跑后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
+        (spec.kind === 'main' ? mainImages : detailImages).push(image);
+      }
+    } else {
+      for (const spec of specs) {
+        this.onProgress(`正在生成 ${spec.label}…`);
+        const startedAt = Date.now();
+        const image = await this.generateOne(provider, reviser, spec);
+        this.onProgress(`完成 ${spec.label}：${image.status === 'ok' ? '生成成功' : image.status === 'retried' ? '补跑后成功' : '生成失败'}（耗时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s）。`);
+        (spec.kind === 'main' ? mainImages : detailImages).push(image);
+      }
     }
 
     const failed = [...mainImages, ...detailImages].filter((i) => i.status === 'failed');
@@ -121,55 +159,66 @@ export class ImageGenerationService {
     return result;
   }
 
-  private async generateOne(args: {
-    provider: ImageModelProvider; reviser: ImageReviser; prompt: string; refs: string[];
-    kind: 'main' | 'detail'; skuKey?: string; detail?: GeneratedImage['detail']; productId: string;
-    title: string; description: string;
-    // 可读的文件名(不含扩展名):主图 main-{sku},详情图 detail-{N}。
-    name: string;
-  }): Promise<GeneratedImage> {
-    const imageId = args.name;
+  private async generateOne(
+    provider: ImageModelProvider,
+    reviser: ImageReviser,
+    spec: ImageSpec,
+    opts: { initial?: ImageResult } = {},
+  ): Promise<GeneratedImage> {
+    const imageId = spec.name;
+    const refs = spec.request.referenceImageUrls ?? [];
+    const request = spec.request;
     let attempts = 1;
     let render: ImageResult = { url: '' };
     // 自检必须能看到图:OpenAI 默认只回 base64(url 为空),用 data URL 喂给视觉自检。
     const reviewImageUrl = () =>
       render.url || (render.dataBase64 ? `data:image/png;base64,${render.dataBase64}` : '');
+    const failedImage = (attempts: number): GeneratedImage => ({
+      imageId, kind: spec.kind, skuKey: spec.skuKey, detail: spec.detail, localPath: '',
+      plannedPath: `mercado/${spec.productId}/${imageId}.png`, sourceRefImages: refs, prompt: request.prompt,
+      attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString(),
+    });
     let review: ImageReview = { ok: true, issues: [] };
-    try {
-      const result = await args.provider.generate({ prompt: args.prompt, referenceImageUrls: args.refs }, new AbortController().signal);
-      render = result[0] ?? { url: '' };
-      if (!render.dataBase64 && !render.url) {
-        return { imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath: '', plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt, attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString() };
+
+    // 首张:批量产物(opts.initial)有数据就直接用,省一次渲染;否则单独渲染一次。
+    if (opts.initial && (opts.initial.dataBase64 || opts.initial.url)) {
+      render = opts.initial;
+    } else {
+      try {
+        const result = await provider.generate({ prompt: request.prompt, referenceImageUrls: refs }, new AbortController().signal);
+        render = result[0] ?? { url: '' };
+        if (!render.dataBase64 && !render.url) return failedImage(1);
+      } catch {
+        return failedImage(1);
       }
-    } catch {
-      return { imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath: '', plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt, attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString() };
     }
     try {
-      review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
+      review = await reviser.review({ imageUrl: reviewImageUrl(), context: { title: spec.title, description: spec.description, kind: spec.kind } });
     } catch {
       review = { ok: true, issues: ['自检服务异常，未验证'] };
     }
+    // 自检不过:只补跑当前这张(单独再渲染一次),最多补到 3 次。
     while (shouldRegenerate(review) && attempts < 3) {
       attempts += 1;
       try {
-        const result = await args.provider.generate({ prompt: `${args.prompt}\n（上一版未过质检：${review.issues.join('；')} 请修改后重出。）`, referenceImageUrls: args.refs }, new AbortController().signal);
+        const result = await provider.generate({ prompt: `${request.prompt}\n（上一版未过质检：${review.issues.join('；')} 请修改后重出。）`, referenceImageUrls: refs }, new AbortController().signal);
         render = result[0] ?? render;
       } catch { break; }
       try {
-        review = await args.reviser.review({ imageUrl: reviewImageUrl(), context: { title: args.title, description: args.description, kind: args.kind } });
+        review = await reviser.review({ imageUrl: reviewImageUrl(), context: { title: spec.title, description: spec.description, kind: spec.kind } });
       } catch {
         review = { ok: true, issues: ['自检服务异常，未验证'] };
       }
     }
     let localPath = '';
     try {
-      localPath = await saveImageBytes(this.deps.imagesDir, args.productId, imageId, render);
+      localPath = await saveImageBytes(this.deps.imagesDir, spec.productId, imageId, render);
     } catch {
       localPath = '';
     }
     return {
-      imageId, kind: args.kind, skuKey: args.skuKey, detail: args.detail, localPath,
-      plannedPath: `mercado/${args.productId}/${imageId}.png`, sourceRefImages: args.refs, prompt: args.prompt,
+      imageId, kind: spec.kind, skuKey: spec.skuKey, detail: spec.detail, localPath,
+      plannedPath: `mercado/${spec.productId}/${imageId}.png`, sourceRefImages: refs, prompt: request.prompt,
       attempts, review, status: review.ok ? 'ok' : (attempts >= 3 ? 'failed' : 'retried'), createdAt: this.deps.now?.() ?? new Date().toISOString(),
     };
   }

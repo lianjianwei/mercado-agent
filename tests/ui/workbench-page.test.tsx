@@ -174,6 +174,7 @@ function createApi(allProducts: Product[] = products) {
   const generate = vi.fn<EditApi['generate']>(async () => editDraft());
   const draft = vi.fn<EditApi['draft']>(async () => null);
   const saveDraft = vi.fn<EditApi['saveDraft']>(async (_id, incoming) => incoming);
+  const saveToMiaoshou = vi.fn<EditApi['saveToMiaoshou']>(async (id) => ({ detailId: id }));
 
   return {
     api: {
@@ -183,6 +184,7 @@ function createApi(allProducts: Product[] = products) {
         generate,
         draft,
         saveDraft,
+        saveToMiaoshou,
         onEditLog: () => () => undefined,
         images: {
           generateImages: vi.fn(async () => ({
@@ -212,6 +214,7 @@ function createApi(allProducts: Product[] = products) {
       generate,
       draft,
       saveDraft,
+      saveToMiaoshou,
       onEditLog: () => () => undefined,
       images: {
         generateImages: vi.fn(async () => ({

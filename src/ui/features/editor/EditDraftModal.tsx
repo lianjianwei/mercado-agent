@@ -40,6 +40,7 @@ export function EditDraftModal({
       if (document.querySelector('.lightbox-overlay')) return;
       if (document.querySelector('.np-breakdown-popover')) return;
       if (document.querySelector('.regenerate-dialog-overlay')) return;
+      if (document.querySelector('.save-confirm-overlay')) return;
       onClose();
     }
     window.addEventListener('keydown', onKeyDown);

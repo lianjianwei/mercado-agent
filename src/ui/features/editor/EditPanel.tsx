@@ -6,6 +6,7 @@ import type { Product, ProductDetail } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
 import { DraftView } from './DraftView';
 import { MiaoshouView } from './MiaoshouView';
+import { buildSaveChangeList } from './save-change-summary';
 
 type EditPanelProps = {
   product: Product;
@@ -48,6 +49,10 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [regenText, setRegenText] = useState(true);
   const [regenImages, setRegenImages] = useState(true);
+  // 保存到妙手:先弹确认框展示变更清单,确认后才发请求。
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
+  const [savingToMiaoshou, setSavingToMiaoshou] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
   // Load any existing draft plus the Miaoshou detail when the panel opens for
   // a product. The two views compare the miaoshou snapshot with the draft.
@@ -82,6 +87,16 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [regenerateDialogOpen]);
+
+  // 保存到妙手确认弹窗打开时,Esc 只关确认弹窗,不关整个编辑弹窗。
+  useEffect(() => {
+    if (!saveConfirmOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSaveConfirmOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [saveConfirmOpen]);
 
   // 重新生成草稿文本(标题/描述/SKU 等)。withImages=true 时随后自动重新生图。
   async function runGenerate(withImages: boolean) {
@@ -137,6 +152,30 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
     if (text && images) await runGenerate(true);
     else if (text) await runGenerate(false);
     else if (images) await runGenerateImages();
+  }
+
+  // 打开「保存到妙手」确认弹窗(展示变更清单)。
+  function openSaveToMiaoshou() {
+    if (!draft) return;
+    setSaveMessage('');
+    setError('');
+    setSaveConfirmOpen(true);
+  }
+
+  // 确认后把当前草稿增量覆盖保存到妙手(只在用户点「确认保存」时发请求)。
+  async function confirmSaveToMiaoshou() {
+    if (!product) return;
+    setSaveConfirmOpen(false);
+    setSavingToMiaoshou(true);
+    setError('');
+    try {
+      await api.saveToMiaoshou(product.id);
+      setSaveMessage('已保存到妙手平台。如需刷新妙手详情，请手动重新同步。');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '保存到妙手失败。');
+    } finally {
+      setSavingToMiaoshou(false);
+    }
   }
 
   async function runSave() {
@@ -275,6 +314,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
         </div>
 
         {error && <div className="page-error">{error}</div>}
+        {saveMessage && <div className="page-success">{saveMessage}</div>}
 
         {!loading && (
           <div className="edit-view-tabs" role="tablist" aria-label="编辑视图">
@@ -315,6 +355,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             detail={detail}
             draft={draft}
             onRestoreImages={() => void runRestoreImages()}
+            onSaveToMiaoshou={() => void openSaveToMiaoshou()}
             onSave={() => void runSave()}
             onUpdateField={updateDraftField}
             onUpdateSkuField={updateSkuField}
@@ -381,6 +422,59 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
                 type="button"
               >
                 生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 保存到妙手确认弹窗:展示变更清单,确认后才发请求。 */}
+      {saveConfirmOpen && draft && (
+        <div className="save-confirm-overlay" onClick={() => setSaveConfirmOpen(false)}>
+          <div
+            aria-label="保存到妙手平台"
+            aria-modal="true"
+            className="save-confirm-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="save-confirm-header">
+              <h3>保存到妙手平台</h3>
+              <button
+                aria-label="关闭"
+                className="np-close"
+                onClick={() => setSaveConfirmOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <p className="save-confirm-warning">
+              将把当前 AI 编辑的以下内容增量覆盖保存到妙手。此操作会写入妙手平台，请确认：
+            </p>
+            <ul className="save-confirm-changes">
+              {buildSaveChangeList(draft, detail).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p className="save-confirm-note">
+              库存、货源价跟随每个 SKU 一起更新（库存以 AI 编辑详情里的值为准）；不覆盖保修、类目、货源来源等（草稿没有 AI 生成的图时，图片也保留妙手原图）。
+            </p>
+            <div className="edit-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setSaveConfirmOpen(false)}
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                className="save-to-miaoshou-button"
+                disabled={savingToMiaoshou}
+                onClick={() => void confirmSaveToMiaoshou()}
+                type="button"
+              >
+                {savingToMiaoshou ? '保存中…' : '确认保存'}
               </button>
             </div>
           </div>

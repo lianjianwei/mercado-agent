@@ -177,6 +177,9 @@ const ssrEditApi: EditApi = {
   async saveDraft() {
     throw new Error('AI 编辑服务未配置');
   },
+  async saveToMiaoshou() {
+    throw new Error('AI 编辑服务未配置');
+  },
   onEditLog() {
     return () => undefined;
   },

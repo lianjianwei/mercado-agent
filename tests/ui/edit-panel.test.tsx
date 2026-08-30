@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -116,6 +116,7 @@ function renderPanel(overrides: {
     generate: vi.fn(async () => generated),
     draft: vi.fn(async () => existing),
     saveDraft: vi.fn(async (_id, incoming) => incoming),
+    saveToMiaoshou: vi.fn(async (_id: string) => ({ detailId: _id })),
     onEditLog: () => () => undefined,
     images: {
       generateImages: vi.fn(async () => emptyImagesResult()),
@@ -164,6 +165,7 @@ describe('EditPanel', () => {
           generate: vi.fn(async () => draft()),
           draft: vi.fn(async () => null),
           saveDraft: vi.fn(async (_id, value) => value),
+          saveToMiaoshou: vi.fn(async (_id: string) => ({ detailId: _id })),
           onEditLog: () => () => undefined,
     images: {
       generateImages: vi.fn(async () => emptyImagesResult()),
@@ -283,6 +285,7 @@ describe('EditPanel', () => {
       }),
       draft: vi.fn(async () => null),
       saveDraft: vi.fn(async (_id, incoming) => incoming),
+      saveToMiaoshou: vi.fn(async (_id: string) => ({ detailId: _id })),
       onEditLog: () => () => undefined,
     images: {
       generateImages: vi.fn(async () => emptyImagesResult()),
@@ -295,5 +298,39 @@ describe('EditPanel', () => {
 
     await user.click(await screen.findByRole('button', { name: '生成 AI 草稿' }));
     expect(await screen.findByText('模型服务不可用')).toBeTruthy();
+  });
+
+  it('opens a confirm dialog with a change list and saves to Miaoshou on confirm', async () => {
+    const { api } = renderPanel({ existing: draft() });
+    const user = userEvent.setup();
+
+    // 切到 AI 编辑详情,出现「保存到妙手平台」按钮。
+    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
+    const saveButton = await screen.findByRole('button', { name: '保存到妙手平台' });
+    await user.click(saveButton);
+
+    // 确认弹窗出现,展示变更清单。
+    const dialog = await screen.findByRole('dialog', { name: '保存到妙手平台' });
+    expect(within(dialog).getByText('标题')).toBeTruthy();
+    expect(within(dialog).getByText('描述')).toBeTruthy();
+    // 品牌在草稿固定为 Generic,妙手原值 Hario → 变更清单里出现。
+    expect(within(dialog).getByText('品牌（Generic）')).toBeTruthy();
+
+    // 库存/货源价跟随 SKU 的提示。
+    expect(within(dialog).getByText(/库存、货源价跟随每个 SKU 一起更新/)).toBeTruthy();
+
+    // 取消不发送请求。
+    await user.click(within(dialog).getByRole('button', { name: '取消' }));
+    expect(api.saveToMiaoshou).not.toHaveBeenCalled();
+
+    // 再次打开并确认 → 调用 saveToMiaoshou。
+    await user.click(saveButton);
+    await user.click(
+      within(await screen.findByRole('dialog', { name: '保存到妙手平台' })).getByRole('button', {
+        name: '确认保存',
+      }),
+    );
+    await waitFor(() => expect(api.saveToMiaoshou).toHaveBeenCalledWith('product-1'));
+    expect(await screen.findByText(/已保存到妙手平台/)).toBeTruthy();
   });
 });

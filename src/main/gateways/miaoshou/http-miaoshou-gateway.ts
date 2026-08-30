@@ -25,6 +25,7 @@ const COLLECT_BOX_PATH =
   '/open/v1/product/collect_box/mercadolibre/collect_box/';
 const LIST_PATH = `${COLLECT_BOX_PATH}search_collect_box_detailList`;
 const DETAIL_PATH = `${COLLECT_BOX_PATH}get_site_collect_item_info`;
+const SAVE_SITE_PATH = `${COLLECT_BOX_PATH}save_site_collect_item_info`;
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_REQUEST_INTERVAL_MS = 1_100;
 
@@ -75,7 +76,7 @@ type MiaoshouWait = (
 ) => Promise<void>;
 
 export type MiaoshouLogEvent = {
-  operation: 'listCollectBox' | 'getCollectBoxDetail';
+  operation: 'listCollectBox' | 'getCollectBoxDetail' | 'saveCollectBoxItemInfo';
   outcome:
     | 'success'
     | 'api_error'
@@ -86,6 +87,8 @@ export type MiaoshouLogEvent = {
   durationMs: number;
   code?: string;
   httpStatus?: number;
+  // 妙手返回的原始 message/reason(仅主进程终端诊断用,不上加密钥)。
+  reason?: string;
 };
 
 export type MiaoshouInvalidResponseDiagnostic = {
@@ -242,6 +245,31 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     }
   }
 
+  async saveCollectBoxItemInfo(
+    detailId: string,
+    info: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (!/^\d+$/.test(detailId)) throw new MiaoshouInvalidDetailIdError();
+    const numericDetailId = Number(detailId);
+    if (!Number.isSafeInteger(numericDetailId) || numericDetailId < 1) {
+      throw new MiaoshouInvalidDetailIdError();
+    }
+    const response = await this.post(
+      'saveCollectBoxItemInfo',
+      SAVE_SITE_PATH,
+      { detailId: numericDetailId, siteCollectItemInfo: info },
+      signal,
+    );
+    this.log(
+      'saveCollectBoxItemInfo',
+      'success',
+      response.startedAt,
+      'success',
+      response.httpStatus,
+    );
+  }
+
   private async post(
     operation: MiaoshouOperation,
     requestPath: string,
@@ -320,7 +348,7 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
       const code = this.readErrorCode(payload);
       if (!response.ok || code !== null) {
         const safeCode = this.toSafeErrorCode(code, response.status);
-        this.log(operation, 'api_error', startedAt, safeCode, response.status);
+        this.log(operation, 'api_error', startedAt, safeCode, response.status, this.readErrorMessage(payload));
         if (AUTHENTICATION_CODES.has(safeCode)) {
           throw new MiaoshouAuthenticationError(safeCode);
         }
@@ -385,6 +413,14 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     return code === 'success' ? null : code;
   }
 
+  private readErrorMessage(payload: unknown): string | undefined {
+    if (!payload || typeof payload !== 'object') return undefined;
+    const message = Reflect.get(payload, 'message');
+    const reason = Reflect.get(payload, 'reason');
+    const text = typeof message === 'string' ? message : typeof reason === 'string' ? reason : undefined;
+    return text && text.trim() !== '' ? text : undefined;
+  }
+
   private toSafeErrorCode(code: string | null, httpStatus: number): string {
     if (
       code
@@ -408,6 +444,7 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     startedAt: number,
     code?: string,
     httpStatus?: number,
+    reason?: string,
   ): void {
     this.logger({
       operation,
@@ -415,6 +452,7 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       ...(code ? { code } : {}),
       ...(httpStatus === undefined ? {} : { httpStatus }),
+      ...(reason ? { reason } : {}),
     });
   }
 

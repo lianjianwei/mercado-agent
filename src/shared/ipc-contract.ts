@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
   editGenerate: 'edit:generate',
   editDraft: 'edit:draft',
   editSaveDraft: 'edit:save-draft',
+  editSaveToMiaoshou: 'edit:save-to-miaoshou',
   editLog: 'edit:log',
   infringementAnalyze: 'infringement:analyze',
   infringementAnalyzeBatch: 'infringement:analyze-batch',
@@ -127,10 +128,17 @@ export interface ProductApi {
   clear(): Promise<void>;
 }
 
+// 保存到妙手平台的结果:detailId 即采集箱详情 ID,成功以返回表示。
+export type MiaoshouSaveResult = {
+  detailId: string;
+};
+
 export interface EditApi {
   generate(productId: string): Promise<EditDraft>;
   draft(productId: string): Promise<EditDraft | null>;
   saveDraft(productId: string, draft: EditDraft): Promise<EditDraft>;
+  // 把当前 AI 编辑草稿保存到妙手平台(增量覆盖,只在用户点按钮时调用)。
+  saveToMiaoshou(productId: string): Promise<MiaoshouSaveResult>;
   onEditLog(listener: (line: string) => void): () => void;
   images: ImageApi;
 }

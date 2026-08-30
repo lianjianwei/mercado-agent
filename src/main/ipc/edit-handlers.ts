@@ -7,6 +7,8 @@ import { DIMENSION_UNIT, WEIGHT_UNIT, type EditDraft } from '../../domain/edit';
 import { editDraftSchema } from '../../shared/edit-output-schema';
 import type { EditGenerationService } from '../services/edit-generation-service';
 import type { NetProfitCalculator } from '../services/net-profit-calculator';
+import { buildSiteCollectItemInfo } from '../services/save-site-collect-item-info';
+import type { MiaoshouGateway } from '../gateways/miaoshou/miaoshou-gateway';
 
 const productIdSchema = z.strictObject({ productId: z.string().min(1) });
 
@@ -19,6 +21,8 @@ type EditHandlerDependencies = {
   snapshots: Pick<ProductSnapshotRepository, 'listForProduct' | 'append'>;
   service: Pick<EditGenerationService, 'generate'>;
   netProfit: Pick<NetProfitCalculator, 'computeForDraft'>;
+  // 保存到妙手时复用同一套 signature/限速/错误码处理;仅在用户点按钮时调用。
+  saveGateway: Pick<MiaoshouGateway, 'saveCollectBoxItemInfo'>;
 };
 
 // The aiDraft snapshot is the second of the product's two snapshots: it
@@ -178,6 +182,58 @@ export function registerEditHandlers(
       };
     }
   });
+
+  registrar.handle(IPC_CHANNELS.editSaveToMiaoshou, async (_event, payload) => {
+    try {
+      const { productId } = productIdSchema.parse(payload);
+      const draft = readLatestDraft(dependencies.snapshots, productId);
+      if (!draft) {
+        return {
+          ok: false,
+          error: {
+            code: 'NOT_FOUND' as const,
+            message: '该商品没有 AI 编辑草稿，无法保存到妙手。',
+          },
+        };
+      }
+      const miaoshou = latestMiaoshouInfo(dependencies.snapshots, productId);
+      if (!miaoshou) {
+        return {
+          ok: false,
+          error: {
+            code: 'NOT_FOUND' as const,
+            message: '该商品没有妙手同步快照，无法保存到妙手。',
+          },
+        };
+      }
+      // 增量覆盖:以妙手原值为底,只写草稿拥有的字段;saleAttributeRules 用于给
+      // saleAttributes 补规格规则的 id(妙手保存要求 id,GET 返回却没有)。
+      const info = buildSiteCollectItemInfo(
+        miaoshou.siteCollectItemInfo,
+        draft,
+        miaoshou.saleAttributeRules,
+      );
+      await dependencies.saveGateway.saveCollectBoxItemInfo(productId, info);
+      return { ok: true, data: { detailId: productId } };
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return {
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR' as const,
+            message: '商品 ID 无效',
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: {
+          code: 'INTERNAL_ERROR' as const,
+          message: error instanceof Error ? error.message : '保存到妙手失败',
+        },
+      };
+    }
+  });
 }
 
 function appendDraft(
@@ -202,4 +258,29 @@ function nextVersion(
   const current = readLatestDraft(snapshots, productId);
   if (!current) return incoming.version;
   return Math.max(current.version + 1, incoming.version);
+}
+
+// 最新一条妙手同步快照的 siteCollectItemInfo 与 saleAttributeRules(保存时作为「原值」
+// 做增量覆盖;规则用于给 saleAttributes 补 id)。listForProduct 按 captured_at ASC 排序,末位即最新。
+function latestMiaoshouInfo(
+  snapshots: Pick<ProductSnapshotRepository, 'listForProduct'>,
+  productId: string,
+): { siteCollectItemInfo: Record<string, unknown>; saleAttributeRules: unknown[] } | null {
+  const snaps = snapshots
+    .listForProduct(productId)
+    .filter((snapshot) => snapshot.kind === 'miaoshou');
+  const latest = snaps[snaps.length - 1];
+  if (!latest) return null;
+  const payload = latest.payload as {
+    siteCollectItemInfo?: unknown;
+    saleAttributeRules?: unknown;
+  };
+  const info = payload?.siteCollectItemInfo;
+  if (!info || typeof info !== 'object') return null;
+  return {
+    siteCollectItemInfo: info as Record<string, unknown>,
+    saleAttributeRules: Array.isArray(payload?.saleAttributeRules)
+      ? payload.saleAttributeRules
+      : [],
+  };
 }

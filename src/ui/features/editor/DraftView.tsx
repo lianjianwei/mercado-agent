@@ -31,6 +31,8 @@ type DraftViewProps = {
   onUpdateGlobalNetProfit?: (value: string) => void;
   // 恢复已生成图片:不重新生成,把之前上传的公网 URL 重新写回草稿。
   onRestoreImages?: () => void;
+  // 保存到妙手平台:打开确认弹窗(展示变更清单),确认后走 IPC 增量覆盖。
+  onSaveToMiaoshou?: () => void;
   onSave: () => void;
   restoringImages: boolean;
   saving: boolean;
@@ -134,6 +136,7 @@ export function DraftView({
   onUpdateSkuListingType,
   onUpdateGlobalNetProfit,
   onRestoreImages,
+  onSaveToMiaoshou,
   onSave,
   restoringImages,
   saving,
@@ -154,6 +157,14 @@ export function DraftView({
       />
 
       <div className="edit-actions">
+        <button
+          className="save-to-miaoshou-button"
+          onClick={onSaveToMiaoshou}
+          title="把当前 AI 编辑的标题/描述/品牌/型号/SKU/净收益/产品类型/图片增量覆盖保存到妙手(先展示变更清单再确认)"
+          type="button"
+        >
+          保存到妙手平台
+        </button>
         <button
           className="secondary-button"
           disabled={restoringImages}

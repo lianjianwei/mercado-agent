@@ -21,6 +21,7 @@ import { registerEditHandlers } from './edit-handlers';
 import { registerImageHandlers } from './image-handlers';
 import { registerClipboardHandlers } from './clipboard-handlers';
 import { registerNetProfitHandlers } from './net-profit-handlers';
+import type { MiaoshouGateway } from '../gateways/miaoshou/miaoshou-gateway';
 import { registerProductHandlers } from './product-handlers';
 import { registerProxyConfigHandlers } from './proxy-config-handlers';
 import type { ConnectionTestService } from '../services/connection-test-service';
@@ -51,6 +52,8 @@ type HandlerDependencies = {
   fxRates: FxRateRepository;
   refreshRates: () => Promise<FxRates>;
   sendProgress: (channel: string, line: string) => void;
+  // 保存到妙手的网关(懒加载,按需取凭证)。
+  saveGateway: Pick<MiaoshouGateway, 'saveCollectBoxItemInfo'>;
 };
 
 export function registerHandlers(
@@ -80,6 +83,7 @@ export function registerHandlers(
     snapshots: dependencies.snapshots,
     service: dependencies.editService,
     netProfit: dependencies.netProfitCalculator,
+    saveGateway: dependencies.saveGateway,
   });
   registerImageHandlers(registrar, {
     service: dependencies.imageService,

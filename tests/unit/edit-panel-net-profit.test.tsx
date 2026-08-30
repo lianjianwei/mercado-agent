@@ -97,6 +97,7 @@ function api(): EditApi {
     draft: vi.fn(async () => draft),
     generate: vi.fn(async () => draft),
     saveDraft: vi.fn(async (_id, value) => value),
+    saveToMiaoshou: vi.fn(async (_id: string) => ({ detailId: _id })),
     onEditLog: () => () => undefined,
     images: {
       generateImages: vi.fn(async () => ({

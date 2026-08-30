@@ -333,4 +333,73 @@ describe('HttpMiaoshouGateway', () => {
     );
     expect(fetcher).not.toHaveBeenCalled();
   });
+
+  it('posts the whole siteCollectItemInfo to the save endpoint with signed headers', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    const gateway = new HttpMiaoshouGateway(credentials, {
+      now: () => 1_720_000_000_123,
+      fetcher: async (input, init) => {
+        capturedUrl = String(input);
+        capturedInit = init;
+        return Response.json({ result: 'success', code: 'success' });
+      },
+    });
+
+    await gateway.saveCollectBoxItemInfo('90001', { title: 'Nuevo título' });
+
+    expect(capturedUrl).toBe(
+      'https://openapi-erp.91miaoshou.com/open/v1/product/collect_box/mercadolibre/collect_box/save_site_collect_item_info',
+    );
+    expect(capturedInit?.method).toBe('POST');
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      detailId: 90001,
+      siteCollectItemInfo: { title: 'Nuevo título' },
+    });
+    expect(capturedInit?.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      'x-app-key': credentials.appKey,
+      'x-timestamp': '1720000000',
+    });
+  });
+
+  it('rejects an unsafe detail id for save without issuing a request', async () => {
+    const fetcher = vi.fn();
+    const gateway = new HttpMiaoshouGateway(credentials, { fetcher });
+
+    await expect(
+      gateway.saveCollectBoxItemInfo('90001/path', {}),
+    ).rejects.toThrow('采集箱详情 ID 无效');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('maps an authentication failure from the save endpoint to a typed error', async () => {
+    const gateway = new HttpMiaoshouGateway(credentials, {
+      fetcher: async () => Response.json(fixture('auth-failure.json')),
+    });
+
+    await expect(
+      gateway.saveCollectBoxItemInfo('90001', { title: 'x' }),
+    ).rejects.toBeInstanceOf(MiaoshouAuthenticationError);
+  });
+
+  it('surfaces the raw miaoshou message as reason on a business api_error', async () => {
+    const events: MiaoshouLogEvent[] = [];
+    const gateway = new HttpMiaoshouGateway(credentials, {
+      logger: (event) => events.push(event),
+      fetcher: async () =>
+        Response.json({ result: 'fail', code: 'fail', message: 'skuKey: 期望 int, 实际 string(x)' }),
+    });
+
+    await gateway.saveCollectBoxItemInfo('90001', { title: 'x' }).catch(() => undefined);
+
+    expect(events).toMatchObject([
+      {
+        operation: 'saveCollectBoxItemInfo',
+        outcome: 'api_error',
+        code: 'unknown_api_error',
+        reason: 'skuKey: 期望 int, 实际 string(x)',
+      },
+    ]);
+  });
 });

@@ -83,6 +83,8 @@ const desktopApi: DesktopApi = {
       invoke(IPC_CHANNELS.editDraft, { productId }),
     saveDraft: (productId, draft) =>
       invoke(IPC_CHANNELS.editSaveDraft, { productId, draft }),
+    saveToMiaoshou: (productId) =>
+      invoke(IPC_CHANNELS.editSaveToMiaoshou, { productId }),
     onEditLog: (listener) => {
       const onEvent = (_event: Electron.IpcRendererEvent, payload: unknown) => {
         if (

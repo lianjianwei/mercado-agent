@@ -101,6 +101,7 @@ describe('ProductSyncService', () => {
         return { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] };
       }),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
 
@@ -143,6 +144,7 @@ describe('ProductSyncService', () => {
         ? { pageNo: 1, pageSize: 20, total: 2, hasMore: false, items: [item('1'), item('2')] }
         : { pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] }),
       getCollectBoxDetail: vi.fn(async (id) => { if (id === '1') throw new Error('detail unavailable'); return detail(id); }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -160,6 +162,7 @@ describe('ProductSyncService', () => {
         return { pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('3')] };
       }),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
 
@@ -181,6 +184,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async () => { controller.abort(); return { pageNo: 1, pageSize: 20, total: 40, hasMore: true, items: [item('1')] }; }),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -197,6 +201,7 @@ describe('ProductSyncService', () => {
         controller.abort();
         throw new Error('request cancelled');
       }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -210,6 +215,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 0, hasMore: false, items: [] })),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
 
@@ -228,6 +234,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository, { now: () => '2026-08-27T00:00:00.000Z' });
     const lines: string[] = [];
@@ -247,6 +254,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
       getCollectBoxDetail: vi.fn(async () => { throw new MiaoshouRateLimitError('accountQpsRateLimit'); }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -268,6 +276,7 @@ describe('ProductSyncService', () => {
         }
         return detail(id);
       }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -283,6 +292,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async () => ({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [item('1')] })),
       getCollectBoxDetail: vi.fn(async () => { throw new MiaoshouApiError('some_business_error'); }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -297,6 +307,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(async () => { throw new MiaoshouTimeoutError(); }),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -318,6 +329,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn().mockResolvedValue({ pageNo: 1, pageSize: 20, total: 1, hasMore: false, items: [bareItem] }),
       getCollectBoxDetail: vi.fn(async (id) => detailWithListColumns(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -340,6 +352,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(),
       getCollectBoxDetail: vi.fn(async (id) => detailWithListColumns(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -362,6 +375,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(),
       getCollectBoxDetail: vi.fn(async (id) => detail(id)),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -385,6 +399,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(),
       getCollectBoxDetail: vi.fn(async () => { throw new MiaoshouApiError('product_not_found'); }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 
@@ -400,6 +415,7 @@ describe('ProductSyncService', () => {
     const gateway: MiaoshouGateway = {
       listCollectBox: vi.fn(),
       getCollectBoxDetail: vi.fn(async () => { throw new Error('network down'); }),
+      saveCollectBoxItemInfo: vi.fn(async () => undefined),
     };
     const service = new ProductSyncService(gateway, repositories.productRepository, repositories.snapshotRepository);
 

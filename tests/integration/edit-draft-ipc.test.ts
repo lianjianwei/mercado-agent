@@ -11,6 +11,7 @@ import type { NetProfitBreakdown } from '../../src/domain/net-profit';
 // A pass-through calculator: these handler tests exercise draft persistence,
 // not net-profit math, so recompute just echoes the draft back.
 const identityCalculator = { computeForDraft: vi.fn((draft: EditDraft) => draft) };
+const saveGateway = { saveCollectBoxItemInfo: vi.fn(async () => undefined) };
 
 function makeDraft(version: number): EditDraft {
   return {
@@ -79,7 +80,7 @@ describe('edit draft IPC', () => {
     };
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service, netProfit: identityCalculator },
+      { snapshots, service, netProfit: identityCalculator, saveGateway },
     );
 
     await expect(
@@ -102,7 +103,7 @@ describe('edit draft IPC', () => {
     const snapshots = fakeSnapshots();
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator, saveGateway },
     );
 
     await expect(
@@ -131,7 +132,7 @@ describe('edit draft IPC', () => {
     ]);
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator, saveGateway },
     );
 
     await expect(
@@ -153,7 +154,7 @@ describe('edit draft IPC', () => {
     ]);
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator, saveGateway },
     );
 
     const edited = makeDraft(3);
@@ -175,7 +176,7 @@ describe('edit draft IPC', () => {
     const snapshots = fakeSnapshots();
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator, saveGateway },
     );
 
     await expect(
@@ -285,7 +286,7 @@ describe('edit draft IPC', () => {
     };
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() }, netProfit: calc },
+      { snapshots, service: { generate: vi.fn() }, netProfit: calc, saveGateway },
     );
 
     await handlers.get(IPC_CHANNELS.editDraft)?.({}, { productId: '90001' });
@@ -313,7 +314,7 @@ describe('edit draft IPC', () => {
     const calc = { computeForDraft: vi.fn((value: EditDraft) => value) };
     registerEditHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { snapshots, service: { generate: vi.fn() }, netProfit: calc },
+      { snapshots, service: { generate: vi.fn() }, netProfit: calc, saveGateway },
     );
 
     const result = await handlers.get(IPC_CHANNELS.editDraft)?.({}, { productId: '90001' });
@@ -350,5 +351,78 @@ describe('edit draft IPC', () => {
     const draft = readLatestDraft(snapshots, '90001');
     expect(draft).not.toBeNull();
     expect(draft!.version).toBe(2);
+  });
+
+  it('saves the draft to Miaoshou by overlaying the latest Miaoshou snapshot', async () => {
+    saveGateway.saveCollectBoxItemInfo.mockClear();
+    const handlers = new Map<string, IpcListener>();
+    const snapshots = fakeSnapshots([
+      {
+        id: 'm1',
+        productId: '90001',
+        kind: 'miaoshou',
+        capturedAt: '2026-08-28T00:00:00.000Z',
+        payload: {
+          siteCollectItemInfo: {
+            title: 'Old',
+            notes: 'Old',
+            attributes: [{ name: 'Brand', values: [{ name: 'OldBrand' }] }],
+            sites: ['MX'],
+            siteAndPriceMap: { MX: 8.5 },
+            skuMap: {},
+          },
+        },
+      },
+      {
+        id: 'a1',
+        productId: '90001',
+        kind: 'aiDraft',
+        capturedAt: '2026-08-28T01:00:00.000Z',
+        payload: makeDraft(1),
+      },
+    ]);
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator, saveGateway },
+    );
+
+    const result = await handlers
+      .get(IPC_CHANNELS.editSaveToMiaoshou)
+      ?.({}, { productId: '90001' });
+
+    expect(result).toEqual({ ok: true, data: { detailId: '90001' } });
+    expect(saveGateway.saveCollectBoxItemInfo).toHaveBeenCalledWith(
+      '90001',
+      expect.objectContaining({
+        title: 'Titulo',
+        notes: 'Descripción',
+        siteAndPriceMap: { MX: 8.5 },
+      }),
+    );
+  });
+
+  it('returns NOT_FOUND when saving to Miaoshou without a draft', async () => {
+    saveGateway.saveCollectBoxItemInfo.mockClear();
+    const handlers = new Map<string, IpcListener>();
+    const snapshots = fakeSnapshots([
+      {
+        id: 'm1',
+        productId: '90001',
+        kind: 'miaoshou',
+        capturedAt: '2026-08-28T00:00:00.000Z',
+        payload: { siteCollectItemInfo: { title: 'Old' } },
+      },
+    ]);
+    registerEditHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { snapshots, service: { generate: vi.fn() }, netProfit: identityCalculator, saveGateway },
+    );
+
+    const result = await handlers
+      .get(IPC_CHANNELS.editSaveToMiaoshou)
+      ?.({}, { productId: '90001' });
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
+    expect(saveGateway.saveCollectBoxItemInfo).not.toHaveBeenCalled();
   });
 });

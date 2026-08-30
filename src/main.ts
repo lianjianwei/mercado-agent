@@ -117,6 +117,19 @@ app.whenReady().then(async () => {
     syncOne: (productId: string, signal?: AbortSignal) =>
       createProductSyncService().syncOne(productId, signal),
   };
+  // 保存到妙手:懒取凭证,仅用户点「保存到妙手平台」时构建网关并发请求。带 logger,
+  // 让主进程终端输出保存结果/错误(之前静默,出错时看不到信息)。
+  const saveGateway = {
+    saveCollectBoxItemInfo: async (detailId: string, info: Record<string, unknown>) => {
+      const miaoshouCredentials = credentials.getMiaoshou();
+      if (!miaoshouCredentials) {
+        throw new Error('未配置妙手凭证，无法保存到妙手。');
+      }
+      return new HttpMiaoshouGateway(miaoshouCredentials, {
+        logger: (event) => console.log('[妙手保存]', JSON.stringify(event)),
+      }).saveCollectBoxItemInfo(detailId, info);
+    },
+  };
   const getAppInfo = () => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -269,6 +282,7 @@ app.whenReady().then(async () => {
       editService,
       imageService,
       netProfitCalculator,
+      saveGateway,
       netProfitSettings: appSettings,
       fxRates: fxRateRepository,
       refreshRates: () => fxRateService.refresh(),

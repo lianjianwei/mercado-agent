@@ -373,6 +373,23 @@ describe('EditGenerationService', () => {
     expect(prompt).toMatch(/换行|•|列表/);
   });
 
+  it('forbids factory / wholesale / customization B2B language in title and description', async () => {
+    const provider = fakeProvider(validOutput());
+    const service = new EditGenerationService(
+      { getById: vi.fn() },
+      fakeSnapshots(detail()),
+      () => provider,
+    );
+    await service.generate('90001');
+
+    const prompt = (provider.generate as ReturnType<typeof vi.fn>).mock
+      .calls[0][0].prompt as string;
+    // 只面向美客多终端买家,只卖现货;并明确禁止批发/定制/工厂/跨境/加印logo/IP授权 等词。
+    expect(prompt).toMatch(/终端消费者|普通卖家|现货|只卖成品/);
+    expect(prompt).toMatch(/定制|批发|工厂|跨境|加印.?logo|IP.?授权|专利/);
+    expect(prompt).toMatch(/personalización|por mayor|mayorista|bajo pedido|fábrica/);
+  });
+
   it('drops SKUs whose original stock is missing or ≤1 and sets survivors to 2', async () => {
     const lowStockDetail: CollectBoxDetailDto = {
       siteCollectItemInfo: {

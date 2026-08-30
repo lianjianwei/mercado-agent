@@ -41,6 +41,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [regeneratingImages, setRegeneratingImages] = useState(false);
+  const [restoringImages, setRestoringImages] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   // 重新生成弹窗:选择只重生成文本 / 只重生成图片 / 两者。
@@ -110,6 +111,23 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
       setError(reason instanceof Error ? reason.message : '图片生成失败。');
     } finally {
       setRegeneratingImages(false);
+    }
+  }
+
+  // 恢复已生成图片:不重新生成,直接把之前已上传的公网 URL 重新写回草稿
+  // (修文本重生成误清图片、或想换回上一批图时用)。
+  async function runRestoreImages() {
+    if (!product) return;
+    setRestoringImages(true);
+    setError('');
+    try {
+      await api.images.uploadImages(product.id);
+      const refreshed = await api.draft(product.id);
+      if (refreshed) setDraft(refreshed);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '恢复已生成的图片失败。');
+    } finally {
+      setRestoringImages(false);
     }
   }
 
@@ -296,6 +314,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
           <DraftView
             detail={detail}
             draft={draft}
+            onRestoreImages={() => void runRestoreImages()}
             onSave={() => void runSave()}
             onUpdateField={updateDraftField}
             onUpdateSkuField={updateSkuField}
@@ -303,6 +322,7 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             onUpdateSkuNetProfit={updateSkuNetProfit}
             onUpdateSkuListingType={updateSkuListingType}
             onUpdateGlobalNetProfit={updateGlobalNetProfit}
+            restoringImages={restoringImages}
             saving={saving}
           />
         )}

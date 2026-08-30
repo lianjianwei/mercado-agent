@@ -29,7 +29,10 @@ type DraftViewProps = {
   onUpdateSkuNetProfit?: (skuKey: string, siteCode: string, value: string) => void;
   onUpdateSkuListingType?: (skuKey: string, siteCode: string, value: string) => void;
   onUpdateGlobalNetProfit?: (value: string) => void;
+  // 恢复已生成图片:不重新生成,把之前上传的公网 URL 重新写回草稿。
+  onRestoreImages?: () => void;
   onSave: () => void;
+  restoringImages: boolean;
   saving: boolean;
 };
 
@@ -130,7 +133,9 @@ export function DraftView({
   onUpdateSkuNetProfit,
   onUpdateSkuListingType,
   onUpdateGlobalNetProfit,
+  onRestoreImages,
   onSave,
+  restoringImages,
   saving,
 }: DraftViewProps) {
   const vm = toViewModel(draft, detail, {
@@ -149,6 +154,15 @@ export function DraftView({
       />
 
       <div className="edit-actions">
+        <button
+          className="secondary-button"
+          disabled={restoringImages}
+          onClick={onRestoreImages}
+          title="不重新生成,直接把之前已生成并上传的公网图片重新写回草稿"
+          type="button"
+        >
+          {restoringImages ? '恢复中…' : '恢复已生成图片'}
+        </button>
         <button
           className="primary-button"
           disabled={saving}

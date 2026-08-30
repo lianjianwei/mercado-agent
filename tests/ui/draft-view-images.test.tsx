@@ -73,6 +73,7 @@ describe('DraftView multi-SKU images', () => {
         onUpdateSkuField={() => undefined}
         onUpdateSkuPackage={() => undefined}
         onSave={() => undefined}
+        restoringImages={false}
         saving={false}
       />,
     );

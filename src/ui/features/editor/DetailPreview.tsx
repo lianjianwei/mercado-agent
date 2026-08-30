@@ -80,6 +80,8 @@ export type PreviewViewModel = {
   description: PreviewField;
   attributes: PreviewAttribute[]; // 类目 & 属性
   skus: PreviewSku[]; // SKU 信息
+  // 产品级图片(镜像妙手 product 级 images):AI编辑=生成的图片,妙手=妙手原图。
+  productImages: string[];
   siteNetProfit: PreviewSiteNetProfit; // 站点净收益矩阵
   globalNetProfit: PreviewGlobalNetProfit | null;
 };
@@ -129,7 +131,7 @@ export function DetailPreview({ vm }: { vm: PreviewViewModel }) {
       <SkuSection vm={vm} onZoom={zoom} />
       <GlobalNetProfitSection globalNetProfit={vm.globalNetProfit} />
       <SiteNetProfitSection siteNetProfit={vm.siteNetProfit} onZoom={zoom} onShowBreakdown={showBreakdown} />
-      <ImagesSection skus={vm.skus} onZoom={zoom} />
+      <ImagesSection skus={vm.skus} productImages={vm.productImages} onZoom={zoom} />
       {breakdown && (
         <NetProfitBreakdownPopover
           anchor={breakdown.anchor}
@@ -465,14 +467,26 @@ function SiteNetProfitSection({
 
 function ImagesSection({
   skus,
+  productImages,
   onZoom,
 }: {
   skus: PreviewSku[];
+  productImages: string[];
   onZoom: (url: string) => void;
 }) {
   return (
     <section className="detail-section">
       <h3>产品图片</h3>
+      {productImages.length > 0 && (
+        <div className="sku-images">
+          <span className="sku-images-label">产品图</span>
+          <div className="images-grid">
+            {productImages.map((url) => (
+              <ZoomableImage key={url} src={url} className="product-image-thumb" onZoom={onZoom} />
+            ))}
+          </div>
+        </div>
+      )}
       {skus.map((sku) =>
         sku.images.length > 0 ? (
           <div className="sku-images" key={sku.skuKey}>

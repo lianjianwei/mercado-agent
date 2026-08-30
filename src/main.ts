@@ -16,7 +16,7 @@ import { SqliteProviderConfigRepository } from './main/repositories/provider-con
 import { SqliteFxRateRepository } from './main/repositories/fx-rate-repository';
 import { SqliteProductRepository } from './main/repositories/product-repository';
 import { SqliteSnapshotRepository } from './main/repositories/snapshot-repository';
-import { createElectronModelSession } from './main/network/electron-model-session';
+import { createDirectModelSession, createElectronModelSession } from './main/network/electron-model-session';
 import { ModelNetworkClient } from './main/network/model-network-client';
 import { createMainWindowOptions } from './main/window-options';
 import { ConnectionTestService } from './main/services/connection-test-service';
@@ -87,6 +87,8 @@ app.whenReady().then(async () => {
   const modelProxy = new ModelProxyService(appSettings, modelSession);
   await modelProxy.initialize();
   const modelNetwork = new ModelNetworkClient(modelSession, () => modelProxy.getRoute());
+  // 直连网络:豆包 / DeepSeek 不走代理(代理会显著拖慢它们),openai / codex 仍走代理。
+  const directNetwork = new ModelNetworkClient(createDirectModelSession(), () => 'direct' as const);
   const providerConfigs = new SqliteProviderConfigRepository(appDatabase);
   const credentials = new SqliteCredentialRepository(appDatabase);
   const products = new SqliteProductRepository(appDatabase);
@@ -117,8 +119,11 @@ app.whenReady().then(async () => {
   const providerRegistry = new ProviderRegistry(
     providerConfigs,
     createDefaultProviderRegistrations(modelNetwork, {
-      proxy: () => modelProxy.get(),
-      scratchDir: app.getPath('temp'),
+      direct: directNetwork,
+      codex: {
+        proxy: () => modelProxy.get(),
+        scratchDir: app.getPath('temp'),
+      },
     }),
   );
   const infringementRepository = new SqliteInfringementRepository(appDatabase);

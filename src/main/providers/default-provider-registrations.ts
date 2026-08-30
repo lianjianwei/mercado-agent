@@ -35,17 +35,27 @@ function createTextProvider(
 }
 
 export function createDefaultProviderRegistrations(
-  network: ModelNetworkTransport,
-  codex?: {
-    proxy: () => CodexProxyConfig | null;
-    scratchDir: string;
+  network: ModelNetworkTransport, // 走模型代理的网络:openai(文本/生图) + codex
+  options?: {
+    direct?: ModelNetworkTransport; // 直连网络:豆包/DeepSeek(无需代理,避免被代理拖慢)
+    codex?: {
+      proxy: () => CodexProxyConfig | null;
+      scratchDir: string;
+    };
   },
 ): ProviderFactoryRegistration[] {
-  const text = (['doubao', 'deepseek', 'openai'] as const).map((provider) => ({
+  const direct = options?.direct ?? network;
+  const text = (
+    [
+      ['doubao', direct],
+      ['deepseek', direct],
+      ['openai', network],
+    ] as const
+  ).map(([provider, transport]) => ({
     kind: 'text' as const,
     provider,
     create: (configuration: ProviderConfig) =>
-      createTextProvider(textProviders[provider], configuration, network),
+      createTextProvider(textProviders[provider], configuration, transport),
   }));
 
   const image = (['openai'] as const).map((provider) => ({
@@ -59,13 +69,14 @@ export function createDefaultProviderRegistrations(
       ),
   }));
 
-  const codexRegistration: ProviderFactoryRegistration[] = codex
+  const codexOptions = options?.codex;
+  const codexRegistration: ProviderFactoryRegistration[] = codexOptions
     ? [{
         kind: 'image' as const,
         provider: 'codex' as const,
         create: (configuration: ProviderConfig) =>
           new CodexImageProvider(
-            { model: configuration.model, scratchDir: codex.scratchDir, proxy: codex.proxy },
+            { model: configuration.model, scratchDir: codexOptions.scratchDir, proxy: codexOptions.proxy },
             (url, signal) => downloadBytes(network, url, signal),
           ),
       }]

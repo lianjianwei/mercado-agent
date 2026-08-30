@@ -1313,10 +1313,14 @@
 
 /* 单元格:两行盒(净收益 / 产品类型)。 */
 .site-net-profit-cell {
-  min-width: 150px;
+  min-width: 168px;
 }
 
+/* 单元格盒:标签固定宽度,值/输入框可伸缩,避免输入框撑出单元格。 */
 .sn-cell-box {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   padding: 6px 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1324,7 +1328,6 @@
   font-size: 12.5px;
   line-height: 1.4;
   margin-bottom: 6px;
-  white-space: nowrap;
 }
 
 .sn-cell-box:last-child {
@@ -1332,8 +1335,8 @@
 }
 
 .sn-cell-label {
+  flex: 0 0 auto;
   color: var(--muted);
-  margin-right: 4px;
 }
 
 /* 单元格「计算详情」入口:小链接按钮,仅当该单元格有计算明细时出现。 */
@@ -1355,9 +1358,9 @@
 /* 站点净收益单元格里的可编辑净收益 / 产品类型(AI 编辑详情)。 */
 .sn-cell-input,
 .sn-cell-select {
-  box-sizing: border-box;
-  width: 100%;
+  flex: 1 1 0;
   min-width: 0;
+  box-sizing: border-box;
   padding: 4px 6px;
   border: 1px solid var(--line);
   border-radius: 6px;

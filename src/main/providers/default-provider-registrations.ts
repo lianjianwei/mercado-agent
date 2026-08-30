@@ -3,6 +3,7 @@ import { DoubaoTextProvider } from './text/doubao';
 import { DeepSeekTextProvider } from './text/deepseek';
 import { OpenAiTextProvider } from './text/openai';
 import { OpenAiImageProvider } from './image/openai';
+import { CodexImageProvider, type CodexProxyConfig } from './image/codex';
 import { ProviderUnavailableError } from '../../domain/providers';
 import type { ModelNetworkTransport } from '../network/model-network-client';
 import type { ProviderConfig } from '../../domain/config';
@@ -35,6 +36,10 @@ function createTextProvider(
 
 export function createDefaultProviderRegistrations(
   network: ModelNetworkTransport,
+  codex?: {
+    proxy: () => CodexProxyConfig | null;
+    scratchDir: string;
+  },
 ): ProviderFactoryRegistration[] {
   const text = (['doubao', 'deepseek', 'openai'] as const).map((provider) => ({
     kind: 'text' as const,
@@ -54,7 +59,19 @@ export function createDefaultProviderRegistrations(
       ),
   }));
 
-  return [...text, ...image] as ProviderFactoryRegistration[];
+  const codexRegistration: ProviderFactoryRegistration[] = codex
+    ? [{
+        kind: 'image' as const,
+        provider: 'codex' as const,
+        create: (configuration: ProviderConfig) =>
+          new CodexImageProvider(
+            { model: configuration.model, scratchDir: codex.scratchDir, proxy: codex.proxy },
+            (url, signal) => downloadBytes(network, url, signal),
+          ),
+      }]
+    : [];
+
+  return [...text, ...image, ...codexRegistration] as ProviderFactoryRegistration[];
 }
 
 async function downloadBytes(network: ModelNetworkTransport, url: string, signal: AbortSignal): Promise<Buffer> {

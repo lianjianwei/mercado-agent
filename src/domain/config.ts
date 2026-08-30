@@ -1,6 +1,6 @@
 export type ProviderKind = 'text' | 'image';
 export type TextProviderName = 'doubao' | 'deepseek' | 'openai';
-export type ImageProviderName = 'doubao' | 'openai';
+export type ImageProviderName = 'doubao' | 'openai' | 'codex';
 
 type ProviderConfigInputBase = {
   id?: string;

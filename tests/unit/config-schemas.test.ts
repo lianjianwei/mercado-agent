@@ -47,6 +47,26 @@ describe('provider configuration input', () => {
       expect(result.data.baseUrl).toBe('https://models.example.com/doubao/v3');
     }
   });
+
+  it('accepts the codex image provider without baseUrl/apiKey/model', () => {
+    const result = providerConfigInputSchema.safeParse({
+      kind: 'image',
+      provider: 'codex',
+      name: '本地 codex',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        kind: 'image',
+        provider: 'codex',
+        name: '本地 codex',
+        apiKey: '',
+        baseUrl: '',
+        model: '',
+      });
+    }
+  });
 });
 
 describe('application credential input', () => {

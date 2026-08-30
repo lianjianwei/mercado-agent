@@ -17,6 +17,7 @@ import {
   type IpcRegistrar,
   type IpcResult,
 } from '../../shared/ipc-contract';
+import { codexAvailable } from '../providers/image/codex';
 
 type ConfigHandlerDependencies = {
   providerConfigs: ProviderConfigRepository;
@@ -100,6 +101,10 @@ export function registerConfigHandlers(
       dependencies.providerConfigs.delete(id);
       return null;
     }),
+  );
+  registrar.handle(
+    IPC_CHANNELS.configCodexAvailable,
+    protectedHandler(z.undefined(), async () => ({ available: await codexAvailable() })),
   );
   registrar.handle(
     IPC_CHANNELS.configGetCredentials,

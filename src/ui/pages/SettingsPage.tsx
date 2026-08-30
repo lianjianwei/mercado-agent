@@ -33,6 +33,7 @@ export function SettingsPage({ api, diagnosticsApi, proxyApi, onDirtyChange }: S
   });
   const [editingText, setEditingText] = useState<ProviderConfig | null>(null);
   const [editingImage, setEditingImage] = useState<ProviderConfig | null>(null);
+  const [codexAvailable, setCodexAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
@@ -90,6 +91,13 @@ export function SettingsPage({ api, diagnosticsApi, proxyApi, onDirtyChange }: S
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
+    // codex 生图仅在检测到本机 CLI 时可选。
+    configApi.codexAvailable?.()
+      .then((result) => {
+        if (!cancelled) setCodexAvailable(result.available);
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -181,6 +189,7 @@ export function SettingsPage({ api, diagnosticsApi, proxyApi, onDirtyChange }: S
                   key={`${kind}-${kind === 'text' ? editingText?.id ?? 'new' : editingImage?.id ?? 'new'}`}
                   kind={kind}
                   editing={kind === 'text' ? editingText : editingImage}
+                  codexAvailable={codexAvailable}
                   onDirtyChange={(dirty) =>
                     updateDirtySection(`provider-${kind}`, dirty)
                   }

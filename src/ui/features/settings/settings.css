@@ -208,6 +208,13 @@
   font-size: 12px;
 }
 
+.form-hint {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .config-list {
   display: grid;
   gap: 10px;

@@ -16,6 +16,7 @@ const providerLabels: Record<ProviderConfig['provider'], string> = {
   doubao: '豆包',
   deepseek: 'DeepSeek',
   openai: 'OpenAI',
+  codex: 'codex（本机 CLI）',
 };
 
 function maskSecret(secret: string): string {

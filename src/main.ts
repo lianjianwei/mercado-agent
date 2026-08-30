@@ -116,7 +116,10 @@ app.whenReady().then(async () => {
   });
   const providerRegistry = new ProviderRegistry(
     providerConfigs,
-    createDefaultProviderRegistrations(modelNetwork),
+    createDefaultProviderRegistrations(modelNetwork, {
+      proxy: () => modelProxy.get(),
+      scratchDir: app.getPath('temp'),
+    }),
   );
   const infringementRepository = new SqliteInfringementRepository(appDatabase);
   const createInfringementEngine = () => {

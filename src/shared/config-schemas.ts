@@ -45,7 +45,7 @@ const providerConfigFields = {
 
 export const providerKindSchema = z.enum(['text', 'image']);
 
-export const providerConfigInputSchema = z.discriminatedUnion('kind', [
+export const providerConfigInputSchema = z.union([
   z.strictObject({
     ...providerConfigFields,
     kind: z.literal('text'),
@@ -55,6 +55,16 @@ export const providerConfigInputSchema = z.discriminatedUnion('kind', [
     ...providerConfigFields,
     kind: z.literal('image'),
     provider: z.enum(['doubao', 'openai']),
+  }),
+  // codex:调用本机 codex CLI 生图,无需 baseUrl/apiKey/model。
+  z.strictObject({
+    id: z.string().uuid().optional(),
+    name: requiredText,
+    kind: z.literal('image'),
+    provider: z.literal('codex'),
+    apiKey: z.string().optional().default(''),
+    baseUrl: z.string().optional().default(''),
+    model: z.string().optional().default(''),
   }),
 ]);
 

@@ -40,6 +40,7 @@ const desktopApi: DesktopApi = {
     getCredentials: () => invoke(IPC_CHANNELS.configGetCredentials),
     saveCredentials: (input) =>
       invoke(IPC_CHANNELS.configSaveCredentials, input),
+    codexAvailable: () => invoke(IPC_CHANNELS.configCodexAvailable),
   },
   diagnostics: {
     getSnapshot: () => invoke(IPC_CHANNELS.diagnosticGetSnapshot),

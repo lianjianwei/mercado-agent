@@ -27,6 +27,7 @@ export const IPC_CHANNELS = {
   configDeleteProvider: 'config:delete-provider',
   configGetCredentials: 'config:get-credentials',
   configSaveCredentials: 'config:save-credentials',
+  configCodexAvailable: 'config:codex-available',
   diagnosticGetSnapshot: 'diagnostic:get-snapshot',
   diagnosticTestConnection: 'diagnostic:test-connection',
   diagnosticCancelConnection: 'diagnostic:cancel-connection',
@@ -162,6 +163,7 @@ export interface ConfigApi {
   deleteProvider(id: string): Promise<void>;
   getCredentials(): Promise<AppCredentials>;
   saveCredentials(input: AppCredentialsInput): Promise<void>;
+  codexAvailable(): Promise<{ available: boolean }>;
 }
 
 export interface DesktopApi {

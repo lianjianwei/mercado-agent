@@ -62,6 +62,9 @@ function createFakeConfigApi(
         qiniu: input.qiniu ?? credentials.qiniu,
       };
     },
+    async codexAvailable() {
+      return { available: false };
+    },
   };
 
   return {

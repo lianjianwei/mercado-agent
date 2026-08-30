@@ -7,6 +7,7 @@ import productsColumnsMigration from './migrations/004_products_columns.sql?raw'
 import localPublishStateMigration from './migrations/005_local_publish_state.sql?raw';
 import fxRatesMigration from './migrations/006_fx_rates.sql?raw';
 import aiImagesKindMigration from './migrations/007_ai_images_kind.sql?raw';
+import codexProviderMigration from './migrations/008_codex_provider.sql?raw';
 
 type Migration = {
   version: number;
@@ -49,6 +50,11 @@ const migrations: Migration[] = [
     version: 7,
     name: 'ai_images_kind',
     sql: aiImagesKindMigration,
+  },
+  {
+    version: 8,
+    name: 'codex_provider',
+    sql: codexProviderMigration,
   },
 ];
 

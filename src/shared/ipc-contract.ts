@@ -17,7 +17,7 @@ import type {
 import type { InfringementRun } from '../domain/infringement';
 import type { EditDraft } from '../domain/edit';
 import type { FxRates, NetProfitConfig } from '../domain/net-profit';
-import type { AiImagesResult } from '../domain/images';
+import type { AiImagesResult, ImageRegenerateTarget } from '../domain/images';
 
 export const IPC_CHANNELS = {
   appGetInfo: 'app:get-info',
@@ -55,6 +55,7 @@ export const IPC_CHANNELS = {
   imagesGenerate: 'images:generate',
   imagesGet: 'images:get',
   imagesUpload: 'images:upload',
+  imagesRegenerate: 'images:regenerate',
   clipboardImage: 'clipboard:image',
   clipboardText: 'clipboard:text',
 } as const;
@@ -155,6 +156,8 @@ export interface ImageApi {
   getImages(productId: string): Promise<AiImagesResult | null>;
   // 把已生成的图压缩 + 上传七牛,不重新生成,并写回 AI 产品图片。
   uploadImages(productId: string): Promise<AiImagesResult>;
+  // 只对选中的图重生成(每张可附改进提示词),其余保留;只出本地预览,不写回草稿。
+  regenerateImages(productId: string, targets: ImageRegenerateTarget[]): Promise<AiImagesResult>;
 }
 
 // 复制到系统剪贴板。主进程处理,避免渲染层跨域拉取图片被 CORS 拦截。

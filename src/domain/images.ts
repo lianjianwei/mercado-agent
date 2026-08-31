@@ -39,3 +39,10 @@ export type AiImagesResult = {
   status: 'done' | 'partial' | 'failed';
   createdAt: string;
 };
+
+// 重生成选中图片的请求:imageId 是生成的图标识(如 main-1-202608311030),hint 是
+// 用户给该图追加的改进方向,会接到该图提示词后面。
+export type ImageRegenerateTarget = {
+  imageId: string;
+  hint?: string;
+};

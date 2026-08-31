@@ -21,10 +21,13 @@ export function EditDraftModal({
   // 编辑/生图进度行:主进程通过 edit:log 广播,这里累积并固定展示在弹窗底部。
   const [logLines, setLogLines] = useState<string[]>([]);
 
-  // 切换商品时清空日志,避免上一个商品的进度串到当前商品。
-  useEffect(() => {
+  // 切换商品时清空日志,避免上一个商品的进度串到当前商品。用「渲染期调整状态」而不是
+  // 在 effect 里 setState(后者会触发级联渲染);记录上一次归属的商品 id,变了就重置。
+  const [logOwnerProductId, setLogOwnerProductId] = useState(product.id);
+  if (product.id !== logOwnerProductId) {
+    setLogOwnerProductId(product.id);
     setLogLines([]);
-  }, [product.id]);
+  }
 
   useEffect(() => {
     return api.onEditLog((line) => {

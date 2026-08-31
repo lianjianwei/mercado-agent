@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import type { ProductDetail } from '../../domain/product';
 import type { EditDraft } from '../../domain/edit';
-import type { GeneratedImage, AiImagesResult, DetailPlanItem } from '../../domain/images';
+import type { GeneratedImage, AiImagesResult, DetailPlanItem, ImageRegenerateTarget } from '../../domain/images';
 import type { ImageReview } from '../../shared/image-schemas';
 import type { ImageGenerationRequest, ImageModelProvider, ImageResult, TextModelProvider } from '../../domain/providers';
 import { ImagePlanner, DETAIL_LANGUAGE_LABEL, resolveDetailImageLanguage, type DetailImageLanguage } from './image-planner';
@@ -41,13 +41,20 @@ export type ImageGenerationDeps = {
   now?: () => string;
 };
 
+// 可数结构保真硬约束:凡是参考图里有明确数量的结构(槽位/卡槽/格数/孔数/片数/层数等),
+// 一律以参考图为准,不能增删。这一条是防「标题写8片、模型就把单面槽位扩成8个」的关键——
+// 很多产品的卖点恰恰是这种「能数」的结构,笼统的「保持一致」压不过模型的先验,必须点名数量。
+const COUNT_PRESERVATION_RULE =
+  '参考图里凡是有明确数量的可数结构(槽位/卡槽/格数/孔数/片数/刀片数/层数等)，必须与参考图一模一样，既不能增加也不能减少；参考图从这个角度能看到几个，生成的图同一个角度就必须是几个。即便标题/描述里写了总数量(如「可放8片」)，也要按参考图的实际结构来呈现，不得为了凑数量而新增、扩充或减少槽位。';
+
 export function buildMainImagePrompt(input: { title: string; description: string; category: string; quantity?: string | null }): string {
   // 多件装(如 10/20/50/100 个一次性碗筷、发箍):主图不要逐个整齐排开,
   // 建议堆叠/错落/局部重叠摆放,做出层次,体现「数量多」即可,不必精确画出件数。
   const quantityRule = input.quantity
     ? `\n该产品为多件装（约 ${input.quantity}）。若是样式完全相同的物品（一次性用品、同款发箍等），请用堆叠/错落/局部重叠的摆放方式，做出层次感，体现数量多即可，不必精确画出 ${input.quantity} 件；若是几种不同物品的组合装，则按组合内容呈现。`
     : '';
-  return `以参考图为准生成一张美客多主图：白底，只展示产品本身，无 logo、无文字，
+  return `以参考图为准生成一张美客多主图：白底，只展示产品本身，无 logo、无文字。
+${COUNT_PRESERVATION_RULE}
 不得虚构参考图中不存在的部件，产品外观/配色/结构保持一致。产品「${input.title}」。
 类目：${input.category || '未知'}。描述：${input.description}${quantityRule}`;
 }
@@ -75,6 +82,7 @@ export function buildDetailImagePrompt(item: DetailPlanItem, title: string, lang
     : `图上文字只使用${label}。`;
   return `依据参考图制作详情图「${item.kind}」。主题：${item.subject}。${languageInstruction}。
 ${item.hasPerson ? '人物使用拉美裔模特。' : '不要出现人物。'}
+${COUNT_PRESERVATION_RULE}
 以参考图为准，真实呈现产品，不虚构参考图中没有的内容，保持产品外观/配色/结构一致。产品「${title}」。`;
 }
 
@@ -236,6 +244,76 @@ export class ImageGenerationService {
     return result;
   }
 
+  // 只对选中的图重生成:读取已有 aiImages 快照,把目标图按「当前基础提示词 + 用户追加的
+  // 改进方向」重新渲染一遍,其余图原样保留;用新的版本号命名(新 URL,避开 CDN 缓存),
+  // 落一份新快照。只出本地预览,不会自动上传、也不写回草稿(用户点「上传并应用」再提交)。
+  async regenerate(productId: string, targets: ImageRegenerateTarget[]): Promise<AiImagesResult> {
+    const existing = this.deps.readImages?.(productId);
+    if (!existing) throw new Error('暂无已生成的图片，请先生成。');
+    if (targets.length === 0) throw new Error('请先勾选要重新生成的图片。');
+    const byId = new Map(targets.map((target) => [target.imageId, target]));
+    const detail = this.deps.readDetail(productId);
+    if (!detail) throw new Error('暂无可用的妙手详情，无法重新生图。');
+    const draft = this.deps.readDraft(productId);
+    const title = draft?.title.value ?? detail.title ?? '';
+    const description = draft?.description.value ?? detail.description ?? '';
+    const category = detail.category ?? '';
+    const quantity = detectQuantity(title, description);
+    const language = resolveDetailImageLanguage(detail.sites ?? draft?.sites ?? []);
+    const provider = this.deps.imageProvider();
+    const reviser = new ImageReviser(this.deps.textProvider);
+    // 新版本号:重生成的图文件名带当前时间,得到全新 URL,避免七牛 CDN 缓存挡住新图。
+    const version = imageVersionStamp(this.deps.now?.() ?? new Date().toISOString());
+
+    // 只重渲染选中的图(index = 数组序号 + 1,保持 main-{n}/detail-{n} 命名)。
+    const regenerateOne = async (image: GeneratedImage, kind: 'main' | 'detail', index: number): Promise<GeneratedImage> => {
+      const target = byId.get(image.imageId);
+      if (!target) return image; // 没勾选:原样保留
+      const basePrompt = kind === 'detail'
+        ? buildDetailImagePrompt(
+            existing.plan.find((item) => item.id === image.detail?.slug)
+              ?? { id: image.detail?.slug ?? `detail-${index}`, kind: '功能图', subject: image.detail?.title ?? '', textEs: '', textPt: '', hasPerson: image.detail?.hasPerson ?? false, referenceNote: '' },
+            title,
+            language,
+          )
+        : buildMainImagePrompt({ title, description, category, quantity });
+      const prompt = target.hint
+        ? `${basePrompt}\n（用户反馈：${target.hint}，请据此改进，同时保持产品外观、配色、结构不变。）`
+        : basePrompt;
+      const spec: ImageSpec = {
+        request: { prompt, referenceImageUrls: image.sourceRefImages },
+        kind, skuKey: image.skuKey, detail: image.detail, productId, title, description,
+        name: imageFileName(kind, index, version),
+        label: kind === 'main' ? `重生成主图 ${index}` : `重生成详情图 ${index}`,
+      };
+      const regenerated = await this.generateOne(provider, reviser, spec);
+      this.onProgress(`${spec.label}：${regenerated.status === 'ok' ? '成功' : regenerated.status === 'retried' ? '补跑后成功' : '失败'}。`);
+      return regenerated;
+    };
+
+    const mainImages: GeneratedImage[] = [];
+    for (let index = 0; index < existing.mainImages.length; index += 1) {
+      mainImages.push(await regenerateOne(existing.mainImages[index], 'main', index + 1));
+    }
+    const detailImages: GeneratedImage[] = [];
+    for (let index = 0; index < existing.detailImages.length; index += 1) {
+      detailImages.push(await regenerateOne(existing.detailImages[index], 'detail', index + 1));
+    }
+
+    const all = [...mainImages, ...detailImages];
+    const failed = all.filter((item) => item.status === 'failed');
+    const result: AiImagesResult = {
+      ...existing,
+      mainImages,
+      detailImages,
+      status: failed.length === 0 ? 'done' : failed.length === all.length ? 'failed' : 'partial',
+      createdAt: this.deps.now?.() ?? new Date().toISOString(),
+    };
+    this.deps.appendImages(productId, result);
+    // 不写回草稿:重生成只出本地预览,用户满意后再点「上传并应用」统一提交。
+    return result;
+  }
+
   // 读取已落盘的 aiImages 快照(已生成的图,不重新生成)。
   getImages(productId: string): AiImagesResult | null {
     return this.deps.readImages?.(productId) ?? null;
@@ -289,7 +367,9 @@ export class ImageGenerationService {
       plannedPath: `mercado/${spec.productId}/${imageId}.png`, sourceRefImages: refs, prompt: request.prompt,
       attempts, status: 'failed', createdAt: this.deps.now?.() ?? new Date().toISOString(),
     });
-    let review: ImageReview = { ok: true, issues: [] };
+    // 初始即自检失败兜底:review 默认通过;若自检抛错,保留该兜底(行为与原先 catch 一致),
+    // 这样初始值在 catch 路径会被读到,不是无用赋值。
+    let review: ImageReview = { ok: true, issues: ['自检服务异常，未验证'] };
 
     // 首张:批量产物(opts.initial)有数据就直接用,省一次渲染;否则单独渲染一次。
     if (opts.initial && (opts.initial.dataBase64 || opts.initial.url)) {
@@ -304,9 +384,9 @@ export class ImageGenerationService {
       }
     }
     try {
-      review = await reviser.review({ imageUrl: reviewImageUrl(), context: { title: spec.title, description: spec.description, kind: spec.kind } });
+      review = await reviser.review({ imageUrl: reviewImageUrl(), context: { title: spec.title, description: spec.description, kind: spec.kind }, referenceImageUrls: refs });
     } catch {
-      review = { ok: true, issues: ['自检服务异常，未验证'] };
+      // 保留上面 review 的自检失败兜底。
     }
     // 自检不过:只补跑当前这张(单独再渲染一次),最多补到 3 次。
     while (shouldRegenerate(review) && attempts < 3) {
@@ -316,16 +396,17 @@ export class ImageGenerationService {
         render = result[0] ?? render;
       } catch { break; }
       try {
-        review = await reviser.review({ imageUrl: reviewImageUrl(), context: { title: spec.title, description: spec.description, kind: spec.kind } });
+        review = await reviser.review({ imageUrl: reviewImageUrl(), context: { title: spec.title, description: spec.description, kind: spec.kind }, referenceImageUrls: refs });
       } catch {
         review = { ok: true, issues: ['自检服务异常，未验证'] };
       }
     }
+    // localPath 同样用初始空串作为保存失败时的兜底(catch 不再重复赋空)。
     let localPath = '';
     try {
       localPath = await saveImageBytes(this.deps.imagesDir, spec.productId, imageId, render);
     } catch {
-      localPath = '';
+      // 保留 localPath 为空串的兜底。
     }
     return {
       imageId, kind: spec.kind, skuKey: spec.skuKey, detail: spec.detail, localPath,

@@ -192,6 +192,84 @@ describe('ImageGenerationService', () => {
     expect(writeDraftImages).toHaveBeenCalledWith('p1', expect.any(Array), expect.any(Array));
   });
 
+  it('regenerates only the targeted image, appends hint, and keeps the rest untouched', async () => {
+    const appendImages = vi.fn();
+    const existing: AiImagesResult = {
+      version: 1, productId: 'p1',
+      mainImages: [{ imageId: 'main-1-OLD', kind: 'main', skuKey: ';a;', localPath: '/tmp/imgs/p1/main-1-OLD.png', plannedPath: 'mercado/p1/main-1-OLD.png', sourceRefImages: ['https://ref/a.png'], prompt: 'old-main', attempts: 1, status: 'ok', createdAt: 'x' }],
+      detailImages: [{ imageId: 'detail-1-OLD', kind: 'detail', detail: { slug: 'd1', title: '功能展示', hasPerson: false }, localPath: '/tmp/imgs/p1/detail-1-OLD.png', plannedPath: 'mercado/p1/detail-1-OLD.png', sourceRefImages: ['https://ref/a.png'], prompt: 'old-detail', attempts: 1, status: 'ok', createdAt: 'x' }],
+      plan: [{ id: 'd1', kind: '功能图', subject: '功能展示', textEs: '', textPt: '', hasPerson: false, referenceNote: '' }],
+      status: 'done', createdAt: 'x',
+    };
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn(async () => [{ url: '', dataBase64: 'NEW' }]) } as unknown as ImageModelProvider;
+    const textProvider = { testConnection: vi.fn(), generate: vi.fn(async () => ({ ok: true, issues: [] })) } as unknown as TextModelProvider;
+
+    const service = new ImageGenerationService({
+      readDetail: () => detail, readDraft: () => draft,
+      imageProvider: () => imageProvider, textProvider: () => textProvider,
+      appendImages, imagesDir: '/tmp/imgs', now: () => '2026-08-29T00:00:00.000Z',
+      readImages: () => existing,
+      // 重生成只出本地预览:不应触发 publish,也不应写回草稿。
+      publish: vi.fn(),
+      writeDraftImages: vi.fn(),
+    });
+    const result = await service.regenerate('p1', [{ imageId: 'main-1-OLD', hint: '把每面槽位改回4个,保持外壳不变' }]);
+
+    // 只有选中的主图被重新渲染一次。
+    expect(imageProvider.generate).toHaveBeenCalledTimes(1);
+    const version = imageVersionStamp('2026-08-29T00:00:00.000Z');
+    expect(result.mainImages[0].imageId).toBe(`main-1-${version}`);
+    expect(result.mainImages[0].status).toBe('ok');
+    // 用户提示词接到该图提示词后面。
+    expect(result.mainImages[0].prompt).toContain('用户反馈');
+    expect(result.mainImages[0].prompt).toContain('把每面槽位改回4个');
+    // 未选中的详情图原样保留(仍是旧 imageId,未被重渲染)。
+    expect(result.detailImages[0].imageId).toBe('detail-1-OLD');
+    // 落了一份新快照;但不上传、不写草稿。
+    expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
+  });
+
+  it('rebuilds a targeted detail image prompt from the plan and appends the hint', async () => {
+    const appendImages = vi.fn();
+    const existing: AiImagesResult = {
+      version: 1, productId: 'p1',
+      mainImages: [],
+      detailImages: [{ imageId: 'detail-1-OLD', kind: 'detail', detail: { slug: 'd1', title: '功能展示', hasPerson: false }, localPath: '/tmp/imgs/p1/detail-1-OLD.png', plannedPath: 'mercado/p1/detail-1-OLD.png', sourceRefImages: ['https://ref/a.png'], prompt: 'old-detail', attempts: 1, status: 'ok', createdAt: 'x' }],
+      plan: [{ id: 'd1', kind: '功能图', subject: '功能展示', textEs: '', textPt: '', hasPerson: false, referenceNote: '' }],
+      status: 'done', createdAt: 'x',
+    };
+    const imageProvider = { testConnection: vi.fn(), generate: vi.fn(async () => [{ url: '', dataBase64: 'NEW' }]) } as unknown as ImageModelProvider;
+    const textProvider = { testConnection: vi.fn(), generate: vi.fn(async () => ({ ok: true, issues: [] })) } as unknown as TextModelProvider;
+
+    const service = new ImageGenerationService({
+      readDetail: () => detail, readDraft: () => draft,
+      imageProvider: () => imageProvider, textProvider: () => textProvider,
+      appendImages, imagesDir: '/tmp/imgs', now: () => '2026-08-29T00:00:00.000Z',
+      readImages: () => existing,
+    });
+    const result = await service.regenerate('p1', [{ imageId: 'detail-1-OLD', hint: '换成俯视图,突出四个卡槽' }]);
+
+    const version = imageVersionStamp('2026-08-29T00:00:00.000Z');
+    expect(result.detailImages[0].imageId).toBe(`detail-1-${version}`);
+    // 详情图提示词依据 plan 的 kind/subject 重建,并带上用户提示词。
+    expect(result.detailImages[0].prompt).toContain('功能图');
+    expect(result.detailImages[0].prompt).toContain('功能展示');
+    expect(result.detailImages[0].prompt).toContain('换成俯视图');
+    expect(appendImages).toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'done' }));
+  });
+
+  it('rejects regenerate with no snapshot and with no targets', async () => {
+    const service = new ImageGenerationService({
+      readDetail: () => detail, readDraft: () => draft,
+      imageProvider: () => ({ testConnection: vi.fn(), generate: vi.fn() }) as unknown as ImageModelProvider,
+      textProvider: () => ({ testConnection: vi.fn(), generate: vi.fn() }) as unknown as TextModelProvider,
+      appendImages: vi.fn(), imagesDir: '/tmp/imgs', now: () => 'x',
+      readImages: () => null,
+    });
+    await expect(service.regenerate('p1', [{ imageId: 'main-1' }])).rejects.toThrow(/暂无已生成/);
+    await expect(service.regenerate('p1', [])).rejects.toThrow(/未得到|请先勾选|暂无已生成/);
+  });
+
   it('uses generateBatch once when available and retries only the failing image', async () => {
     const appendImages = vi.fn();
     const onProgress = vi.fn();

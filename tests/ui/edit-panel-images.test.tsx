@@ -24,7 +24,7 @@ describe('EditPanel image generation', () => {
       generate: vi.fn(async () => draft),
       draft: vi.fn(async () => null),
       saveDraft: vi.fn(async () => draft),
-      images: { generateImages },
+      images: { generateImages, getImages: vi.fn(async () => null) },
     };
     render(<EditPanel api={api as never} loadDetail={async () => ({ skuList: [], sites: [], images: [], productId: 'p1', title: 'T', description: 'D', category: '猫', netProfit: null, stock: null, sourcePrice: null, mainImage: null, brand: null, model: null, siteAndPriceMap: {} } as never)} product={{ id: 'p1', title: 'Metrónomo' } as Product} />);
     fireEvent.click(await screen.findByText('生成 AI 草稿'));
@@ -54,7 +54,7 @@ describe('EditPanel image generation', () => {
       generate: vi.fn(async () => draftState),
       draft,
       saveDraft: vi.fn(async (_id: string, value: unknown) => value),
-      images: { generateImages },
+      images: { generateImages, getImages: vi.fn(async () => null) },
     };
     render(<EditPanel api={api as never} loadDetail={async () => ({ skuList: [], sites: [], images: [], productId: 'p1', title: 'T', description: 'D', category: '猫', netProfit: null, stock: null, sourcePrice: null, mainImage: null, brand: null, model: null, siteAndPriceMap: {} } as never)} product={{ id: 'p1', title: 'Metrónomo' } as Product} />);
 
@@ -82,7 +82,7 @@ describe('EditPanel image generation', () => {
     };
     const draft = vi.fn(async () => draftState);
     const generate = vi.fn(async () => draftState);
-    const api = { generate, draft, saveDraft: vi.fn(async (_id: string, value: unknown) => value), images: { generateImages } };
+    const api = { generate, draft, saveDraft: vi.fn(async (_id: string, value: unknown) => value), images: { generateImages, getImages: vi.fn(async () => null) } };
     render(<EditPanel api={api as never} loadDetail={async () => ({ skuList: [], sites: [], images: [], productId: 'p1', title: 'T', description: 'D', category: '猫', netProfit: null, stock: null, sourcePrice: null, mainImage: null, brand: null, model: null, siteAndPriceMap: {} } as never)} product={{ id: 'p1', title: 'Metrónomo' } as Product} />);
 
     fireEvent.click(await screen.findByText('重新生成'));

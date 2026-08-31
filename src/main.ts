@@ -34,11 +34,15 @@ import { QiniuUploadService } from './main/services/qiniu-upload-service';
 import { compressPng } from './main/services/image-compressor';
 import type { AiImagesResult, GeneratedImage } from './domain/images';
 import { NetProfitCalculator } from './main/services/net-profit-calculator';
+import { registerImageScheme, registerImageProtocolHandler } from './main/image-protocol';
 import { FxRateService } from './main/services/fx-rate-service';
 import { ActiveProviderMissingError } from './main/providers/provider-registry';
 import type { TextModelProvider, ImageModelProvider } from './domain/providers';
 
 let appDatabase: DatabaseSync | null = null;
+
+// app-image:// 协议必须在 app ready 前注册(展示未上传的本地生成图)。
+registerImageScheme();
 
 function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow(
@@ -181,6 +185,8 @@ app.whenReady().then(async () => {
     { netProfit: netProfitCalculator, onProgress: (line) => sendProgress(IPC_CHANNELS.editLog, line) },
   );
   const qiniuUploadService = new QiniuUploadService();
+  const imagesDir = path.join(app.getPath('userData'), 'images');
+  registerImageProtocolHandler(imagesDir);
   const imageService = new ImageGenerationService({
     onProgress: (line) => sendProgress(IPC_CHANNELS.editLog, line),
     // 与 product-handlers 的 productDetail 同款取数:product + 最新 miaoshou 快照。
@@ -194,17 +200,17 @@ app.whenReady().then(async () => {
     readImages: (productId: string) => {
       const list = snapshots.listForProduct(productId).filter((s) => s.kind === 'aiImages');
       if (list.length === 0) return null;
-      // 同一商品会有多份 aiImages(多次生成/上传),它们的 captured_at 常相同(沿用
-      // 生成时间),导致按时间读回可能挑到「未上传、无公网 URL」的那份。这里按
-      // 公网 URL 数量多者优先(即已上传那份),再按时间新者优先,保证读到带 URL 的图。
+      // 每次 append 都写入 fresh capturedAt,所以按时间新→旧就能读到「最近一次操作」的
+      // 快照——包括重生成后那份(新图只带本地路径、无公网 URL)。若按已上传数优先会跳过
+      // 它,导致自检/预览读到旧图。时间相同(极端)再按已上传数兜底,避免读到无公网 URL 的旧快照。
       const uploaded = (payload: AiImagesResult) =>
         [...payload.mainImages, ...payload.detailImages].filter((i) => i.publicUrl).length;
       const chosen = list
         .slice()
         .sort((a, b) => {
-          const diff = uploaded(b.payload as AiImagesResult) - uploaded(a.payload as AiImagesResult);
-          if (diff !== 0) return diff;
-          return (b.capturedAt ?? '').localeCompare(a.capturedAt ?? '');
+          const timeDiff = (b.capturedAt ?? '').localeCompare(a.capturedAt ?? '');
+          if (timeDiff !== 0) return timeDiff;
+          return uploaded(b.payload as AiImagesResult) - uploaded(a.payload as AiImagesResult);
         })[0];
       return chosen ? (chosen.payload as AiImagesResult) : null;
     },
@@ -215,7 +221,7 @@ app.whenReady().then(async () => {
       return p;
     },
     appendImages: (productId, result) => snapshots.append({ id: `${productId}:aiImages:${randomUUID()}`, productId, kind: 'aiImages', capturedAt: result.createdAt, payload: result }),
-    imagesDir: path.join(app.getPath('userData'), 'images'),
+    imagesDir,
     // 生成后自动压缩 + 上传七牛,拿到公网 URL。
     publish: async (productId: string, images: GeneratedImage[]) => {
       const creds = credentials.getQiniu();

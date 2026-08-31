@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { EditDraft } from '../../src/domain/edit';
+import type { AiImagesResult } from '../../src/domain/images';
 import type { Product, ProductDetail } from '../../src/domain/product';
 import type { EditApi } from '../../src/shared/ipc-contract';
 import { EditPanel } from '../../src/ui/features/editor/EditPanel';
@@ -122,6 +123,7 @@ function renderPanel(overrides: {
       generateImages: vi.fn(async () => emptyImagesResult()),
       getImages: vi.fn(async () => null),
       uploadImages: vi.fn(async () => emptyImagesResult()),
+      regenerateImages: vi.fn(async () => emptyImagesResult()),
     },
   };
   const loadDetail = vi.fn(async () => detail);
@@ -171,6 +173,7 @@ describe('EditPanel', () => {
       generateImages: vi.fn(async () => emptyImagesResult()),
       getImages: vi.fn(async () => null),
       uploadImages: vi.fn(async () => emptyImagesResult()),
+      regenerateImages: vi.fn(async () => emptyImagesResult()),
     },
         }}
         loadDetail={loadDetail}
@@ -291,6 +294,7 @@ describe('EditPanel', () => {
       generateImages: vi.fn(async () => emptyImagesResult()),
       getImages: vi.fn(async () => null),
       uploadImages: vi.fn(async () => emptyImagesResult()),
+      regenerateImages: vi.fn(async () => emptyImagesResult()),
     },
     };
     const user = userEvent.setup();
@@ -298,6 +302,44 @@ describe('EditPanel', () => {
 
     await user.click(await screen.findByRole('button', { name: '生成 AI 草稿' }));
     expect(await screen.findByText('模型服务不可用')).toBeTruthy();
+  });
+
+  it('lets the user pick specific images, attach a hint, and regenerate just those', async () => {
+    const user = userEvent.setup();
+    const imageResult: AiImagesResult = {
+      version: 1, productId: 'product-1',
+      mainImages: [{ imageId: 'main-1-v', kind: 'main', skuKey: ';a;', localPath: '/tmp/imgs/product-1/main-1-v.png', plannedPath: 'mercado/product-1/main-1-v.png', sourceRefImages: [], prompt: 'p', attempts: 1, status: 'ok', createdAt: 'x' }],
+      detailImages: [{ imageId: 'detail-2-v', kind: 'detail', detail: { slug: 'detail-2', title: '尺寸图', hasPerson: false }, localPath: '/tmp/imgs/product-1/detail-2-v.png', plannedPath: 'mercado/product-1/detail-2-v.png', sourceRefImages: [], prompt: 'p', attempts: 1, status: 'ok', createdAt: 'x' }],
+      plan: [], status: 'done', createdAt: 'x',
+    };
+    const regenerateImages = vi.fn(async () => imageResult);
+    const api: EditApi = {
+      generate: vi.fn(async () => draft()),
+      draft: vi.fn(async () => draft()),
+      saveDraft: vi.fn(async (_id, incoming) => incoming),
+      saveToMiaoshou: vi.fn(async (_id: string) => ({ detailId: _id })),
+      onEditLog: () => () => undefined,
+      images: {
+        generateImages: vi.fn(async () => imageResult),
+        getImages: vi.fn(async () => imageResult),
+        uploadImages: vi.fn(async () => imageResult),
+        regenerateImages,
+      },
+    };
+    render(<EditPanel api={api} loadDetail={vi.fn(async () => detail)} product={product} />);
+    await user.click(await screen.findByRole('tab', { name: 'AI 编辑详情' }));
+
+    // 每张生成图都显示为可勾选的卡片。
+    expect(await screen.findByText('主图 1')).toBeTruthy();
+    expect(screen.getByText('详情图 1 · 尺寸图')).toBeTruthy();
+
+    // 勾选主图,填一句改进方向。
+    await user.click(screen.getByText('主图 1'));
+    const hintBox = await screen.findByPlaceholderText(/把每面槽位/);
+    await user.type(hintBox, '把槽位改回4个,保持外壳不变');
+    await user.click(screen.getByRole('button', { name: /重新生成选中/ }));
+
+    expect(regenerateImages).toHaveBeenCalledWith('product-1', [{ imageId: 'main-1-v', hint: '把槽位改回4个,保持外壳不变' }]);
   });
 
   it('opens a confirm dialog with a change list and saves to Miaoshou on confirm', async () => {

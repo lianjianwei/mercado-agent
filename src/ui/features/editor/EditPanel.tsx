@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 
 import type { EditDraft, EditField, SkuEditField } from '../../../domain/edit';
+import type { AiImagesResult, ImageRegenerateTarget } from '../../../domain/images';
 import { normalizeSiteKey } from '../../../domain/net-profit';
 import type { Product, ProductDetail } from '../../../domain/product';
 import type { EditApi, ProductApi } from '../../../shared/ipc-contract';
 import { DraftView } from './DraftView';
+import { ImageRegenPanel } from './ImageRegenPanel';
 import { MiaoshouView } from './MiaoshouView';
 import { buildSaveChangeList } from './save-change-summary';
 
@@ -39,9 +41,11 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   const [view, setView] = useState<View>('miaoshou');
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [detail, setDetail] = useState<ProductDetail | null>(null);
+  const [imageResult, setImageResult] = useState<AiImagesResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [regeneratingImages, setRegeneratingImages] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [restoringImages, setRestoringImages] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -58,11 +62,12 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
   // a product. The two views compare the miaoshou snapshot with the draft.
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([api.draft(product.id), loadDetail(product.id)])
-      .then(([existing, loadedDetail]) => {
+    void Promise.all([api.draft(product.id), loadDetail(product.id), api.images.getImages(product.id)])
+      .then(([existing, loadedDetail, images]) => {
         if (cancelled) return;
         setDraft(existing);
         setDetail(loadedDetail);
+        setImageResult(images);
       })
       .catch((reason: unknown) => {
         if (!cancelled) {
@@ -143,6 +148,38 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
       setError(reason instanceof Error ? reason.message : '恢复已生成的图片失败。');
     } finally {
       setRestoringImages(false);
+    }
+  }
+
+  // 只对选中的图重生成(每张可附改进提示词),结果先出本地预览,不写回草稿。
+  async function runRegenerateSelected(targets: ImageRegenerateTarget[]) {
+    if (!product) return;
+    setRegeneratingImages(true);
+    setError('');
+    try {
+      const result = await api.images.regenerateImages(product.id, targets);
+      setImageResult(result);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '图片重生成失败。');
+    } finally {
+      setRegeneratingImages(false);
+    }
+  }
+
+  // 把当前生图结果(含重生成的本地预览)压缩上传七牛,并写回草稿的产品图片字段。
+  async function runUploadImages() {
+    if (!product) return;
+    setUploadingImages(true);
+    setError('');
+    try {
+      const result = await api.images.uploadImages(product.id);
+      setImageResult(result);
+      const refreshed = await api.draft(product.id);
+      if (refreshed) setDraft(refreshed);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '图片上传失败。');
+    } finally {
+      setUploadingImages(false);
     }
   }
 
@@ -351,7 +388,16 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
         )}
 
         {!loading && draft && view === 'aiDraft' && (
-          <DraftView
+          <>
+            <ImageRegenPanel
+              imageResult={imageResult}
+              onRegenerate={runRegenerateSelected}
+              onUpload={runUploadImages}
+              productId={product.id}
+              regenerating={regeneratingImages}
+              uploading={uploadingImages}
+            />
+            <DraftView
             detail={detail}
             draft={draft}
             onRestoreImages={() => void runRestoreImages()}
@@ -365,7 +411,8 @@ export function EditPanel({ product, api, loadDetail }: EditPanelProps) {
             onUpdateGlobalNetProfit={updateGlobalNetProfit}
             restoringImages={restoringImages}
             saving={saving}
-          />
+            />
+          </>
         )}
       </div>
 

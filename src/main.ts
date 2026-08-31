@@ -127,6 +127,8 @@ app.whenReady().then(async () => {
       }
       return new HttpMiaoshouGateway(miaoshouCredentials, {
         logger: (event) => console.log('[妙手保存]', JSON.stringify(event)),
+        // 完整请求日志(供妙手官方排查):路径/时间/请求头/请求体/响应体。
+        onRequestLog: (entry) => console.log('[妙手保存请求]', JSON.stringify(entry, null, 2)),
       }).saveCollectBoxItemInfo(detailId, info);
     },
   };

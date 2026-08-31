@@ -270,7 +270,7 @@ describe('HttpMiaoshouGateway', () => {
         ({
           ok: true,
           status: 200,
-          json: () => new Promise(() => undefined),
+          text: () => new Promise(() => undefined),
         }) as Response,
       timeoutMs: 10,
     });
@@ -287,7 +287,7 @@ describe('HttpMiaoshouGateway', () => {
         ({
           ok: true,
           status: 200,
-          json: () => new Promise(() => undefined),
+          text: () => new Promise(() => undefined),
         }) as Response,
       timeoutMs: 10_000,
     });
@@ -381,6 +381,44 @@ describe('HttpMiaoshouGateway', () => {
     await expect(
       gateway.saveCollectBoxItemInfo('90001', { title: 'x' }),
     ).rejects.toBeInstanceOf(MiaoshouAuthenticationError);
+  });
+
+  it('emits the full request log (path/time/headers/body/response) for diagnosis', async () => {
+    const entries: unknown[] = [];
+    const gateway = new HttpMiaoshouGateway(credentials, {
+      now: () => 1_720_000_000_123,
+      onRequestLog: (entry) => entries.push(entry),
+      fetcher: async () =>
+        Response.json({ result: 'fail', code: 'fail', message: 'some business error' }),
+    });
+
+    await gateway.saveCollectBoxItemInfo('90001', { title: 'x' }).catch(() => undefined);
+
+    expect(entries).toHaveLength(1);
+    const entry = entries[0] as {
+      path: string;
+      timestamp: string;
+      headers: Record<string, string>;
+      body: string;
+      httpStatus: number;
+      responseBody: string;
+    };
+    expect(entry.path).toBe(
+      '/open/v1/product/collect_box/mercadolibre/collect_box/save_site_collect_item_info',
+    );
+    expect(entry.timestamp).toBe('1720000000');
+    expect(entry.headers['x-app-key']).toBe(credentials.appKey);
+    expect(entry.headers['x-timestamp']).toBe('1720000000');
+    expect(JSON.parse(entry.body)).toEqual({
+      detailId: 90001,
+      siteCollectItemInfo: { title: 'x' },
+    });
+    expect(entry.httpStatus).toBe(200);
+    expect(JSON.parse(entry.responseBody)).toEqual({
+      result: 'fail',
+      code: 'fail',
+      message: 'some business error',
+    });
   });
 
   it('surfaces the raw miaoshou message as reason on a business api_error', async () => {

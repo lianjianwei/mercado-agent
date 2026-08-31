@@ -129,6 +129,19 @@ export function formatMiaoshouInvalidResponseDiagnostics(
   );
 }
 
+// 完整请求日志(供给妙手官方排查用):请求路径、时间、请求头、请求体、响应体。
+export type MiaoshouRequestLogEntry = {
+  operation: MiaoshouLogEvent['operation'];
+  path: string;
+  timestamp: string;
+  method: 'POST';
+  headers: Record<string, string>;
+  body: string;
+  httpStatus: number;
+  responseBody: string;
+  durationMs: number;
+};
+
 export type HttpMiaoshouGatewayOptions = {
   fetcher?: MiaoshouFetcher;
   now?: () => number;
@@ -138,6 +151,7 @@ export type HttpMiaoshouGatewayOptions = {
   wait?: MiaoshouWait;
   logger?: (event: MiaoshouLogEvent) => void;
   onInvalidResponse?: (diagnostic: MiaoshouInvalidResponseDiagnostic) => void;
+  onRequestLog?: (entry: MiaoshouRequestLogEntry) => void;
 };
 
 type MiaoshouOperation = MiaoshouLogEvent['operation'];
@@ -154,6 +168,7 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
   private readonly onInvalidResponse: (
     diagnostic: MiaoshouInvalidResponseDiagnostic,
   ) => void;
+  private readonly onRequestLog: (entry: MiaoshouRequestLogEntry) => void;
 
   constructor(
     private readonly credentials: MiaoshouCredential,
@@ -169,6 +184,7 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     this.wait = options.wait ?? waitWithAbort;
     this.logger = options.logger ?? (() => undefined);
     this.onInvalidResponse = options.onInvalidResponse ?? (() => undefined);
+    this.onRequestLog = options.onRequestLog ?? (() => undefined);
   }
 
   private lastRequestCompletedAt: number | null = null;
@@ -294,23 +310,25 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
       controller.abort();
     }, this.timeoutMs);
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-app-key': this.credentials.appKey,
+      'x-timestamp': timestamp,
+      'x-sign': createMiaoshouSignature({
+        appSecret: this.credentials.appSecret,
+        path: requestPath,
+        timestamp,
+        appKey: this.credentials.appKey,
+        bodyJson,
+      }),
+    };
+
     try {
       let response: Response;
       try {
         response = await this.fetcher(`${this.baseUrl}${requestPath}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-app-key': this.credentials.appKey,
-            'x-timestamp': timestamp,
-            'x-sign': createMiaoshouSignature({
-              appSecret: this.credentials.appSecret,
-              path: requestPath,
-              timestamp,
-              appKey: this.credentials.appKey,
-              bodyJson,
-            }),
-          },
+          headers,
           body: bodyJson,
           signal: controller.signal,
         });
@@ -324,8 +342,11 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
       }
 
       let payload: unknown;
+      let responseText: string;
       try {
-        payload = await this.readJson(response, controller.signal);
+        const body = await this.readBody(response, controller.signal);
+        payload = body.payload;
+        responseText = body.text;
       } catch {
         if (timeoutTriggered || externalSignal?.aborted) {
           this.throwRequestFailure(
@@ -344,6 +365,18 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
         );
         throw new MiaoshouInvalidResponseError();
       }
+
+      this.onRequestLog({
+        operation,
+        path: requestPath,
+        timestamp,
+        method: 'POST',
+        headers,
+        body: bodyJson,
+        httpStatus: response.status,
+        responseBody: responseText,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
 
       const code = this.readErrorCode(payload);
       if (!response.ok || code !== null) {
@@ -374,7 +407,10 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
     if (waitMs > 0) await this.wait(waitMs, signal);
   }
 
-  private async readJson(response: Response, signal: AbortSignal): Promise<unknown> {
+  private async readBody(
+    response: Response,
+    signal: AbortSignal,
+  ): Promise<{ payload: unknown; text: string }> {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     let onAbort: (() => void) | undefined;
     const aborted = new Promise<never>((_resolve, reject) => {
@@ -382,7 +418,8 @@ export class HttpMiaoshouGateway implements MiaoshouGateway {
       signal.addEventListener('abort', onAbort, { once: true });
     });
     try {
-      return await Promise.race([response.json(), aborted]);
+      const text = await Promise.race([response.text(), aborted]);
+      return { payload: JSON.parse(text), text };
     } finally {
       if (onAbort) signal.removeEventListener('abort', onAbort);
     }
